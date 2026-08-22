@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@500;600;700&family=IBM+Plex+Mono:wght@450;500;600&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  display: inline-block;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: normal;
+  word-wrap: normal;
+  white-space: nowrap;
+  direction: ltr;
+}
+
+body {
+  background-color: #F7F8F6;
+  color: #191c1b;
+}
+
+.reconciliation-strip {
+  height: 8px;
+  display: flex;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: #E5E7EB; /* Lighter track background */
+  position: relative;
+}
+
+.reconciliation-strip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(90deg, transparent, transparent 19%, rgba(0,0,0,0.05) 20%);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #F7F8F6;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #DCE1E0;
+}

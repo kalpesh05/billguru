@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>BillGuru AI - Outward Register</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@500;600;700&family=IBM+Plex+Mono:wght@450&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container": "#edeeec",
+                    "secondary-container": "#d2e2ed",
+                    "outline-variant": "#bfc9c5",
+                    "on-secondary-fixed-variant": "#3a4951",
+                    "moss-500": "#5C8A5A",
+                    "on-tertiary": "#ffffff",
+                    "secondary-fixed": "#d5e5f0",
+                    "on-primary": "#ffffff",
+                    "tertiary-fixed-dim": "#c2c7c7",
+                    "surface-dim": "#d9dad8",
+                    "on-error": "#ffffff",
+                    "outline": "#6f7976",
+                    "background": "#f9faf8",
+                    "inverse-surface": "#2e3130",
+                    "teal-600": "#2E6E62",
+                    "inverse-primary": "#93d3c4",
+                    "primary-fixed-dim": "#93d3c4",
+                    "ink-900": "#1C2B33",
+                    "on-secondary": "#ffffff",
+                    "secondary": "#51616a",
+                    "tertiary-container": "#5f6564",
+                    "surface-container-low": "#f3f4f2",
+                    "tertiary": "#474d4d",
+                    "on-primary-fixed": "#00201b",
+                    "tertiary-fixed": "#dee3e2",
+                    "on-surface": "#191c1b",
+                    "surface-tint": "#28695d",
+                    "paper-50": "#F7F8F6",
+                    "error": "#ba1a1a",
+                    "surface-container-lowest": "#ffffff",
+                    "primary-container": "#2e6e62",
+                    "on-tertiary-container": "#dde2e1",
+                    "rust-600": "#B14A3A",
+                    "inverse-on-surface": "#f0f1ef",
+                    "on-tertiary-fixed": "#171d1c",
+                    "on-surface-variant": "#3f4946",
+                    "slate-200": "#DCE1E0",
+                    "on-secondary-fixed": "#0e1d25",
+                    "surface-bright": "#f9faf8",
+                    "error-container": "#ffdad6",
+                    "primary": "#0e554a",
+                    "surface-variant": "#e2e3e1",
+                    "on-secondary-container": "#55656e",
+                    "secondary-fixed-dim": "#b9c9d3",
+                    "on-error-container": "#93000a",
+                    "on-background": "#191c1b",
+                    "on-primary-container": "#adeede",
+                    "amber-500": "#C98A2C",
+                    "surface-container-high": "#e7e8e6",
+                    "surface": "#f9faf8",
+                    "surface-container-highest": "#e2e3e1",
+                    "primary-fixed": "#afefe0",
+                    "on-primary-fixed-variant": "#045045",
+                    "on-tertiary-fixed-variant": "#424847"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "margin-mobile": "16px",
+                    "unit": "4px",
+                    "xl": "32px",
+                    "md": "16px",
+                    "margin-desktop": "40px",
+                    "lg": "24px",
+                    "gutter": "16px",
+                    "xs": "4px",
+                    "sm": "8px"
+            },
+            "fontFamily": {
+                    "body-md": ["Inter"],
+                    "data-mono": ["IBM Plex Mono"],
+                    "body-lg": ["Inter"],
+                    "display-lg": ["Fraunces"],
+                    "headline-sm": ["Fraunces"],
+                    "display-lg-mobile": ["Fraunces"],
+                    "body-sm": ["Inter"],
+                    "label-caps": ["Inter"],
+                    "data-mono-sm": ["IBM Plex Mono"],
+                    "headline-md": ["Fraunces"]
+            },
+            "fontSize": {
+                    "body-md": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "data-mono": ["14px", {"lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "450"}],
+                    "body-lg": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "display-lg": ["36px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "headline-sm": ["20px", {"lineHeight": "1.3", "fontWeight": "500"}],
+                    "display-lg-mobile": ["28px", {"lineHeight": "1.2", "fontWeight": "600"}],
+                    "body-sm": ["12px", {"lineHeight": "1.4", "fontWeight": "400"}],
+                    "label-caps": ["11px", {"lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                    "data-mono-sm": ["12px", {"lineHeight": "1.4", "fontWeight": "450"}],
+                    "headline-md": ["24px", {"lineHeight": "1.3", "fontWeight": "500"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        body {
+            background-color: #f9faf8;
+            -webkit-font-smoothing: antialiased;
+        }
+        .reconciliation-strip-container {
+            height: 4px;
+            width: 100%;
+            display: flex;
+            overflow: hidden;
+            border-radius: 2px;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-body-md text-on-surface">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky z-50 bg-surface border-b border-slate-200 flex items-center justify-between px-margin-mobile h-14">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary">menu</span>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">BillGuru AI</h1>
+</div>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a senior chartered accountant with a friendly and authoritative expression, wearing a neutral business suit. The lighting is soft and professional, set against a minimalist architectural background with subtle teal and slate tones reflecting a modern financial office environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC_hIfa9_uj72ltmzNiBw_DQHfVgin1WEYIrDpU7JeCL1JkAK0FCA9Mva-2AYbL4kl-luSgv4rpssjvAy3EAyZ8lP4J9dFndUjklO3aUPfRLvhOzk7m8hmWiUghSjpg1KhscfDC4EeBTzxkXI_FS3_tmtgtVrMdtKxDYt3hfxoSqkkOeuX9RhhuSKHEMfXL33niPsL3NOiCBK2MGqydtvRXc0KVgxvYJTW2XowhKNFp113MaDDaC29T"/>
+</div>
+</header>
+<main class="pb-20">
+<!-- Sub-Header / Context Area -->
+<section class="px-margin-mobile pt-md pb-sm bg-paper-50 flex flex-col gap-xs">
+<div class="flex justify-between items-end">
+<div>
+<span class="font-label-caps text-label-caps text-secondary uppercase">Sales Ledger</span>
+<h2 class="font-headline-sm text-headline-sm text-ink-900">Outward Register</h2>
+</div>
+<div class="flex gap-xs">
+<button class="h-8 px-sm bg-surface border border-slate-200 flex items-center gap-xs rounded-lg active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[18px]">filter_list</span>
+<span class="font-label-caps text-label-caps">Filter</span>
+</button>
+<button class="h-8 px-sm bg-teal-600 text-white flex items-center gap-xs rounded-lg active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[18px]">add</span>
+<span class="font-label-caps text-label-caps">Invoice</span>
+</button>
+</div>
+</div>
+<!-- Search & Quick Triage -->
+<div class="mt-sm relative">
+<input class="w-full h-10 pl-10 pr-4 bg-white border border-slate-200 rounded-lg text-body-md focus:ring-0 focus:border-teal-600 outline-none transition-all" placeholder="Search business or invoice no..." type="text"/>
+<span class="material-symbols-outlined absolute left-3 top-2.5 text-outline">search</span>
+</div>
+</section>
+<!-- Summary Bar (Institutional Minimalism) -->
+<div class="px-margin-mobile py-sm border-b border-slate-200 flex overflow-x-auto hide-scrollbar gap-md bg-white">
+<div class="flex-shrink-0">
+<p class="font-label-caps text-label-caps text-secondary">Total Taxable</p>
+<p class="font-data-mono text-data-mono text-ink-900">₹42,84,200.00</p>
+</div>
+<div class="flex-shrink-0">
+<p class="font-label-caps text-label-caps text-secondary">Total Tax</p>
+<p class="font-data-mono text-data-mono text-ink-900">₹7,71,156.00</p>
+</div>
+<div class="flex-shrink-0">
+<p class="font-label-caps text-label-caps text-secondary">Missing Filing</p>
+<p class="font-data-mono text-data-mono text-rust-600">12 Entries</p>
+</div>
+</div>
+<!-- Card List (The Outward Register) -->
+<div class="flex flex-col">
+<!-- Entry 1 -->
+<div class="p-margin-mobile border-b border-slate-200 bg-white active:bg-surface-container-low transition-colors">
+<div class="flex justify-between items-start mb-xs">
+<div class="flex flex-col">
+<span class="font-data-mono-sm text-data-mono-sm text-secondary">12 Oct 2023 • INV/23/0891</span>
+<h3 class="font-body-lg text-body-lg font-bold text-ink-900 leading-tight mt-xs">Aditya Enterprises Ltd.</h3>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-data-mono text-data-mono font-bold text-teal-600">₹4,52,000.00</span>
+<div class="flex items-center gap-xs mt-xs">
+<div class="w-1.5 h-1.5 rounded-full bg-moss-500"></div>
+<span class="font-label-caps text-label-caps text-moss-500">OK</span>
+</div>
+</div>
+</div>
+<!-- Reconciliation Strip -->
+<div class="reconciliation-strip-container bg-slate-200 mt-sm">
+<div class="h-full bg-teal-600 w-[100%]"></div>
+</div>
+<div class="flex justify-between items-center mt-xs">
+<span class="font-label-caps text-label-caps text-outline uppercase">Captured vs Filed</span>
+<span class="font-label-caps text-label-caps text-ink-900">100% Reconciliation</span>
+</div>
+</div>
+<!-- Entry 2 -->
+<div class="p-margin-mobile border-b border-slate-200 bg-white active:bg-surface-container-low transition-colors">
+<div class="flex justify-between items-start mb-xs">
+<div class="flex flex-col">
+<span class="font-data-mono-sm text-data-mono-sm text-secondary">11 Oct 2023 • INV/23/0890</span>
+<h3 class="font-body-lg text-body-lg font-bold text-ink-900 leading-tight mt-xs">Zenith Tech Solutions</h3>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-data-mono text-data-mono font-bold text-ink-900">₹1,24,500.00</span>
+<div class="flex items-center gap-xs mt-xs">
+<div class="w-1.5 h-1.5 rounded-full bg-rust-600 animate-pulse"></div>
+<span class="font-label-caps text-label-caps text-rust-600">HIGH PRIO</span>
+</div>
+</div>
+</div>
+<!-- Reconciliation Strip -->
+<div class="reconciliation-strip-container bg-slate-200 mt-sm">
+<div class="h-full bg-teal-600 w-[60%]"></div>
+<div class="h-full bg-rust-600 w-[40%]"></div>
+</div>
+<div class="flex justify-between items-center mt-xs">
+<span class="font-label-caps text-label-caps text-outline uppercase">Captured vs Filed</span>
+<span class="font-label-caps text-label-caps text-rust-600">Potential ITC Loss</span>
+</div>
+</div>
+<!-- Entry 3 -->
+<div class="p-margin-mobile border-b border-slate-200 bg-white active:bg-surface-container-low transition-colors">
+<div class="flex justify-between items-start mb-xs">
+<div class="flex flex-col">
+<span class="font-data-mono-sm text-data-mono-sm text-secondary">10 Oct 2023 • INV/23/0889</span>
+<h3 class="font-body-lg text-body-lg font-bold text-ink-900 leading-tight mt-xs">Global Logistics & Marine</h3>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-data-mono text-data-mono font-bold text-ink-900">₹8,90,750.00</span>
+<div class="flex items-center gap-xs mt-xs">
+<div class="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
+<span class="font-label-caps text-label-caps text-amber-500">MED</span>
+</div>
+</div>
+</div>
+<!-- Reconciliation Strip -->
+<div class="reconciliation-strip-container bg-slate-200 mt-sm">
+<div class="h-full bg-teal-600 w-[85%]"></div>
+<div class="h-full bg-slate-200 w-[15%]"></div>
+</div>
+<div class="flex justify-between items-center mt-xs">
+<span class="font-label-caps text-label-caps text-outline uppercase">Captured vs Filed</span>
+<span class="font-label-caps text-label-caps text-secondary">Pending Verification</span>
+</div>
+</div>
+<!-- Entry 4 -->
+<div class="p-margin-mobile border-b border-slate-200 bg-white active:bg-surface-container-low transition-colors">
+<div class="flex justify-between items-start mb-xs">
+<div class="flex flex-col">
+<span class="font-data-mono-sm text-data-mono-sm text-secondary">09 Oct 2023 • INV/23/0888</span>
+<h3 class="font-body-lg text-body-lg font-bold text-ink-900 leading-tight mt-xs">S.K. Textiles Private Ltd.</h3>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-data-mono text-data-mono font-bold text-teal-600">₹2,10,000.00</span>
+<div class="flex items-center gap-xs mt-xs">
+<div class="w-1.5 h-1.5 rounded-full bg-moss-500"></div>
+<span class="font-label-caps text-label-caps text-moss-500">OK</span>
+</div>
+</div>
+</div>
+<!-- Reconciliation Strip -->
+<div class="reconciliation-strip-container bg-slate-200 mt-sm">
+<div class="h-full bg-teal-600 w-[100%]"></div>
+</div>
+<div class="flex justify-between items-center mt-xs">
+<span class="font-label-caps text-label-caps text-outline uppercase">Captured vs Filed</span>
+<span class="font-label-caps text-label-caps text-ink-900">100% Reconciliation</span>
+</div>
+</div>
+<!-- Entry 5 -->
+<div class="p-margin-mobile border-b border-slate-200 bg-white active:bg-surface-container-low transition-colors">
+<div class="flex justify-between items-start mb-xs">
+<div class="flex flex-col">
+<span class="font-data-mono-sm text-data-mono-sm text-secondary">08 Oct 2023 • INV/23/0887</span>
+<h3 class="font-body-lg text-body-lg font-bold text-ink-900 leading-tight mt-xs">Mehta & Sons Trading</h3>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-data-mono text-data-mono font-bold text-ink-900">₹65,400.00</span>
+<div class="flex items-center gap-xs mt-xs">
+<div class="w-1.5 h-1.5 rounded-full bg-rust-600"></div>
+<span class="font-label-caps text-label-caps text-rust-600">HIGH</span>
+</div>
+</div>
+</div>
+<!-- Reconciliation Strip -->
+<div class="reconciliation-strip-container bg-slate-200 mt-sm">
+<div class="h-full bg-teal-600 w-[20%]"></div>
+<div class="h-full bg-rust-600 w-[80%]"></div>
+</div>
+<div class="flex justify-between items-center mt-xs">
+<span class="font-label-caps text-label-caps text-outline uppercase">Captured vs Filed</span>
+<span class="font-label-caps text-label-caps text-rust-600">Action Required</span>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 bg-surface-container-lowest border-t border-slate-200 flex justify-around items-center h-16 px-sm">
+<button class="flex flex-col items-center justify-center text-secondary">
+<span class="material-symbols-outlined">group</span>
+<span class="font-label-caps text-label-caps">Clients</span>
+</button>
+<button class="flex flex-col items-center justify-center text-teal-600 font-bold scale-95 active:scale-90 transition-transform">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">receipt_long</span>
+<span class="font-label-caps text-label-caps">Invoices</span>
+</button>
+<button class="flex flex-col items-center justify-center text-secondary">
+<span class="material-symbols-outlined">priority_high</span>
+<span class="font-label-caps text-label-caps">Triage</span>
+</button>
+<button class="flex flex-col items-center justify-center text-secondary">
+<span class="material-symbols-outlined">account_circle</span>
+<span class="font-label-caps text-label-caps">Profile</span>
+</button>
+</nav>
+<script>
+        // Micro-interaction for feedback
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('touchstart', () => {
+                btn.style.opacity = '0.7';
+            });
+            btn.addEventListener('touchend', () => {
+                btn.style.opacity = '1';
+            });
+        });
+
+        // Search highlight logic simulation
+        const searchInput = document.querySelector('input[type="text"]');
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            document.querySelectorAll('h3').forEach(title => {
+                const card = title.closest('.p-margin-mobile');
+                if (title.textContent.toLowerCase().includes(query)) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+    </script>
+</body></html>

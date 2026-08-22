@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>BillGuru AI - Firm Settings &amp; Profile</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Fraunces:opsz,wght@9..144,500;600;700;800&amp;family=IBM+Plex+Mono:wght@450&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container": "#edeeec",
+                    "secondary-container": "#d2e2ed",
+                    "outline-variant": "#bfc9c5",
+                    "on-secondary-fixed-variant": "#3a4951",
+                    "moss-500": "#5C8A5A",
+                    "on-tertiary": "#ffffff",
+                    "secondary-fixed": "#d5e5f0",
+                    "on-primary": "#ffffff",
+                    "tertiary-fixed-dim": "#c2c7c7",
+                    "surface-dim": "#d9dad8",
+                    "on-error": "#ffffff",
+                    "outline": "#6f7976",
+                    "background": "#f9faf8",
+                    "inverse-surface": "#2e3130",
+                    "teal-600": "#2E6E62",
+                    "inverse-primary": "#93d3c4",
+                    "primary-fixed-dim": "#93d3c4",
+                    "ink-900": "#1C2B33",
+                    "on-secondary": "#ffffff",
+                    "secondary": "#51616a",
+                    "tertiary-container": "#5f6564",
+                    "surface-container-low": "#f3f4f2",
+                    "tertiary": "#474d4d",
+                    "on-primary-fixed": "#00201b",
+                    "tertiary-fixed": "#dee3e2",
+                    "on-surface": "#191c1b",
+                    "surface-tint": "#28695d",
+                    "paper-50": "#F7F8F6",
+                    "error": "#ba1a1a",
+                    "surface-container-lowest": "#ffffff",
+                    "primary-container": "#2e6e62",
+                    "on-tertiary-container": "#dde2e1",
+                    "rust-600": "#B14A3A",
+                    "inverse-on-surface": "#f0f1ef",
+                    "on-tertiary-fixed": "#171d1c",
+                    "on-surface-variant": "#3f4946",
+                    "slate-200": "#DCE1E0",
+                    "on-secondary-fixed": "#0e1d25",
+                    "surface-bright": "#f9faf8",
+                    "error-container": "#ffdad6",
+                    "primary": "#0e554a",
+                    "surface-variant": "#e2e3e1",
+                    "on-secondary-container": "#55656e",
+                    "secondary-fixed-dim": "#b9c9d3",
+                    "on-error-container": "#93000a",
+                    "on-background": "#191c1b",
+                    "on-primary-container": "#adeede",
+                    "amber-500": "#C98A2C",
+                    "surface-container-high": "#e7e8e6",
+                    "surface": "#f9faf8",
+                    "surface-container-highest": "#e2e3e1",
+                    "primary-fixed": "#afefe0",
+                    "on-primary-fixed-variant": "#045045",
+                    "on-tertiary-fixed-variant": "#424847"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "margin-mobile": "16px",
+                    "unit": "4px",
+                    "xl": "32px",
+                    "md": "16px",
+                    "margin-desktop": "40px",
+                    "lg": "24px",
+                    "gutter": "16px",
+                    "xs": "4px",
+                    "sm": "8px"
+            },
+            "fontFamily": {
+                    "body-md": ["Inter"],
+                    "data-mono": ["IBM Plex Mono"],
+                    "body-lg": ["Inter"],
+                    "display-lg": ["Fraunces"],
+                    "headline-sm": ["Fraunces"],
+                    "display-lg-mobile": ["Fraunces"],
+                    "body-sm": ["Inter"],
+                    "label-caps": ["Inter"],
+                    "data-mono-sm": ["IBM Plex Mono"],
+                    "headline-md": ["Fraunces"]
+            },
+            "fontSize": {
+                    "body-md": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "data-mono": ["14px", {"lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "450"}],
+                    "body-lg": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "display-lg": ["36px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "headline-sm": ["20px", {"lineHeight": "1.3", "fontWeight": "500"}],
+                    "display-lg-mobile": ["28px", {"lineHeight": "1.2", "fontWeight": "600"}],
+                    "body-sm": ["12px", {"lineHeight": "1.4", "fontWeight": "400"}],
+                    "label-caps": ["11px", {"lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                    "data-mono-sm": ["12px", {"lineHeight": "1.4", "fontWeight": "450"}],
+                    "headline-md": ["24px", {"lineHeight": "1.3", "fontWeight": "500"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        /* Custom scrollbar for professional feel */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f9faf8;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #bfc9c5;
+            border-radius: 2px;
+        }
+        .active-tab-indicator {
+            height: 2px;
+            background-color: #2E6E62;
+            width: 100%;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+        }
+        .reconciliation-strip {
+            height: 4px;
+            width: 100%;
+            display: flex;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface font-body-md min-h-screen pb-20">
+<!-- TopAppBar -->
+<header class="bg-surface dark:bg-surface-dim border-b border-slate-200 dark:border-outline-variant w-full top-0 sticky z-50 flex items-center justify-between px-margin-mobile h-14 w-full">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary dark:text-inverse-primary" data-icon="menu">menu</span>
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-inverse-primary">BillGuru AI</h1>
+</div>
+<div class="h-8 w-8 rounded-full bg-secondary-container flex items-center justify-center overflow-hidden border border-outline-variant">
+<img class="object-cover h-full w-full" data-alt="A professional headshot of a Chartered Accountant in a crisp white shirt and navy blazer, set against a blurred office background with warm lighting, symbolizing reliability and institutional trust. The image follows a high-key light mode aesthetic with soft shadows and sharp focus on the face." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB8JmxA745LY7ZvTB6h4f3lZo3XTw0CNLivHd3vWrD6jF4_ll-J_bR4jywaJ1VMgXNzjQvis5NkGRr5pgo6KJd5iO5FY2Q5OJmdUIBFRZOGFOMLFXh-4mB_hytobMmmIFdXRBwYsX0QmExGPo9XQPfFgBXzodPEZYvJCNxafu7RE1MdEFqTQlREhD2ShqZbKrhrUYaJjjuUpU5WcsYxfY8oBnR9AZgMixqYihfs3rbvxfratAtwLUnK"/>
+</div>
+</header>
+<main class="max-w-md mx-auto px-margin-mobile py-lg space-y-lg">
+<!-- Header Section -->
+<section class="space-y-xs">
+<h2 class="font-headline-sm text-headline-sm text-ink-900">Account Settings</h2>
+<p class="font-body-sm text-on-surface-variant">Manage your firm profile and security preferences.</p>
+</section>
+<!-- User Profile Card -->
+<section class="bg-surface-container-lowest border border-slate-200 p-md rounded-xl space-y-md">
+<div class="flex items-center gap-md">
+<div class="relative">
+<div class="h-16 w-16 rounded-full bg-primary-container flex items-center justify-center border-2 border-surface-container">
+<span class="text-on-primary-container font-headline-sm">RK</span>
+</div>
+<button class="absolute bottom-0 right-0 bg-teal-600 text-white p-1 rounded-full shadow-md">
+<span class="material-symbols-outlined text-sm" data-icon="edit">edit</span>
+</button>
+</div>
+<div>
+<h3 class="font-headline-sm text-headline-sm text-primary">Rajesh Kumar</h3>
+<p class="font-label-caps text-label-caps text-secondary">SENIOR PARTNER • BG-992</p>
+</div>
+</div>
+<div class="space-y-sm">
+<div class="space-y-xs">
+<label class="font-label-caps text-label-caps text-on-surface-variant px-1">Full Name</label>
+<input class="w-full bg-surface-container-low border border-slate-200 rounded px-md py-sm focus:border-teal-600 focus:ring-0 transition-colors font-body-md" type="text" value="Rajesh Kumar"/>
+</div>
+<div class="space-y-xs">
+<label class="font-label-caps text-label-caps text-on-surface-variant px-1">Professional Email</label>
+<input class="w-full bg-surface-container-low border border-slate-200 rounded px-md py-sm focus:border-teal-600 focus:ring-0 transition-colors font-body-md" type="email" value="rajesh.kumar@billguru.ai"/>
+</div>
+</div>
+</section>
+<!-- Firm Settings Card -->
+<section class="bg-surface-container-lowest border border-slate-200 p-md rounded-xl space-y-md">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-teal-600" data-icon="business">business</span>
+<h3 class="font-headline-sm text-headline-sm">Firm Details</h3>
+</div>
+<div class="space-y-sm">
+<div class="space-y-xs">
+<label class="font-label-caps text-label-caps text-on-surface-variant px-1">Firm Name</label>
+<input class="w-full bg-surface-container-low border border-slate-200 rounded px-md py-sm focus:border-teal-600 focus:ring-0 transition-colors font-body-md" type="text" value="Kumar &amp; Associates"/>
+</div>
+<div class="space-y-xs">
+<label class="font-label-caps text-label-caps text-on-surface-variant px-1">GSTIN</label>
+<input class="w-full bg-surface-container-low border border-slate-200 rounded px-md py-sm font-data-mono uppercase" type="text" value="07AAAAA0000A1Z5"/>
+</div>
+<!-- Integration Status Indicators -->
+<div class="pt-sm space-y-sm">
+<h4 class="font-label-caps text-label-caps text-on-surface-variant">Active Integrations</h4>
+<div class="flex items-center justify-between p-sm bg-surface-container-low rounded border border-slate-200">
+<div class="flex items-center gap-sm">
+<div class="h-8 w-8 bg-[#25D366]/10 rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-[#128C7E] scale-75" data-icon="chat">chat</span>
+</div>
+<div>
+<p class="font-body-md font-semibold">WhatsApp Business</p>
+<p class="text-[10px] text-moss-500 font-bold uppercase tracking-wider">Connected</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-moss-500" data-icon="check_circle">check_circle</span>
+</div>
+<div class="flex items-center justify-between p-sm bg-surface-container-low rounded border border-slate-200">
+<div class="flex items-center gap-sm">
+<div class="h-8 w-8 bg-primary-container/10 rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-teal-600 scale-75" data-icon="database">database</span>
+</div>
+<div>
+<p class="font-body-md font-semibold">Tally ERP Cloud</p>
+<p class="text-[10px] text-amber-500 font-bold uppercase tracking-wider">Syncing</p>
+</div>
+</div>
+<div class="flex gap-1">
+<div class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse delay-75"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse delay-150"></div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Security & Access -->
+<section class="bg-surface-container-lowest border border-slate-200 p-md rounded-xl space-y-md">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-rust-600" data-icon="security">security</span>
+<h3 class="font-headline-sm text-headline-sm">Security</h3>
+</div>
+<div class="divide-y divide-slate-100">
+<button class="w-full flex items-center justify-between py-md group">
+<div class="text-left">
+<p class="font-body-md font-medium group-hover:text-teal-600 transition-colors">Two-Factor Authentication</p>
+<p class="text-[11px] text-on-surface-variant">Recommended for high security</p>
+</div>
+<div class="w-10 h-6 bg-moss-500 rounded-full relative p-0.5">
+<div class="h-5 w-5 bg-white rounded-full ml-auto"></div>
+</div>
+</button>
+<button class="w-full flex items-center justify-between py-md group">
+<div class="text-left">
+<p class="font-body-md font-medium group-hover:text-teal-600 transition-colors">Change Password</p>
+<p class="text-[11px] text-on-surface-variant">Last changed 45 days ago</p>
+</div>
+<span class="material-symbols-outlined text-slate-200" data-icon="chevron_right">chevron_right</span>
+</button>
+<button class="w-full flex items-center justify-between py-md group">
+<div class="text-left">
+<p class="font-body-md font-medium group-hover:text-rust-600 transition-colors text-rust-600">Delete Account</p>
+<p class="text-[11px] text-on-surface-variant">Permanently remove firm data</p>
+</div>
+<span class="material-symbols-outlined text-rust-600" data-icon="warning">warning</span>
+</button>
+</div>
+</section>
+<!-- Save Button Floating Area (Mobile specific) -->
+<div class="fixed bottom-20 left-0 w-full px-margin-mobile pointer-events-none">
+<button class="w-full bg-teal-600 text-white font-bold py-md rounded-lg shadow-xl pointer-events-auto active:scale-95 transition-transform flex items-center justify-center gap-sm">
+<span class="material-symbols-outlined" data-icon="save">save</span>
+                Save All Changes
+            </button>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 bg-surface-container-lowest dark:bg-inverse-surface border-t border-slate-200 dark:border-outline flex justify-around items-center h-16 px-sm">
+<div class="flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-high dark:hover:bg-tertiary-container transition-all p-1 rounded cursor-pointer">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-label-caps text-label-caps">Clients</span>
+</div>
+<div class="flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-high dark:hover:bg-tertiary-container transition-all p-1 rounded cursor-pointer">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+<span class="font-label-caps text-label-caps">Invoices</span>
+</div>
+<div class="flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-high dark:hover:bg-tertiary-container transition-all p-1 rounded cursor-pointer">
+<span class="material-symbols-outlined" data-icon="priority_high">priority_high</span>
+<span class="font-label-caps text-label-caps">Triage</span>
+</div>
+<div class="flex flex-col items-center justify-center text-teal-600 dark:text-inverse-primary font-bold hover:bg-surface-container-high dark:hover:bg-tertiary-container transition-all p-1 rounded cursor-pointer relative">
+<span class="material-symbols-outlined" data-icon="account_circle" style="font-variation-settings: 'FILL' 1;">account_circle</span>
+<span class="font-label-caps text-label-caps">Profile</span>
+<div class="active-tab-indicator"></div>
+</div>
+</nav>
+<script>
+        // Micro-interaction for toggle switches
+        document.querySelectorAll('button div.bg-moss-500, button div.bg-slate-200').forEach(toggle => {
+            toggle.parentElement.addEventListener('click', () => {
+                const innerCircle = toggle.querySelector('div');
+                if (toggle.classList.contains('bg-moss-500')) {
+                    toggle.classList.replace('bg-moss-500', 'bg-slate-300');
+                    innerCircle.classList.replace('ml-auto', 'mr-auto');
+                } else {
+                    toggle.classList.replace('bg-slate-300', 'bg-moss-500');
+                    innerCircle.classList.replace('mr-auto', 'ml-auto');
+                }
+            });
+        });
+
+        // Simple form interaction
+        const inputs = document.querySelectorAll('input');
+        inputs.forEach(input => {
+            input.addEventListener('focus', () => {
+                input.parentElement.classList.add('scale-[1.01]');
+            });
+            input.addEventListener('blur', () => {
+                input.parentElement.classList.remove('scale-[1.01]');
+            });
+        });
+    </script>
+</body></html>

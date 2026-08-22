@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Outward Register | TaxGuard Compliance</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&amp;family=Fraunces:wght@500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@100..900&amp;family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "primary-fixed": "#afefe0",
+                    "surface-dim": "#d9dad8",
+                    "on-secondary": "#ffffff",
+                    "surface": "#f9faf8",
+                    "moss-500": "#5C8A5A",
+                    "surface-container-high": "#e7e8e6",
+                    "secondary": "#51616a",
+                    "tertiary-container": "#5f6564",
+                    "background": "#f9faf8",
+                    "outline": "#6f7976",
+                    "surface-container-low": "#f3f4f2",
+                    "amber-500": "#C98A2C",
+                    "inverse-on-surface": "#f0f1ef",
+                    "on-secondary-container": "#55656e",
+                    "ink-900": "#1C2B33",
+                    "on-background": "#191c1b",
+                    "slate-200": "#DCE1E0",
+                    "primary-fixed-dim": "#93d3c4",
+                    "primary": "#0e554a",
+                    "on-primary-fixed-variant": "#045045",
+                    "surface-container-highest": "#e2e3e1",
+                    "on-tertiary": "#ffffff",
+                    "tertiary-fixed-dim": "#c2c7c7",
+                    "secondary-fixed-dim": "#b9c9d3",
+                    "surface-container-lowest": "#ffffff",
+                    "inverse-surface": "#2e3130",
+                    "teal-600": "#2E6E62",
+                    "surface-tint": "#28695d",
+                    "surface-bright": "#f9faf8",
+                    "primary-container": "#2e6e62",
+                    "on-secondary-fixed": "#0e1d25",
+                    "inverse-primary": "#93d3c4",
+                    "outline-variant": "#bfc9c5",
+                    "on-error": "#ffffff",
+                    "error": "#ba1a1a",
+                    "on-surface": "#191c1b",
+                    "on-primary": "#ffffff",
+                    "paper-50": "#F7F8F6",
+                    "on-surface-variant": "#3f4946",
+                    "on-primary-fixed": "#00201b",
+                    "tertiary-fixed": "#dee3e2",
+                    "secondary-fixed": "#d5e5f0",
+                    "surface-variant": "#e2e3e1",
+                    "on-error-container": "#93000a",
+                    "secondary-container": "#d2e2ed",
+                    "on-tertiary-container": "#dde2e1",
+                    "rust-600": "#B14A3A",
+                    "on-tertiary-fixed-variant": "#424847",
+                    "surface-container": "#edeeec",
+                    "error-container": "#ffdad6",
+                    "tertiary": "#474d4d",
+                    "on-secondary-fixed-variant": "#3a4951",
+                    "on-primary-container": "#adeede",
+                    "on-tertiary-fixed": "#171d1c"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "lg": "24px",
+                    "margin-mobile": "16px",
+                    "margin-desktop": "40px",
+                    "sm": "8px",
+                    "gutter": "16px",
+                    "unit": "4px",
+                    "xl": "32px",
+                    "md": "16px",
+                    "xs": "4px"
+            },
+            "fontFamily": {
+                    "body-md": ["Inter"],
+                    "label-caps": ["Inter"],
+                    "data-mono": ["IBM Plex Mono"],
+                    "headline-md": ["Fraunces"],
+                    "headline-sm": ["Fraunces"]
+            },
+            "fontSize": {
+                    "body-md": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "label-caps": ["11px", {"lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                    "data-mono": ["14px", {"lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "450"}],
+                    "headline-md": ["24px", {"lineHeight": "1.3", "fontWeight": "500"}],
+                    "headline-sm": ["20px", {"lineHeight": "1.3", "fontWeight": "500"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .reconciliation-strip {
+            height: 6px;
+            width: 100%;
+            display: flex;
+            border-radius: 9999px;
+            overflow: hidden;
+            background-color: #f1f5f9; /* slate-100 */
+        }
+        body {
+            background-color: #f9faf8;
+            color: #191c1b;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f3f4f2;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #DCE1E0;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="font-body-md text-body-md">
+<!-- SideNavBar (Authority Source: JSON) -->
+<aside class="h-full w-64 fixed left-0 top-0 bg-paper-50 dark:bg-surface-container-low border-r border-slate-200 dark:border-outline-variant flex flex-col p-md z-50">
+<div class="mb-xl">
+<div class="flex items-center gap-sm">
+<div class="w-10 h-10 bg-teal-600 rounded flex items-center justify-center text-white">
+<span class="material-symbols-outlined">account_balance</span>
+</div>
+<div>
+<h1 class="font-headline-sm text-headline-sm text-ink-900 dark:text-on-surface leading-tight">Precision Tax</h1>
+<p class="text-[10px] uppercase tracking-widest text-on-surface-variant">Institutional Access</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<!-- Nav Items Mapping -->
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-slate-200 transition-all duration-150 ease-in-out font-label-caps text-label-caps group" href="{{DATA:SCREEN:SCREEN_17}}">
+<span class="material-symbols-outlined text-inherit" data-icon="dashboard">dashboard</span>
+<span class="">Dashboard</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-slate-200 transition-all duration-150 ease-in-out font-label-caps text-label-caps group" href="{{DATA:SCREEN:SCREEN_17}}">
+<span class="material-symbols-outlined text-inherit" data-icon="groups">groups</span>
+<span class="">Client Ledger</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-slate-200 transition-all duration-150 ease-in-out font-label-caps text-label-caps group" href="{{DATA:SCREEN:SCREEN_15}}">
+<span class="material-symbols-outlined text-inherit" data-icon="receipt_long">receipt_long</span>
+<span class="">Inward Register</span>
+</a>
+<!-- Active Tab: Outward Register -->
+<a class="flex items-center gap-md px-md py-sm bg-secondary-container text-on-secondary-container font-bold rounded-lg transition-all duration-150 ease-in-out font-label-caps text-label-caps" href="{{DATA:SCREEN:SCREEN_6}}">
+<span class="material-symbols-outlined text-inherit" data-icon="upload_file">upload_file</span>
+<span class="">Outward Register</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-slate-200 transition-all duration-150 ease-in-out font-label-caps text-label-caps group" href="{{DATA:SCREEN:SCREEN_8}}">
+<span class="material-symbols-outlined text-inherit" data-icon="balance">balance</span>
+<span class="">Reconciliation</span>
+</a>
+</nav>
+<div class="mt-auto space-y-4">
+<button class="w-full bg-teal-600 text-white font-bold py-sm rounded-lg hover:bg-opacity-90 transition-opacity flex items-center justify-center gap-xs">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">add</span>
+<span class="">New Filing</span>
+</button>
+<div class="pt-md border-t border-slate-200">
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-slate-200 transition-all duration-150 ease-in-out font-label-caps text-label-caps" href="{{DATA:SCREEN:SCREEN_2}}">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="">Settings</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-slate-200 transition-all duration-150 ease-in-out font-label-caps text-label-caps" href="#">
+<span class="material-symbols-outlined" data-icon="contact_support">contact_support</span>
+<span class="">Support</span>
+</a>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 min-h-screen flex flex-col">
+<!-- TopAppBar (Authority Source: JSON) -->
+<header class="w-full h-16 bg-surface dark:bg-surface-dim border-b border-slate-200 dark:border-outline-variant flex justify-between items-center px-margin-desktop sticky top-0 z-40">
+<div class="flex items-center gap-lg">
+<h2 class="font-headline-sm text-headline-sm font-bold text-teal-600">Outward Register</h2>
+<div class="relative w-64">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">search</span>
+<input class="w-full pl-10 pr-4 py-1.5 bg-surface-container-low border border-slate-200 text-body-sm focus:outline-none focus:ring-0 focus:border-teal-600 transition-all" placeholder="Search Invoices..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<button class="p-2 rounded-full hover:bg-slate-200 transition-colors text-on-surface-variant">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 rounded-full hover:bg-slate-200 transition-colors text-on-surface-variant">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+<div class="h-8 w-[1px] bg-slate-200 mx-2"></div>
+<div class="flex items-center gap-sm cursor-pointer hover:bg-slate-200 p-1 rounded-lg transition-colors">
+<img class="w-8 h-8 rounded-full border border-slate-200 object-cover" data-alt="A close-up professional headshot of a middle-aged Chartered Accountant with short dark hair and wearing thin-rimmed glasses and a crisp white formal shirt. The lighting is bright and even, set against a blurred professional office background in soft greys and teals. The image exudes trust, expertise, and institutional reliability with a clean, high-contrast digital look." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHbxHQu4gWwQr1qUx89a43oa5czYc3x8obqpwJIcc2Xyl3EEXVVGbJx-dqP87qD0yU8OUD-6Kwc9MapQtdSbh5EEIeLe9NIoZGYkUpZsWnJExeOeZYc-a-46O-H6g0-qy-5zwTO_ooLiIElmQs0uPVCPzEcORNyXEdGr95SSpJKyou7tDWrRb9ccdiHFe1slhwYhh70leQ9MaPFLesTR8f_4o5XTL3GblxOHxB31_UXtjDxgWTNf0c"/>
+<div class="hidden lg:block text-left">
+<p class="text-xs font-bold leading-none">V. Sharma</p>
+<p class="text-[10px] text-on-surface-variant">Lead Auditor</p>
+</div>
+</div>
+</div>
+</header>
+<!-- Canvas -->
+<section class="p-margin-desktop space-y-lg flex-1 overflow-y-auto">
+<!-- Summary Bar -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-lg">
+<div class="bg-white border border-slate-200 p-lg flex flex-col gap-xs">
+<span class="font-label-caps text-label-caps text-on-surface-variant">Total Outward Liability</span>
+<div class="flex items-baseline gap-xs">
+<span class="font-data-mono text-headline-md text-teal-600 font-bold">₹ 4,82,900.50</span>
+<span class="text-xs text-moss-500 font-bold flex items-center gap-0.5 font-data-mono"><span class="material-symbols-outlined text-xs">arrow_upward</span>12%</span>
+</div>
+<div class="mt-xs text-[10px] text-on-surface-variant">Aggregated across 142 clients</div>
+</div>
+<div class="bg-white border border-slate-200 p-lg flex flex-col gap-xs">
+<span class="font-label-caps text-label-caps text-on-surface-variant">Pending Filings</span>
+<div class="flex items-baseline gap-xs">
+<span class="font-data-mono text-headline-md text-amber-500 font-bold">28</span>
+<span class="text-xs text-rust-600 font-bold">CRITICAL</span>
+</div>
+<div class="mt-xs text-[10px] text-on-surface-variant">Due in next 48 hours</div>
+</div>
+<div class="bg-white border border-slate-200 p-lg flex flex-col gap-xs">
+<span class="font-label-caps text-label-caps text-on-surface-variant">Total Invoices Count</span>
+<div class="flex items-baseline gap-xs">
+<span class="font-data-mono text-headline-md text-ink-900 font-bold">1,402</span>
+</div>
+<div class="mt-xs flex items-center gap-2">
+<div class="flex-1 bg-slate-100 h-1.5 rounded-full overflow-hidden">
+<div class="bg-teal-600 h-full w-[84%]"></div>
+</div>
+<span class="text-[10px] font-bold font-data-mono">84% FILED</span>
+</div>
+</div>
+</div>
+<!-- Table Actions -->
+<div class="flex justify-between items-end">
+<h3 class="font-headline-sm text-headline-sm text-ink-900 border-b-2 border-teal-600 pb-1">Invoice Ledger</h3>
+<div class="flex items-center gap-md">
+<button class="flex items-center gap-sm px-md py-1.5 border border-slate-200 text-body-sm font-bold hover:bg-slate-200 transition-colors">
+<span class="material-symbols-outlined text-sm">filter_alt</span>
+<span class="">Filter</span>
+</button>
+<button class="flex items-center gap-sm px-md py-1.5 border border-slate-200 text-body-sm font-bold hover:bg-slate-200 transition-colors">
+<span class="material-symbols-outlined text-sm">download</span>
+<span class="">Export CSV</span>
+</button>
+</div>
+</div>
+<!-- Data Table -->
+<div class="bg-white border border-slate-200 overflow-hidden shadow-sm">
+<div class="overflow-x-auto custom-scrollbar">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-container-low border-b-2 border-ink-900">
+<tr>
+<th class="px-md py-3 font-label-caps text-label-caps text-on-surface-variant whitespace-nowrap">Invoice Date</th>
+<th class="px-md py-3 font-label-caps text-label-caps text-on-surface-variant whitespace-nowrap">Invoice No.</th>
+<th class="px-md py-3 font-label-caps text-label-caps text-on-surface-variant whitespace-nowrap">Client / Business Name</th>
+<th class="px-md py-3 font-label-caps text-label-caps text-on-surface-variant whitespace-nowrap">GSTIN</th>
+<th class="px-md py-3 font-label-caps text-label-caps text-on-surface-variant whitespace-nowrap text-right">Taxable Value</th>
+<th class="px-md py-3 font-label-caps text-label-caps text-on-surface-variant whitespace-nowrap text-right">GST Amount</th>
+<th class="px-md py-3 font-label-caps text-label-caps text-on-surface-variant whitespace-nowrap text-right">Total Value</th>
+<th class="px-md py-3 font-label-caps text-label-caps text-on-surface-variant whitespace-nowrap">Filing Progress</th>
+<th class="px-md py-3 font-label-caps text-label-caps text-on-surface-variant whitespace-nowrap">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-200">
+<!-- Row 1 -->
+<tr class="hover:bg-teal-600/5 transition-colors cursor-pointer group" onclick="window.location.href='{{DATA:SCREEN:SCREEN_16}}'">
+<td class="px-md py-3 font-data-mono text-data-mono">2023-11-14</td>
+<td class="px-md py-3 font-data-mono text-data-mono font-bold">INV-99321</td>
+<td class="px-md py-3 text-body-sm font-bold">Apex Logistics Pvt Ltd</td>
+<td class="px-md py-3 font-data-mono text-data-mono">27AAACA1234A1Z5</td>
+<td class="px-md py-3 font-data-mono text-data-mono text-right">₹ 45,000.00</td>
+<td class="px-md py-3 font-data-mono text-data-mono text-right">₹ 8,100.00</td>
+<td class="px-md py-3 font-data-mono text-data-mono text-right font-bold">₹ 53,100.00</td>
+<td class="px-md py-3 w-32">
+<div class="reconciliation-strip">
+<div class="h-full bg-teal-600" style="width: 100%;"></div>
+</div>
+</td>
+<td class="px-md py-3">
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-moss-500/10 text-moss-500 text-[10px] font-bold">
+<span class="w-1.5 h-1.5 rounded-full bg-moss-500"></span>
+                                        FILED
+                                    </span>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-teal-600/5 transition-colors cursor-pointer group" onclick="window.location.href='{{DATA:SCREEN:SCREEN_16}}'">
+<td class="px-md py-3 font-data-mono text-data-mono">2023-11-15</td>
+<td class="px-md py-3 font-data-mono text-data-mono font-bold">INV-99322</td>
+<td class="px-md py-3 text-body-sm font-bold">Zephyr Tech Solutions</td>
+<td class="px-md py-3 font-data-mono text-data-mono">07AAACZ4321B2Z3</td>
+<td class="px-md py-3 font-data-mono text-data-mono text-right">₹ 1,20,000.00</td>
+<td class="px-md py-3 font-data-mono text-data-mono text-right">₹ 21,600.00</td>
+<td class="px-md py-3 font-data-mono text-data-mono text-right font-bold">₹ 1,41,600.00</td>
+<td class="px-md py-3 w-32">
+<div class="reconciliation-strip">
+<div class="h-full bg-teal-600" style="width: 65%;"></div>
+</div>
+</td>
+<td class="px-md py-3">
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 text-[10px] font-bold">
+<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                        DRAFT
+                                    </span>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-teal-600/5 transition-colors cursor-pointer group" onclick="window.location.href='{{DATA:SCREEN:SCREEN_16}}'">
+<td class="px-md py-3 font-data-mono text-data-mono">2023-11-16</td>
+<td class="px-md py-3 font-data-mono text-data-mono font-bold">INV-99323</td>
+<td class="px-md py-3 text-body-sm font-bold">Blue Wave Exports</td>
+<td class="px-md py-3 font-data-mono text-data-mono text-rust-600 underline decoration-dotted">MISSING</td>
+<td class="px-md py-3 font-data-mono text-data-mono text-right">₹ 8,400.00</td>
+<td class="px-md py-3 font-data-mono text-data-mono text-right">₹ 1,512.00</td>
+<td class="px-md py-3 font-data-mono text-data-mono text-right font-bold">₹ 9,912.00</td>
+<td class="px-md py-3 w-32">
+<div class="reconciliation-strip">
+<div class="h-full bg-rust-600" style="width: 10%;"></div>
+</div>
+</td>
+<td class="px-md py-3">
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-rust-600/10 text-rust-600 text-[10px] font-bold">
+<span class="w-1.5 h-1.5 rounded-full bg-rust-600"></span>
+                                        MISSING INFO
+                                    </span>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-teal-600/5 transition-colors cursor-pointer group" onclick="window.location.href='{{DATA:SCREEN:SCREEN_16}}'">
+<td class="px-md py-3 font-data-mono text-data-mono">2023-11-16</td>
+<td class="px-md py-3 font-data-mono text-data-mono font-bold">INV-99324</td>
+<td class="px-md py-3 text-body-sm font-bold">Green Horizon Solar</td>
+<td class="px-md py-3 font-data-mono text-data-mono">29AAACG8877D1Z1</td>
+<td class="px-md py-3 font-data-mono text-data-mono text-right">₹ 3,45,000.00</td>
+<td class="px-md py-3 font-data-mono text-data-mono text-right">₹ 62,100.00</td>
+<td class="px-md py-3 font-data-mono text-data-mono text-right font-bold">₹ 4,07,100.00</td>
+<td class="px-md py-3 w-32">
+<div class="reconciliation-strip">
+<div class="h-full bg-teal-600" style="width: 100%;"></div>
+</div>
+</td>
+<td class="px-md py-3">
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-moss-500/10 text-moss-500 text-[10px] font-bold">
+<span class="w-1.5 h-1.5 rounded-full bg-moss-500"></span>
+                                        FILED
+                                    </span>
+</td>
+</tr>
+<!-- Row 5 -->
+<tr class="hover:bg-teal-600/5 transition-colors cursor-pointer group" onclick="window.location.href='{{DATA:SCREEN:SCREEN_16}}'">
+<td class="px-md py-3 font-data-mono text-data-mono">2023-11-17</td>
+<td class="px-md py-3 font-data-mono text-data-mono font-bold">INV-99325</td>
+<td class="px-md py-3 text-body-sm font-bold">Digital Flux Media</td>
+<td class="px-md py-3 font-data-mono text-data-mono">33AAACT1122C1Z4</td>
+<td class="px-md py-3 font-data-mono text-data-mono text-right">₹ 12,500.00</td>
+<td class="px-md py-3 font-data-mono text-data-mono text-right">₹ 2,250.00</td>
+<td class="px-md py-3 font-data-mono text-data-mono text-right font-bold">₹ 14,750.00</td>
+<td class="px-md py-3 w-32">
+<div class="reconciliation-strip">
+<div class="h-full bg-teal-600" style="width: 100%;"></div>
+</div>
+</td>
+<td class="px-md py-3">
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-moss-500/10 text-moss-500 text-[10px] font-bold">
+<span class="w-1.5 h-1.5 rounded-full bg-moss-500"></span>
+                                        FILED
+                                    </span>
+</td>
+</tr>
+<!-- Row 6 -->
+<tr class="hover:bg-teal-600/5 transition-colors cursor-pointer group" onclick="window.location.href='{{DATA:SCREEN:SCREEN_16}}'">
+<td class="px-md py-3 font-data-mono text-data-mono">2023-11-18</td>
+<td class="px-md py-3 font-data-mono text-data-mono font-bold">INV-99326</td>
+<td class="px-md py-3 text-body-sm font-bold">Quantum Core Retail</td>
+<td class="px-md py-3 font-data-mono text-data-mono">03AAACQ5566R1Z9</td>
+<td class="px-md py-3 font-data-mono text-data-mono text-right">₹ 56,800.00</td>
+<td class="px-md py-3 font-data-mono text-data-mono text-right">₹ 10,224.00</td>
+<td class="px-md py-3 font-data-mono text-data-mono text-right font-bold">₹ 67,024.00</td>
+<td class="px-md py-3 w-32">
+<div class="reconciliation-strip">
+<div class="h-full bg-teal-600" style="width: 40%;"></div>
+</div>
+</td>
+<td class="px-md py-3">
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 text-[10px] font-bold">
+<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                        DRAFT
+                                    </span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination Footer -->
+<div class="flex justify-between items-center px-md py-3 bg-surface-container-low border-t border-slate-200">
+<span class="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">Displaying 1 - 25 of 1,402 entries</span>
+<div class="flex items-center gap-xs">
+<button class="p-1 border border-slate-200 hover:bg-slate-200 transition-colors">
+<span class="material-symbols-outlined text-sm">chevron_left</span>
+</button>
+<button class="px-3 py-1 border border-ink-900 bg-ink-900 text-white text-xs font-bold">1</button>
+<button class="px-3 py-1 border border-slate-200 text-xs font-bold hover:bg-slate-200 transition-colors">2</button>
+<button class="px-3 py-1 border border-slate-200 text-xs font-bold hover:bg-slate-200 transition-colors">3</button>
+<span class="px-1">...</span>
+<button class="px-3 py-1 border border-slate-200 text-xs font-bold hover:bg-slate-200 transition-colors">56</button>
+<button class="p-1 border border-slate-200 hover:bg-slate-200 transition-colors">
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Contextual Insight -->
+<div class="bg-primary-fixed/30 border-l-4 border-teal-600 p-lg flex items-start gap-md">
+<span class="material-symbols-outlined text-teal-600 mt-0.5">info</span>
+<div>
+<h4 class="font-bold text-ink-900 text-sm">Automated Reconciliation Alert</h4>
+<p class="text-on-surface-variant text-body-sm mt-1">BillGuru AI has detected 4 discrepancies between your Outward Register and GSTR-1 Drafts. We recommend reviewing the "Quantum Core Retail" invoice for potential GSTIN mismatch before final filing.</p>
+<button class="mt-md text-teal-600 font-bold text-xs uppercase tracking-wider hover:underline">Review Flagged Invoices →</button>
+</div>
+</div>
+</section>
+</main>
+<!-- Micro-interaction for hover states -->
+<script>
+        document.querySelectorAll('tbody tr').forEach(row => {
+            row.addEventListener('mouseenter', () => {
+                const strip = row.querySelector('.reconciliation-strip');
+                if(strip) strip.style.height = '8px';
+            });
+            row.addEventListener('mouseleave', () => {
+                const strip = row.querySelector('.reconciliation-strip');
+                if(strip) strip.style.height = '6px';
+            });
+        });
+    </script>
+</body></html>

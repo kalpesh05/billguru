@@ -1,0 +1,419 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Invoice Review Queue | TaxGuard Compliance</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@450&amp;family=Fraunces:wght@500;600;700&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@100..900&amp;family=Inter:wght@100..900&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary": "#474d4d",
+                        "tertiary-container": "#5f6564",
+                        "rust-600": "#B14A3A",
+                        "on-error": "#ffffff",
+                        "on-primary-container": "#adeede",
+                        "amber-500": "#C98A2C",
+                        "secondary-container": "#d2e2ed",
+                        "error-container": "#ffdad6",
+                        "surface-variant": "#e2e3e1",
+                        "on-secondary-container": "#55656e",
+                        "on-primary-fixed": "#00201b",
+                        "error": "#ba1a1a",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container": "#edeeec",
+                        "primary-fixed": "#afefe0",
+                        "ink-900": "#1C2B33",
+                        "outline-variant": "#bfc9c5",
+                        "on-secondary-fixed": "#0e1d25",
+                        "on-error-container": "#93000a",
+                        "on-surface": "#191c1b",
+                        "paper-50": "#F7F8F6",
+                        "secondary-fixed": "#d5e5f0",
+                        "on-background": "#191c1b",
+                        "tertiary-fixed": "#dee3e2",
+                        "moss-500": "#5C8A5A",
+                        "surface": "#f9faf8",
+                        "secondary": "#51616a",
+                        "surface-bright": "#f9faf8",
+                        "on-surface-variant": "#3f4946",
+                        "primary-container": "#2e6e62",
+                        "primary": "#0e554a",
+                        "outline": "#6f7976",
+                        "surface-container-highest": "#e2e3e1",
+                        "on-tertiary-fixed-variant": "#424847",
+                        "on-tertiary": "#ffffff",
+                        "background": "#f9faf8",
+                        "surface-container-low": "#f3f4f2",
+                        "on-primary": "#ffffff",
+                        "inverse-on-surface": "#f0f1ef",
+                        "surface-dim": "#d9dad8",
+                        "on-tertiary-container": "#dde2e1",
+                        "teal-600": "#2E6E62",
+                        "surface-container-high": "#e7e8e6",
+                        "on-primary-fixed-variant": "#045045",
+                        "primary-fixed-dim": "#93d3c4",
+                        "inverse-primary": "#93d3c4",
+                        "slate-200": "#DCE1E0",
+                        "tertiary-fixed-dim": "#c2c7c7",
+                        "on-tertiary-fixed": "#171d1c",
+                        "surface-tint": "#28695d",
+                        "on-secondary-fixed-variant": "#3a4951",
+                        "on-secondary": "#ffffff",
+                        "secondary-fixed-dim": "#b9c9d3",
+                        "inverse-surface": "#2e3130"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "md": "16px",
+                        "unit": "4px",
+                        "margin-mobile": "16px",
+                        "sm": "8px",
+                        "gutter": "16px",
+                        "margin-desktop": "40px",
+                        "xl": "32px",
+                        "lg": "24px",
+                        "xs": "4px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Inter"],
+                        "headline-sm": ["Fraunces"],
+                        "headline-md": ["Fraunces"],
+                        "label-caps": ["Inter"],
+                        "body-md": ["Inter"],
+                        "data-mono": ["IBM Plex Mono"],
+                        "display-lg": ["Fraunces"],
+                        "body-sm": ["Inter"],
+                        "data-mono-sm": ["IBM Plex Mono"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .reconciliation-strip {
+            height: 10px;
+            display: flex;
+            width: 100%;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .reconciliation-strip-teal { background-color: #2E6E62; }
+        .reconciliation-strip-rust { background-color: #B14A3A; }
+        .reconciliation-strip-slate { background-color: #DCE1E0; }
+        
+        .active-row { border-left: 4px solid #2E6E62; }
+    </style>
+</head>
+<body class="bg-paper-50 text-on-surface font-body-md overflow-x-hidden">
+<!-- SideNavBar -->
+<aside class="h-full w-64 fixed left-0 top-0 bg-paper-50 dark:bg-surface-container-low border-r border-slate-200 dark:border-outline-variant flex flex-col p-md z-50">
+<div class="mb-lg">
+<div class="flex items-center gap-sm mb-xs">
+<span class="material-symbols-outlined text-teal-600" style="font-variation-settings: 'FILL' 1;">account_balance</span>
+<h1 class="font-headline-sm text-ink-900">Precision Tax</h1>
+</div>
+<p class="font-label-caps text-on-surface-variant tracking-wider uppercase opacity-70">Institutional Access</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center px-sm py-2 text-on-surface-variant hover:bg-slate-200 transition-all duration-150 ease-in-out group" href="{{DATA:SCREEN:SCREEN_17}}">
+<span class="material-symbols-outlined mr-md">dashboard</span>
+<span class="font-label-caps uppercase">Dashboard</span>
+</a>
+<a class="flex items-center px-sm py-2 text-on-surface-variant hover:bg-slate-200 transition-all duration-150 ease-in-out group" href="{{DATA:SCREEN:SCREEN_17}}">
+<span class="material-symbols-outlined mr-md">groups</span>
+<span class="font-label-caps uppercase">Client Ledger</span>
+</a>
+<!-- Active State for Queue/Registers -->
+<a class="flex items-center px-sm py-2 bg-secondary-container text-on-secondary-container font-bold rounded-lg transition-all duration-150 ease-in-out group" href="{{DATA:SCREEN:SCREEN_15}}">
+<span class="material-symbols-outlined mr-md">receipt_long</span>
+<span class="font-label-caps uppercase">Inward Register</span>
+</a>
+<a class="flex items-center px-sm py-2 text-on-surface-variant hover:bg-slate-200 transition-all duration-150 ease-in-out group" href="{{DATA:SCREEN:SCREEN_6}}">
+<span class="material-symbols-outlined mr-md">upload_file</span>
+<span class="font-label-caps uppercase">Outward Register</span>
+</a>
+<a class="flex items-center px-sm py-2 text-on-surface-variant hover:bg-slate-200 transition-all duration-150 ease-in-out group" href="{{DATA:SCREEN:SCREEN_8}}">
+<span class="material-symbols-outlined mr-md">balance</span>
+<span class="font-label-caps uppercase">Reconciliation</span>
+</a>
+</nav>
+<div class="mt-auto border-t border-slate-200 pt-md space-y-1">
+<button class="w-full bg-teal-600 text-white py-2 mb-lg rounded-lg font-bold flex items-center justify-center gap-sm active:scale-95">
+<span class="material-symbols-outlined text-[20px]">add</span>
+                New Filing
+            </button>
+<a class="flex items-center px-sm py-2 text-on-surface-variant hover:bg-slate-200 transition-all" href="{{DATA:SCREEN:SCREEN_2}}">
+<span class="material-symbols-outlined mr-md">settings</span>
+<span class="font-label-caps uppercase">Settings</span>
+</a>
+<a class="flex items-center px-sm py-2 text-on-surface-variant hover:bg-slate-200 transition-all" href="#">
+<span class="material-symbols-outlined mr-md">contact_support</span>
+<span class="font-label-caps uppercase">Support</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 flex flex-col min-h-screen">
+<!-- TopAppBar -->
+<header class="w-full h-16 bg-surface border-b border-slate-200 flex justify-between items-center px-margin-desktop sticky top-0 z-40">
+<div class="flex items-center gap-xl">
+<h2 class="font-headline-sm font-bold text-teal-600">TaxGuard Compliance</h2>
+<div class="relative w-96">
+<span class="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
+<input class="w-full pl-xl pr-md py-xs bg-surface-container-low border border-slate-200 rounded-sm focus:outline-none focus:border-teal-600 text-body-md" placeholder="Search Invoices..." type="text">
+</div>
+</div>
+<div class="flex items-center gap-lg">
+<button class="text-on-surface-variant hover:bg-slate-200 p-xs rounded-full transition-colors relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-0 right-0 w-2 h-2 bg-rust-600 rounded-full border border-surface"></span>
+</button>
+<button class="text-on-surface-variant hover:bg-slate-200 p-xs rounded-full transition-colors">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+<div class="flex items-center gap-sm border-l border-slate-200 pl-lg cursor-pointer hover:bg-slate-50 transition-colors">
+<div class="w-8 h-8 rounded-full bg-teal-600/10 flex items-center justify-center border border-teal-600/20">
+<img class="w-full h-full rounded-full object-cover" data-alt="A professional headshot of a seasoned chartered accountant, mid-50s, wearing formal business attire and glasses. The background is a blurred office setting with bookshelves and legal documents, reflecting a high-trust institutional environment. The lighting is soft and professional, emphasizing expertise and reliability." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDmof700ZJ9ncBO1wxmeEHUS-L5jfzerng2l-rWqfkwAQjrvCXdQLuR12OjHb8P7rH0Na25rfyrqUoaLLjQnjKGAvGP-sKrrb5lDU-VE2axMULBFLKa5vFdVjYvU9XqaKF7tX9udciTGyCKVurLiP5pD8Bz1XmzmGGhIqeSvmFVzoTGM9x6O3uZPapN_3AXCMahpseyjDVLXVTZgZGwH8X6jilbTy0CLv1V2xxWPAQ9mPEDK_1L2PYl">
+</div>
+<span class="font-label-caps text-ink-900">CA R. Sharma</span>
+</div>
+</div>
+</header>
+<!-- Screen Content: Invoice Review Queue -->
+<div class="flex-1 p-margin-desktop max-w-7xl mx-auto w-full">
+<div class="mb-lg flex justify-between items-end">
+<div>
+<h3 class="font-headline-md text-ink-900 mb-xs">Invoice Review Queue</h3>
+<p class="text-on-surface-variant text-body-md">Confirm extraction results for 14 high-priority items. Accurate filing depends on GSTIN precision.</p>
+</div>
+<div class="flex items-center gap-sm">
+<div class="flex items-center bg-white border border-slate-200 p-xs rounded-lg shadow-sm">
+<span class="material-symbols-outlined text-amber-500 mr-sm text-[20px]">warning</span>
+<span class="text-body-sm font-bold text-ink-900">14 UNCONFIRMED</span>
+</div>
+</div>
+</div>
+<!-- Review Items Feed -->
+<div class="space-y-gutter">
+<!-- Queue Item 1: Low Confidence Vendor -->
+<section class="bg-white border border-slate-200 rounded-sm shadow-sm overflow-hidden hover:border-teal-600/30 transition-all flex h-48 group">
+<div class="w-1/4 h-full bg-slate-50 border-r border-slate-100 flex items-center justify-center p-md relative overflow-hidden">
+<img class="w-full h-full object-contain filter group-hover:scale-105 transition-transform duration-500" data-alt="A macro close-up of a paper tax invoice with black ink printed on slightly off-white textured paper. The focus is on a blurry vendor logo and the handwritten GST number at the bottom. The lighting is overhead office fluorescent, creating realistic minor shadows on the paper surface. Style is professional document photography." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCDSsaYghvTuBd0KUe-2328XX8Felk4J7ke3Qf_hQ7ZpsZZFir-mmeMj83XsdBwVd0MnyyhcKgQaD9sKjMbE923_G4ZN00_fD2cmIV4RZp4Fp97OOeqjx1_-Hjo4OXnUyyMvoCYu_h9OZPcY8Lpc6m_hxNJK8tNLh7isMWTKcBIrAZ5B48AOUA-ylRHuOHSj-RTa-8reAui342oPqXYCnoBqRz2Ja1ig0Bzvw68WteLinMq8FV6qtlp">
+<div class="absolute inset-0 bg-ink-900/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-zoom-in">
+<span class="material-symbols-outlined text-white">zoom_in</span>
+</div>
+</div>
+<div class="flex-1 p-lg flex flex-col justify-between">
+<div class="grid grid-cols-12 gap-md">
+<div class="col-span-6">
+<label class="font-label-caps text-on-surface-variant block mb-unit uppercase tracking-tight">Vendor Name</label>
+<div class="flex items-center gap-sm mb-xs">
+<h4 class="font-headline-sm text-ink-900">OM ENTERPRISES LTD.</h4>
+<div class="flex items-center gap-1 px-2 py-0.5 bg-error-container text-on-error-container rounded-full">
+<span class="w-1.5 h-1.5 bg-rust-600 rounded-full"></span>
+<span class="text-[10px] font-bold">LOW CONFIDENCE</span>
+</div>
+</div>
+<p class="text-body-sm text-on-surface-variant italic">Confidence level low due to cursive letter overlap.</p>
+</div>
+<div class="col-span-6">
+<label class="font-label-caps text-on-surface-variant block mb-unit uppercase tracking-tight">GSTIN (Extracted)</label>
+<div class="flex items-center gap-sm">
+<span class="font-data-mono text-headline-sm tracking-tight text-rust-600 bg-rust-600/5 px-2 py-1 border border-rust-600/20 rounded">27AAAC<span class="bg-rust-600 text-white px-0.5">O</span>456Z1ZX</span>
+<span class="material-symbols-outlined text-amber-500" title="Character 'O' might be '0'">help</span>
+</div>
+<p class="text-body-sm text-on-surface-variant mt-xs">Potential ITC loss if GSTIN is incorrect.</p>
+</div>
+</div>
+<div class="pt-md border-t border-slate-100 flex items-center justify-between">
+<div class="w-48">
+<div class="flex justify-between mb-xs">
+<span class="text-body-sm font-bold text-ink-900">₹45,200.00</span>
+<span class="text-body-sm text-on-surface-variant">24 Oct 2023</span>
+</div>
+<div class="reconciliation-strip">
+<div class="reconciliation-strip-teal" style="width: 40%;"></div>
+<div class="reconciliation-strip-rust" style="width: 60%;"></div>
+</div>
+</div>
+<div class="flex gap-sm">
+<button class="px-md py-2 border border-slate-200 text-ink-900 font-bold hover:bg-slate-50 transition-colors rounded-sm flex items-center gap-sm">
+<span class="material-symbols-outlined text-[18px]">photo_camera</span>
+                                    Request clearer photo
+                                </button>
+<button class="px-md py-2 border border-slate-200 text-ink-900 font-bold hover:bg-slate-50 transition-colors rounded-sm active:scale-95">
+                                    Edit
+                                </button>
+<button class="px-lg py-2 bg-teal-600 text-white font-bold hover:bg-primary transition-colors rounded-sm active:scale-95">
+                                    Confirm as shown
+                                </button>
+</div>
+</div>
+</div>
+</section>
+<!-- Queue Item 2: Unreadable GSTIN -->
+<section class="bg-white border border-slate-200 rounded-sm shadow-sm overflow-hidden hover:border-teal-600/30 transition-all flex h-48 group active-row">
+<div class="w-1/4 h-full bg-slate-50 border-r border-slate-100 flex items-center justify-center p-md relative">
+<img class="w-full h-full object-contain filter group-hover:brightness-95 transition-all" data-alt="A digital scan of a commercial thermal receipt from a fuel station. The top part showing the GST number is heavily smudged and faint, making the characters nearly illegible. The overall image has a slight blue tint common in low-light office scans. Highly detailed and institutional style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBx5p7XyE9vLMChCjVXqh0lfvf8nBz-n_7Pfpyq_wKV4WRlwDeHs_K3x-xAyRioUjYh36932aBQMREcI0zsk3N5utFg8AUTic2L2sMhBBoHDnn3TRa2G_dJoaRZ_x15rtuD8JeAm-FC7qpI6sebE0TePVRL3S6fIVOAqgdm0g0aCnzzNtMChDR_VRi7fg6GG9gfcVcHfDLgEKNKN6UlGw9_QcJcAnn-6_pU_C2A6sjA_tpAewuvW6Ak">
+</div>
+<div class="flex-1 p-lg flex flex-col justify-between">
+<div class="grid grid-cols-12 gap-md">
+<div class="col-span-6">
+<label class="font-label-caps text-on-surface-variant block mb-unit uppercase tracking-tight">Vendor Name</label>
+<div class="flex items-center gap-sm mb-xs">
+<h4 class="font-headline-sm text-ink-900">BHARAT PETROLEUM</h4>
+<div class="flex items-center gap-1 px-2 py-0.5 bg-secondary-container text-on-secondary-container rounded-full">
+<span class="w-1.5 h-1.5 bg-teal-600 rounded-full"></span>
+<span class="text-[10px] font-bold">MATCHED</span>
+</div>
+</div>
+<p class="text-body-sm text-on-surface-variant">Frequent vendor. Previous history available.</p>
+</div>
+<div class="col-span-6">
+<label class="font-label-caps text-on-surface-variant block mb-unit uppercase tracking-tight">GSTIN (Extracted)</label>
+<div class="flex items-center gap-sm">
+<span class="font-data-mono text-body-md italic text-on-surface-variant bg-slate-100 px-3 py-1.5 border border-dashed border-slate-300 rounded">could not read clearly</span>
+</div>
+<p class="text-body-sm text-rust-600 mt-xs font-bold">Required field for tax compliance.</p>
+</div>
+</div>
+<div class="pt-md border-t border-slate-100 flex items-center justify-between">
+<div class="w-48">
+<div class="flex justify-between mb-xs">
+<span class="text-body-sm font-bold text-ink-900">₹3,420.50</span>
+<span class="text-body-sm text-on-surface-variant">25 Oct 2023</span>
+</div>
+<div class="reconciliation-strip">
+<div class="reconciliation-strip-slate" style="width: 100%;"></div>
+</div>
+</div>
+<div class="flex gap-sm">
+<button class="px-md py-2 border border-slate-200 text-ink-900 font-bold hover:bg-slate-50 transition-colors rounded-sm flex items-center gap-sm">
+<span class="material-symbols-outlined text-[18px]">photo_camera</span>
+                                    Request clearer photo
+                                </button>
+<button class="px-md py-2 border border-slate-200 text-ink-900 font-bold hover:bg-slate-50 transition-colors rounded-sm active:scale-95">
+                                    Edit
+                                </button>
+<button class="px-lg py-2 bg-slate-100 text-slate-400 font-bold cursor-not-allowed rounded-sm" disabled="">
+                                    Confirm as shown
+                                </button>
+</div>
+</div>
+</div>
+</section>
+<!-- Queue Item 3: Edge Case / High Value -->
+<section class="bg-white border border-slate-200 rounded-sm shadow-sm overflow-hidden hover:border-teal-600/30 transition-all flex h-48 group">
+<div class="w-1/4 h-full bg-slate-50 border-r border-slate-100 flex items-center justify-center p-md relative">
+<img class="w-full h-full object-contain group-hover:scale-105 transition-transform" data-alt="A modern corporate invoice from a technology services provider. The layout is clean and professional, with a crisp digital logo 'Nexgen Tech' at the top. The GST number is clearly visible but the system has flagged a typo in the address field. The lighting is bright and even, mimicking a professional PDF export. Aesthetic is corporate and trustworthy." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCrQt0DaZYwCy7aPfXRfzf4hQV5SG9I8TuueAWnIiJqFVfNMAuIZmuY_aoiTxBHqhjyfY9mLqSBClztUWUSxdepbVzhohUeczzCAOB9CFG-yfhUYHKCOY1JdgtndR2MwcmyDMfPF_sZyVFZ7v4uVK9iKxZnYIy15OX5vnIQ5inozeIb-jQlo3373r_PkQH7SJh5JDOneExJeewwH5EWNghnptTIv9CA_0LvEne5TB49xyIq00kPRKY1">
+</div>
+<div class="flex-1 p-lg flex flex-col justify-between">
+<div class="grid grid-cols-12 gap-md">
+<div class="col-span-6">
+<label class="font-label-caps text-on-surface-variant block mb-unit uppercase tracking-tight">Vendor Name</label>
+<div class="flex items-center gap-sm mb-xs">
+<h4 class="font-headline-sm text-ink-900">NEXGEN TECH SOLUTIONS</h4>
+<div class="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 text-amber-500 rounded-full">
+<span class="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
+<span class="text-[10px] font-bold">MED CONFIDENCE</span>
+</div>
+</div>
+<p class="text-body-sm text-on-surface-variant">Vendor name slightly truncated in extraction.</p>
+</div>
+<div class="col-span-6">
+<label class="font-label-caps text-on-surface-variant block mb-unit uppercase tracking-tight">GSTIN (Extracted)</label>
+<div class="flex items-center gap-sm">
+<span class="font-data-mono text-headline-sm tracking-tight text-ink-900 bg-slate-100 px-2 py-1 border border-slate-200 rounded">07AABCN8834M1Z2</span>
+</div>
+<p class="text-body-sm text-moss-500 mt-xs font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                                    Valid GST format
+                                </p>
+</div>
+</div>
+<div class="pt-md border-t border-slate-100 flex items-center justify-between">
+<div class="w-48">
+<div class="flex justify-between mb-xs">
+<span class="text-body-sm font-bold text-ink-900">₹2,84,000.00</span>
+<span class="text-body-sm text-on-surface-variant">22 Oct 2023</span>
+</div>
+<div class="reconciliation-strip">
+<div class="reconciliation-strip-teal" style="width: 85%;"></div>
+<div class="reconciliation-strip-slate" style="width: 15%;"></div>
+</div>
+</div>
+<div class="flex gap-sm">
+<button class="px-md py-2 border border-slate-200 text-ink-900 font-bold hover:bg-slate-50 transition-colors rounded-sm flex items-center gap-sm">
+<span class="material-symbols-outlined text-[18px]">photo_camera</span>
+                                    Request clearer photo
+                                </button>
+<button class="px-md py-2 border border-slate-200 text-ink-900 font-bold hover:bg-slate-50 transition-colors rounded-sm active:scale-95">
+                                    Edit
+                                </button>
+<button class="px-lg py-2 bg-teal-600 text-white font-bold hover:bg-primary transition-colors rounded-sm active:scale-95">
+                                    Confirm as shown
+                                </button>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- Empty State / Footer -->
+<div class="mt-xl py-lg border-t border-dashed border-slate-300 text-center">
+<p class="text-body-md text-on-surface-variant mb-md">Displaying 3 of 14 pending confirmations.</p>
+<button class="bg-white border border-ink-900 text-ink-900 px-xl py-2 font-bold hover:bg-ink-900 hover:text-white transition-all rounded-sm active:scale-95">
+                    Load More Items
+                </button>
+</div>
+</div>
+</main>
+<!-- Floating Toast / Notification -->
+<div class="fixed bottom-margin-desktop right-margin-desktop bg-ink-900 text-white px-lg py-md rounded-lg shadow-xl translate-y-20 opacity-0 transition-all duration-300 flex items-center gap-md z-[100]" id="toast">
+<span class="material-symbols-outlined text-moss-500">check_circle</span>
+<span class="font-body-md">Invoice confirmed and queued for filing.</span>
+<button class="text-white/60 hover:text-white ml-md" onclick="hideToast()">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+<script>
+        function showToast() {
+            const toast = document.getElementById('toast');
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                hideToast();
+            }, 3000);
+        }
+
+        function hideToast() {
+            const toast = document.getElementById('toast');
+            toast.classList.add('translate-y-20', 'opacity-0');
+        }
+
+        // Simulating the interaction
+        document.querySelectorAll('button').forEach(btn => {
+            if (btn.innerText.includes('Confirm')) {
+                btn.onclick = () => {
+                    const row = btn.closest('section');
+                    row.style.opacity = '0.5';
+                    row.style.pointerEvents = 'none';
+                    showToast();
+                }
+            }
+        });
+    </script>
+
+
+</body></html>

@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>BillGuru AI - Analytics & Reporting</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Fraunces:opsz,wght@9..144,500;600;700&family=IBM+Plex+Mono:wght@450&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .reconciliation-strip {
+            height: 8px;
+            border-radius: 2px;
+            overflow: hidden;
+            display: flex;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container": "#edeeec",
+                        "secondary-container": "#d2e2ed",
+                        "outline-variant": "#bfc9c5",
+                        "on-secondary-fixed-variant": "#3a4951",
+                        "moss-500": "#5C8A5A",
+                        "on-tertiary": "#ffffff",
+                        "secondary-fixed": "#d5e5f0",
+                        "on-primary": "#ffffff",
+                        "tertiary-fixed-dim": "#c2c7c7",
+                        "surface-dim": "#d9dad8",
+                        "on-error": "#ffffff",
+                        "outline": "#6f7976",
+                        "background": "#f9faf8",
+                        "inverse-surface": "#2e3130",
+                        "teal-600": "#2E6E62",
+                        "inverse-primary": "#93d3c4",
+                        "primary-fixed-dim": "#93d3c4",
+                        "ink-900": "#1C2B33",
+                        "on-secondary": "#ffffff",
+                        "secondary": "#51616a",
+                        "tertiary-container": "#5f6564",
+                        "surface-container-low": "#f3f4f2",
+                        "tertiary": "#474d4d",
+                        "on-primary-fixed": "#00201b",
+                        "tertiary-fixed": "#dee3e2",
+                        "on-surface": "#191c1b",
+                        "surface-tint": "#28695d",
+                        "paper-50": "#F7F8F6",
+                        "error": "#ba1a1a",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-container": "#2e6e62",
+                        "on-tertiary-container": "#dde2e1",
+                        "rust-600": "#B14A3A",
+                        "inverse-on-surface": "#f0f1ef",
+                        "on-tertiary-fixed": "#171d1c",
+                        "on-surface-variant": "#3f4946",
+                        "slate-200": "#DCE1E0",
+                        "on-secondary-fixed": "#0e1d25",
+                        "surface-bright": "#f9faf8",
+                        "error-container": "#ffdad6",
+                        "primary": "#0e554a",
+                        "surface-variant": "#e2e3e1",
+                        "on-secondary-container": "#55656e",
+                        "secondary-fixed-dim": "#b9c9d3",
+                        "on-error-container": "#93000a",
+                        "on-background": "#191c1b",
+                        "on-primary-container": "#adeede",
+                        "amber-500": "#C98A2C",
+                        "surface-container-high": "#e7e8e6",
+                        "surface": "#f9faf8",
+                        "surface-container-highest": "#e2e3e1",
+                        "primary-fixed": "#afefe0",
+                        "on-primary-fixed-variant": "#045045",
+                        "on-tertiary-fixed-variant": "#424847"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "margin-mobile": "16px",
+                        "unit": "4px",
+                        "xl": "32px",
+                        "md": "16px",
+                        "margin-desktop": "40px",
+                        "lg": "24px",
+                        "gutter": "16px",
+                        "xs": "4px",
+                        "sm": "8px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Inter"],
+                        "data-mono": ["IBM Plex Mono"],
+                        "body-lg": ["Inter"],
+                        "display-lg": ["Fraunces"],
+                        "headline-sm": ["Fraunces"],
+                        "display-lg-mobile": ["Fraunces"],
+                        "body-sm": ["Inter"],
+                        "label-caps": ["Inter"],
+                        "data-mono-sm": ["IBM Plex Mono"],
+                        "headline-md": ["Fraunces"]
+                    },
+                    "fontSize": {
+                        "body-md": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "data-mono": ["14px", {"lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "450"}],
+                        "body-lg": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "display-lg": ["36px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "headline-sm": ["20px", {"lineHeight": "1.3", "fontWeight": "500"}],
+                        "display-lg-mobile": ["28px", {"lineHeight": "1.2", "fontWeight": "600"}],
+                        "body-sm": ["12px", {"lineHeight": "1.4", "fontWeight": "400"}],
+                        "label-caps": ["11px", {"lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                        "data-mono-sm": ["12px", {"lineHeight": "1.4", "fontWeight": "450"}],
+                        "headline-md": ["24px", {"lineHeight": "1.3", "fontWeight": "500"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-paper-50 text-on-surface font-body-md selection:bg-teal-600/20 selection:text-teal-600">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky z-40 border-b border-slate-200 dark:border-outline-variant bg-surface dark:bg-surface-dim flex items-center justify-between px-margin-mobile h-14 w-full">
+<div class="flex items-center gap-sm">
+<button class="p-2 -ml-2 text-on-surface hover:bg-surface-container-low transition-colors duration-200 rounded">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+<h1 class="font-headline-sm text-headline-sm font-bold text-primary dark:text-inverse-primary">BillGuru AI</h1>
+</div>
+<div class="flex items-center">
+<div class="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center overflow-hidden border border-slate-200">
+<img class="w-full h-full object-cover" data-alt="A clean, professional close-up headshot of a financial accountant in a minimalist modern studio. The lighting is soft and neutral, conveying trust and institutional authority. The background is a flat, cool grey, consistent with a high-end banking or legal firm's corporate identity. The aesthetic is sharp, precise, and professional." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBmm5hHWVTvWS2DwVMpZulLf8AA7c3b4LegYZmAZEShUaGhw_FQ46R-dO9cHS83Tp7d0o_itFkEtZrLINZBPGb22ZkhSBymgnoC2t31Cyh9s1b2VdnySguSPmMcsPKSe-cbBogLkC72khVAUGkfm4ECaP_RYMWXL4a7D3qmfL2hYobPtazRstIRyaQzT_pziSYmcGr_qp41CVJmWDRkQsJuI4cRHLqd7O0cqiVQELVwd1l6zvDqtwSW"/>
+</div>
+</div>
+</header>
+<main class="pb-24 pt-md px-margin-mobile flex flex-col gap-lg">
+<!-- Dashboard Header -->
+<section>
+<p class="font-label-caps text-label-caps text-secondary mb-xs uppercase tracking-widest">Global Overview</p>
+<h2 class="font-headline-md text-headline-md text-ink-900">Analytics & Reports</h2>
+</section>
+<!-- Executive Summary - Vertical Stack -->
+<section class="flex flex-col gap-md">
+<!-- Total ITC Card -->
+<div class="bg-surface-container-lowest border border-slate-200 p-md flex flex-col gap-xs rounded-lg">
+<div class="flex justify-between items-start">
+<span class="font-label-caps text-label-caps text-secondary">TOTAL ITC CAPTURED</span>
+<span class="material-symbols-outlined text-teal-600 text-[20px]" data-icon="account_balance_wallet">account_balance_wallet</span>
+</div>
+<div class="flex items-baseline gap-xs">
+<span class="font-data-mono text-[24px] text-ink-900">₹42.84 Cr</span>
+<span class="font-body-sm text-moss-500 flex items-center">
+<span class="material-symbols-outlined text-[14px]" data-icon="trending_up">trending_up</span>
+                        12%
+                    </span>
+</div>
+<div class="reconciliation-strip w-full mt-sm">
+<div class="bg-teal-600" style="width: 82%;"></div>
+<div class="bg-slate-200" style="width: 18%;"></div>
+</div>
+<p class="font-body-sm text-on-surface-variant mt-xs">82% of current fiscal target achieved.</p>
+</div>
+<!-- Blocked ITC Card -->
+<div class="bg-surface-container-lowest border border-slate-200 p-md flex flex-col gap-xs rounded-lg">
+<div class="flex justify-between items-start">
+<span class="font-label-caps text-label-caps text-secondary">BLOCKED ITC (POTENTIAL LOSS)</span>
+<span class="material-symbols-outlined text-rust-600 text-[20px]" data-icon="report">report</span>
+</div>
+<div class="flex items-baseline gap-xs">
+<span class="font-data-mono text-[24px] text-rust-600">₹3.12 Cr</span>
+<span class="font-body-sm text-rust-600 flex items-center">
+<span class="material-symbols-outlined text-[14px]" data-icon="priority_high">priority_high</span>
+                        HIGH
+                    </span>
+</div>
+<div class="reconciliation-strip w-full mt-sm">
+<div class="bg-rust-600" style="width: 100%;"></div>
+</div>
+<p class="font-body-sm text-on-surface-variant mt-xs">Requires immediate triage for 12 major clients.</p>
+</div>
+</section>
+<!-- ITC Trend Analysis - Mobile Optimized Chart -->
+<section class="bg-surface-container-lowest border border-slate-200 p-md rounded-lg overflow-hidden">
+<div class="flex justify-between items-center mb-lg">
+<h3 class="font-label-caps text-label-caps text-ink-900">ITC TREND ANALYSIS</h3>
+<button class="text-teal-600 flex items-center gap-xs">
+<span class="font-body-sm">6 Months</span>
+<span class="material-symbols-outlined text-[18px]" data-icon="expand_more">expand_more</span>
+</button>
+</div>
+<div class="h-48 w-full flex items-end justify-between gap-sm relative pb-6 border-b border-slate-200">
+<!-- Simple visual bars to represent a chart since external libs aren't permitted for drawing -->
+<div class="flex-1 flex flex-col items-center gap-sm">
+<div class="w-full bg-slate-200 rounded-t-sm" style="height: 40%;"></div>
+<span class="absolute bottom-0 font-body-sm text-[10px] text-secondary">JAN</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-sm">
+<div class="w-full bg-slate-200 rounded-t-sm" style="height: 55%;"></div>
+<span class="absolute bottom-0 font-body-sm text-[10px] text-secondary">FEB</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-sm">
+<div class="w-full bg-teal-600 rounded-t-sm" style="height: 45%;"></div>
+<span class="absolute bottom-0 font-body-sm text-[10px] text-secondary">MAR</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-sm">
+<div class="w-full bg-slate-200 rounded-t-sm" style="height: 70%;"></div>
+<span class="absolute bottom-0 font-body-sm text-[10px] text-secondary">APR</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-sm">
+<div class="w-full bg-slate-200 rounded-t-sm" style="height: 85%;"></div>
+<span class="absolute bottom-0 font-body-sm text-[10px] text-secondary">MAY</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-sm">
+<div class="w-full bg-teal-600 rounded-t-sm" style="height: 60%;"></div>
+<span class="absolute bottom-0 font-body-sm text-[10px] text-secondary">JUN</span>
+</div>
+</div>
+<div class="mt-md flex gap-lg">
+<div class="flex items-center gap-xs">
+<div class="w-2 h-2 rounded-full bg-teal-600"></div>
+<span class="font-body-sm text-secondary">Filing Spikes</span>
+</div>
+<div class="flex items-center gap-xs">
+<div class="w-2 h-2 rounded-full bg-slate-200"></div>
+<span class="font-body-sm text-secondary">Normal Period</span>
+</div>
+</div>
+</section>
+<!-- Top Clients by Tax Volume - High Density Table/Cards -->
+<section class="flex flex-col gap-sm">
+<h3 class="font-label-caps text-label-caps text-ink-900 mb-xs">TOP CLIENTS BY VOLUME</h3>
+<!-- Table Header -->
+<div class="grid grid-cols-12 px-sm py-2 border-b-2 border-ink-900">
+<div class="col-span-7 font-label-caps text-label-caps">CLIENT IDENTITY</div>
+<div class="col-span-5 font-label-caps text-label-caps text-right">VOLUME (INR)</div>
+</div>
+<!-- Client Row 1 -->
+<div class="grid grid-cols-12 items-center px-sm py-md bg-surface-container-lowest border-b border-slate-200 hover:bg-teal-600/5 transition-colors cursor-pointer group">
+<div class="col-span-7 flex flex-col gap-xs">
+<div class="flex items-center gap-sm">
+<div class="w-2 h-3 bg-teal-600 rounded-full"></div>
+<span class="font-body-md font-bold text-ink-900 truncate">Reliance Ind. Ltd</span>
+</div>
+<span class="font-data-mono-sm text-secondary text-[10px] ml-4">GSTIN: 27AABCR1234...</span>
+</div>
+<div class="col-span-5 text-right flex flex-col items-end">
+<span class="font-data-mono text-ink-900">12.48 Cr</span>
+<span class="font-body-sm text-moss-500">Normal</span>
+</div>
+</div>
+<!-- Client Row 2 -->
+<div class="grid grid-cols-12 items-center px-sm py-md bg-surface-container-lowest border-b border-slate-200 hover:bg-teal-600/5 transition-colors cursor-pointer group">
+<div class="col-span-7 flex flex-col gap-xs">
+<div class="flex items-center gap-sm">
+<div class="w-2 h-3 bg-rust-600 rounded-full"></div>
+<span class="font-body-md font-bold text-ink-900 truncate">Adani Green Ent.</span>
+</div>
+<span class="font-data-mono-sm text-secondary text-[10px] ml-4">GSTIN: 24AADCA1234...</span>
+</div>
+<div class="col-span-5 text-right flex flex-col items-end">
+<span class="font-data-mono text-ink-900">8.21 Cr</span>
+<div class="flex items-center gap-xs">
+<span class="w-1.5 h-1.5 rounded-full bg-rust-600"></span>
+<span class="font-body-sm text-rust-600 font-bold">HIGH RISK</span>
+</div>
+</div>
+</div>
+<!-- Client Row 3 -->
+<div class="grid grid-cols-12 items-center px-sm py-md bg-surface-container-lowest border-b border-slate-200 hover:bg-teal-600/5 transition-colors cursor-pointer group">
+<div class="col-span-7 flex flex-col gap-xs">
+<div class="flex items-center gap-sm">
+<div class="w-2 h-3 bg-teal-600 rounded-full"></div>
+<span class="font-body-md font-bold text-ink-900 truncate">Tata Motors Co.</span>
+</div>
+<span class="font-data-mono-sm text-secondary text-[10px] ml-4">GSTIN: 27AAACT1234...</span>
+</div>
+<div class="col-span-5 text-right flex flex-col items-end">
+<span class="font-data-mono text-ink-900">4.15 Cr</span>
+<span class="font-body-sm text-moss-500">Normal</span>
+</div>
+</div>
+<button class="w-full py-md text-teal-600 font-label-caps text-label-caps text-center border border-dashed border-slate-200 mt-xs rounded">
+                VIEW ALL 124 CLIENTS
+            </button>
+</section>
+<!-- Action Items -->
+<section class="bg-ink-900 text-white p-lg rounded-xl flex flex-col gap-md">
+<h4 class="font-headline-sm text-headline-sm text-inverse-primary">Triage Summary</h4>
+<p class="font-body-md text-slate-200 opacity-80">You have 14 unresolved mismatches impacting <b>₹1.2 Cr</b> in ITC claims.</p>
+<div class="flex flex-col gap-sm">
+<button class="w-full py-md bg-teal-600 text-white font-bold rounded flex items-center justify-center gap-sm transition-transform active:scale-95">
+<span class="material-symbols-outlined" data-icon="bolt">bolt</span>
+                    RUN AI RECONCILIATION
+                </button>
+<button class="w-full py-md bg-transparent border border-slate-500 text-slate-200 font-bold rounded transition-colors hover:bg-white/10">
+                    DOWNLOAD PDF REPORT
+                </button>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 bg-surface-container-lowest dark:bg-inverse-surface border-t border-slate-200 dark:border-outline flex justify-around items-center h-16 px-sm">
+<a class="flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-high transition-transform scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-label-caps text-label-caps">Clients</span>
+</a>
+<a class="flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-high transition-transform scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+<span class="font-label-caps text-label-caps">Invoices</span>
+</a>
+<!-- Active Tab: Triage (Analytics related) -->
+<a class="flex flex-col items-center justify-center text-teal-600 dark:text-inverse-primary font-bold transition-transform scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="priority_high" style="font-variation-settings: 'FILL' 1;">priority_high</span>
+<span class="font-label-caps text-label-caps">Triage</span>
+</a>
+<a class="flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-high transition-transform scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+<span class="font-label-caps text-label-caps">Profile</span>
+</a>
+</nav>
+<!-- Floating Action Button Suppression (Hidden per mandate for sub-page/analytics context) -->
+<script>
+        // Simple micro-interaction for the chart bars
+        document.querySelectorAll('.rounded-t-sm').forEach(bar => {
+            bar.addEventListener('click', function() {
+                this.classList.toggle('bg-amber-500');
+                const val = this.style.height;
+                console.log(`Value captured: ${val}`);
+            });
+        });
+
+        // Pull-to-refresh effect (visual only)
+        let startY;
+        document.addEventListener('touchstart', e => { startY = e.touches[0].pageY; }, {passive: true});
+        document.addEventListener('touchmove', e => {
+            const y = e.touches[0].pageY;
+            if (window.scrollY === 0 && y > startY) {
+                // Potential pull to refresh visual hint
+            }
+        }, {passive: true});
+    </script>
+</body></html>

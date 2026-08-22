@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>BillGuru AI - TaxGuard Compliance</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@500;600;700&family=IBM+Plex+Mono:wght@450&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-surface-variant": "#3f4946",
+                        "teal-600": "#2E6E62",
+                        "amber-500": "#C98A2C",
+                        "primary": "#0e554a",
+                        "inverse-primary": "#93d3c4",
+                        "ink-900": "#1C2B33",
+                        "on-secondary": "#ffffff",
+                        "surface-tint": "#28695d",
+                        "surface-dim": "#d9dad8",
+                        "secondary-fixed-dim": "#b9c9d3",
+                        "outline": "#6f7976",
+                        "on-secondary-fixed-variant": "#3a4951",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary": "#474d4d",
+                        "rust-600": "#B14A3A",
+                        "inverse-surface": "#2e3130",
+                        "on-error-container": "#93000a",
+                        "tertiary-fixed-dim": "#c2c7c7",
+                        "primary-container": "#2e6e62",
+                        "paper-50": "#F7F8F6",
+                        "on-primary-fixed": "#00201b",
+                        "on-secondary-container": "#55656e",
+                        "secondary-fixed": "#d5e5f0",
+                        "surface-container-low": "#f3f4f2",
+                        "primary-fixed-dim": "#93d3c4",
+                        "inverse-on-surface": "#f0f1ef",
+                        "on-tertiary-container": "#dde2e1",
+                        "tertiary-container": "#5f6564",
+                        "tertiary-fixed": "#dee3e2",
+                        "secondary": "#51616a",
+                        "on-tertiary-fixed-variant": "#424847",
+                        "error-container": "#ffdad6",
+                        "secondary-container": "#d2e2ed",
+                        "outline-variant": "#bfc9c5",
+                        "on-primary-fixed-variant": "#045045",
+                        "surface-variant": "#e2e3e1",
+                        "on-secondary-fixed": "#0e1d25",
+                        "on-primary-container": "#adeede",
+                        "on-tertiary-fixed": "#171d1c",
+                        "on-tertiary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "moss-500": "#5C8A5A",
+                        "surface-bright": "#f9faf8",
+                        "surface-container-highest": "#e2e3e1",
+                        "primary-fixed": "#afefe0",
+                        "on-primary": "#ffffff",
+                        "surface-container": "#edeeec",
+                        "on-surface": "#191c1b",
+                        "background": "#f9faf8",
+                        "surface-container-high": "#e7e8e6",
+                        "slate-200": "#DCE1E0",
+                        "on-background": "#191c1b",
+                        "surface": "#f9faf8",
+                        "error": "#ba1a1a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "md": "16px",
+                        "xs": "4px",
+                        "sm": "8px",
+                        "xl": "32px",
+                        "unit": "4px",
+                        "gutter": "16px",
+                        "margin-desktop": "40px",
+                        "lg": "24px",
+                        "margin-mobile": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-sm": ["Fraunces"],
+                        "body-sm": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Fraunces"],
+                        "display-lg": ["Fraunces"],
+                        "label-caps": ["Inter"],
+                        "data-mono-sm": ["IBM Plex Mono"],
+                        "data-mono": ["IBM Plex Mono"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-sm": ["20px", {"lineHeight": "1.3", "fontWeight": "500"}],
+                        "body-sm": ["12px", {"lineHeight": "1.4", "fontWeight": "400"}],
+                        "body-lg": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "1.3", "fontWeight": "500"}],
+                        "display-lg": ["36px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "label-caps": ["11px", {"lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                        "data-mono-sm": ["12px", {"lineHeight": "1.4", "fontWeight": "450"}],
+                        "data-mono": ["14px", {"lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "450"}],
+                        "body-md": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>.material-symbols-outlined {
+    font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+    display: inline-block;
+    line-height: 1;
+    text-transform: none;
+    letter-spacing: normal;
+    word-wrap: normal;
+    white-space: nowrap;
+    direction: ltr
+    }
+.whatsapp-bg {
+    background-color: #E5DDD5;
+    background-image: url(https://lh3.googleusercontent.com/aida-public/AB6AXuDFidFHf1SlBVyg3Ck55okQ18vV6D51XmEi-pa42JMwqxzRCgLBKti3oBjFBzzaUNQ3RiPxirnnGs6YODMCG0XOgYrQ8B_2rHH09c_-6lbjYOy6BVuDIxknf119JctKdkGVXCrqC_5ReBTc2QNLm7t5uXM9tFjcz4LHO63_nk0oiM-_zMisV1bqy8NcwO-OXpojZRP_OPyW6w86QwBIcSGXjfzppUj8_KIV9Fwdlwzn0qaF6CGuT2kp);
+    background-repeat: repeat;
+    background-size: 400px;
+    opacity: 0.4
+    }
+.chat-bubble-left::after {
+    content: "";
+    position: absolute;
+    left: -8px;
+    top: 0;
+    width: 0;
+    height: 0;
+    border-top: 0 solid transparent;
+    border-bottom: 12px solid transparent;
+    border-right: 12px solid white
+    }
+.chat-bubble-right::after {
+    content: "";
+    position: absolute;
+    right: -8px;
+    top: 0;
+    width: 0;
+    height: 0;
+    border-top: 0 solid transparent;
+    border-bottom: 12px solid transparent;
+    border-left: 12px solid #DCF8C6
+    }
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px
+    }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px
+    }</style>
+</head>
+<body class="bg-paper-50 font-body-md text-ink-900 h-screen flex overflow-hidden">
+<!-- Sidebar (Shared Component Style Mapping) -->
+<aside class="h-full w-64 hidden md:flex flex-col bg-paper-50 border-r border-slate-200 z-20">
+<div class="p-md flex items-center gap-sm">
+<div class="w-10 h-10 bg-teal-600 rounded-lg flex items-center justify-center text-white">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">account_balance</span>
+</div>
+<div>
+<h1 class="font-headline-sm text-headline-sm text-teal-600 font-bold">Precision Tax</h1>
+<p class="text-[10px] font-label-caps uppercase tracking-wider text-on-surface-variant">Institutional Access</p>
+</div>
+</div>
+<nav class="flex-1 px-sm py-md space-y-xs">
+<!-- SideNavBar Active Item Logic -->
+<div class="flex items-center gap-md px-md py-sm bg-secondary-container text-on-secondary-container font-bold rounded-lg cursor-pointer">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-caps text-label-caps">Dashboard</span>
+</div>
+<div class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-slate-200 transition-all cursor-pointer rounded-lg">
+<span class="material-symbols-outlined">groups</span>
+<span class="font-label-caps text-label-caps">Client Ledger</span>
+</div>
+<div class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-slate-200 transition-all cursor-pointer rounded-lg">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="font-label-caps text-label-caps">Inward Register</span>
+</div>
+<div class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-slate-200 transition-all cursor-pointer rounded-lg">
+<span class="material-symbols-outlined">upload_file</span>
+<span class="font-label-caps text-label-caps">Outward Register</span>
+</div>
+<div class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-slate-200 transition-all cursor-pointer rounded-lg">
+<span class="material-symbols-outlined">balance</span>
+<span class="font-label-caps text-label-caps">Reconciliation</span>
+</div>
+</nav>
+<div class="p-md space-y-sm">
+<button class="w-full bg-teal-600 text-white font-bold py-sm rounded-lg flex items-center justify-center gap-xs shadow-sm hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined text-sm">add</span>
+<span class="font-label-caps text-label-caps">New Filing</span>
+</button>
+<div class="pt-md border-t border-slate-200 space-y-xs">
+<div class="flex items-center gap-md px-md py-xs text-on-surface-variant hover:bg-slate-200 transition-all cursor-pointer rounded-lg">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+<span class="font-label-caps text-label-caps">Settings</span>
+</div>
+<div class="flex items-center gap-md px-md py-xs text-on-surface-variant hover:bg-slate-200 transition-all cursor-pointer rounded-lg">
+<span class="material-symbols-outlined text-[20px]">contact_support</span>
+<span class="font-label-caps text-label-caps">Support</span>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 flex flex-col relative h-full">
+<!-- Top App Bar (Shared Component Mapping) -->
+<header class="w-full h-16 bg-surface border-b border-slate-200 flex justify-between items-center px-md md:px-margin-desktop z-10">
+<div class="flex items-center gap-sm">
+<span class="md:hidden material-symbols-outlined text-teal-600">menu</span>
+<h2 class="font-headline-sm text-headline-sm font-bold text-teal-600">TaxGuard Compliance</h2>
+</div>
+<div class="hidden md:flex items-center bg-slate-100 rounded-full px-md py-xs border border-slate-200 w-1/3">
+<span class="material-symbols-outlined text-on-surface-variant text-sm">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-body-sm w-full" placeholder="Search clients or invoices..." type="text"/>
+</div>
+<div class="flex items-center gap-md">
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-teal-600">notifications</span>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-teal-600">help_outline</span>
+<div class="w-8 h-8 rounded-full bg-slate-200 overflow-hidden border border-slate-300">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a Chartered Accountant in their 40s, wearing a clean charcoal suit and glasses, smiling confidently. The lighting is soft and corporate, set against a blurred office background with warm wooden accents and legal books. High-end photography style, minimalist and trustworthy." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD5Mg-9_H2Ig6pLXQCrLhdl-eG3ol2J9mkbTzPWGxb1p0wVj1XaM_56XG8_KdDkS1-zUP-04Eia3P2qvIiWcpvasptvb9T0REQrBej7I4NZ8E3S-wFTnSjygdTN_yZozr-AmW4e9GWSczmO3ERPvCtwSGGXFg50I0y42ER6cfa4NmjUfbHmAThNA4tFeQVgDP4xfUSit1wnGlLWBxKG3YdtcLak9SAy8sn0M4JOkeO0lLKqN_HgTkGo"/>
+</div>
+</div>
+</header>
+<!-- WhatsApp Layout Section -->
+<div class="flex-1 flex flex-col md:flex-row h-[calc(100vh-64px)] overflow-hidden">
+<!-- Chat List (Desktop Only Left Panel) -->
+<section class="hidden lg:flex w-80 flex-col bg-white border-r border-slate-200">
+<div class="p-md bg-paper-50 flex items-center justify-between border-b border-slate-200">
+<div class="w-10 h-10 rounded-full bg-teal-600/10 flex items-center justify-center text-teal-600">
+<span class="material-symbols-outlined">chat</span>
+</div>
+<div class="flex gap-md">
+<span class="material-symbols-outlined text-on-surface-variant">fitbit_jumping_jacks</span>
+<span class="material-symbols-outlined text-on-surface-variant">more_vert</span>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto custom-scrollbar">
+<!-- Active Chat -->
+<div class="flex items-center p-md gap-md bg-slate-100 cursor-pointer border-b border-slate-200">
+<div class="w-12 h-12 rounded-full bg-teal-600 flex items-center justify-center text-white">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">robot_2</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between">
+<span class="font-bold text-body-md">BillGuru AI</span>
+<span class="text-body-sm text-on-surface-variant">12:45 PM</span>
+</div>
+<p class="text-body-sm text-on-surface-variant truncate">Couldn't clearly read the GSTIN...</p>
+</div>
+</div>
+<!-- Other Mock Chats -->
+<div class="flex items-center p-md gap-md hover:bg-paper-50 cursor-pointer border-b border-slate-200 opacity-60">
+<div class="w-12 h-12 rounded-full bg-slate-300 flex items-center justify-center text-white">
+<span class="material-symbols-outlined">person</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between">
+<span class="font-bold text-body-md">Sharma Traders</span>
+<span class="text-body-sm text-on-surface-variant">Yesterday</span>
+</div>
+<p class="text-body-sm text-on-surface-variant truncate">Invoice copy attached for Oct</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Chat Canvas -->
+<section class="flex-1 flex flex-col bg-[#E5DDD5] relative overflow-hidden">
+<!-- Background Wallpaper Overlay -->
+<div class="absolute inset-0 whatsapp-bg z-0 pointer-events-none"></div>
+<!-- Chat Header -->
+<div class="relative z-10 h-14 bg-[#075E54] flex items-center px-md text-white shadow-md">
+<div class="flex items-center gap-sm cursor-pointer">
+<span class="material-symbols-outlined">arrow_back</span>
+<div class="w-10 h-10 rounded-full bg-white flex items-center justify-center">
+<span class="material-symbols-outlined text-[#075E54]" style="font-variation-settings: 'FILL' 1;">robot_2</span>
+</div>
+<div class="ml-sm">
+<h3 class="font-bold text-body-md leading-tight">BillGuru AI</h3>
+<p class="text-[11px] opacity-80 leading-tight">Online</p>
+</div>
+</div>
+<div class="ml-auto flex gap-xl">
+<span class="material-symbols-outlined">videocam</span>
+<span class="material-symbols-outlined">call</span>
+<span class="material-symbols-outlined">more_vert</span>
+</div>
+</div>
+<!-- Messages Area -->
+<div class="relative z-10 flex-1 overflow-y-auto p-md space-y-md custom-scrollbar flex flex-col">
+<div class="self-center bg-white/60 px-md py-xs rounded-lg text-[11px] font-bold text-on-surface-variant shadow-sm uppercase tracking-widest mb-md">
+                        Today
+                    </div>
+<!-- User Image Message (Mocked context) -->
+<div class="self-end max-w-[70%] relative mb-sm">
+<div class="chat-bubble-right bg-[#DCF8C6] p-sm rounded-lg rounded-tr-none shadow-sm flex flex-col">
+<div class="w-full aspect-[4/3] rounded bg-slate-300 overflow-hidden mb-xs">
+<img class="w-full h-full object-cover" data-alt="A macro close-up photograph of a physical paper invoice placed on a wooden desk. The document shows columns for item descriptions, CGST/SGST taxes, and total amounts. The lighting is slightly dim with shadows, making some text in the corner slightly blurred. Professional financial document photography, realistic and corporate." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBOugyXbQMdVVUmgudQrW4pVLDMpX4DEbYQAfRhWeIMOXCPajfjJNOCyBIiHJ_a4vofaAJx0_qNQgLJZevD4LKK2JMBKWRqxp2IfCpfKbCkWXcDrR-QQwzLoBoy9cjv5toBFL9tGf--K_q_9cwo3Z7JUckfHcKF94LQfpDnwTVw9x9uVLpP0Wp7I0GOWeO40g9njJA4AbXj6b3OuM1vXtHFpG_5uObXqLFOTdHd5ar_jVkd64e7b_ue"/>
+</div>
+<div class="flex justify-end gap-xs items-center">
+<span class="text-[10px] text-on-surface-variant">12:40 PM</span>
+<span class="material-symbols-outlined text-[14px] text-blue-500" style="font-variation-settings: 'FILL' 1;">done_all</span>
+</div>
+</div>
+</div>
+<!-- Message 1: Invoice Received -->
+<div class="self-start max-w-[85%] md:max-w-[70%] relative group">
+<div class="chat-bubble-left bg-white p-md rounded-lg rounded-tl-none shadow-sm">
+<p class="text-body-md text-ink-900 leading-relaxed">Got it! Checking your invoice now — back to you shortly.</p>
+<div class="flex justify-end mt-xs">
+<span class="text-[10px] text-on-surface-variant">12:41 PM</span>
+</div>
+</div>
+</div>
+<!-- Message 2: Extraction Successful -->
+<div class="self-start max-w-[85%] md:max-w-[70%] relative">
+<div class="chat-bubble-left bg-white p-md rounded-lg rounded-tl-none shadow-sm">
+<div class="flex items-start gap-sm">
+<span class="text-xl">✅</span>
+<div class="flex-1">
+<p class="text-body-md text-ink-900 leading-relaxed">Invoice from <span class="font-bold">Sharma Traders</span> logged — <span class="font-bold text-teal-600">₹4,200</span>, 24 Oct.</p>
+<!-- Progress/Indicator Strip -->
+<div class="mt-sm flex h-2 rounded-full overflow-hidden bg-slate-200">
+<div class="w-3/4 bg-teal-600"></div>
+<div class="w-1/4 bg-slate-200"></div>
+</div>
+<p class="text-[10px] text-teal-600 mt-xs font-bold uppercase tracking-wider">Matched in ledger</p>
+</div>
+</div>
+<div class="flex justify-end mt-xs">
+<span class="text-[10px] text-on-surface-variant">12:43 PM</span>
+</div>
+</div>
+</div>
+<!-- Message 3: Low Confidence -->
+<div class="self-start max-w-[85%] md:max-w-[70%] relative">
+<div class="chat-bubble-left bg-white p-md rounded-lg rounded-tl-none shadow-sm border-l-4 border-rust-600">
+<div class="flex items-start gap-sm">
+<span class="material-symbols-outlined text-rust-600">warning</span>
+<div class="flex-1">
+<p class="text-body-md text-ink-900 leading-relaxed">Couldn't clearly read the GSTIN on this one. Can you send a clearer photo, or reply with the GSTIN directly?</p>
+<div class="mt-md grid grid-cols-1 gap-sm">
+<button class="w-full py-sm border border-slate-200 rounded-lg text-teal-600 text-body-sm font-bold bg-slate-50 hover:bg-slate-100 transition-colors">
+                                            Re-scan Document
+                                        </button>
+<button class="w-full py-sm border border-slate-200 rounded-lg text-on-surface-variant text-body-sm bg-slate-50 hover:bg-slate-100 transition-colors">
+                                            Type GSTIN manually
+                                        </button>
+</div>
+</div>
+</div>
+<div class="flex justify-end mt-xs">
+<span class="text-[10px] text-on-surface-variant">12:45 PM</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Chat Input -->
+<div class="relative z-10 p-sm bg-[#F0F2F5] flex items-center gap-sm">
+<div class="flex gap-md px-sm text-on-surface-variant">
+<span class="material-symbols-outlined cursor-pointer">sentiment_satisfied</span>
+<span class="material-symbols-outlined cursor-pointer">attach_file</span>
+</div>
+<div class="flex-1 bg-white rounded-full px-md py-sm flex items-center">
+<input class="w-full bg-transparent border-none focus:ring-0 text-body-md" placeholder="Type a message" type="text"/>
+</div>
+<div class="w-12 h-12 rounded-full bg-[#00A884] flex items-center justify-center text-white cursor-pointer shadow-md active:scale-95 transition-transform">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">mic</span>
+</div>
+</div>
+</section>
+<!-- Reconciliation Summary (Right Panel Desktop) -->
+<section class="hidden xl:flex w-72 flex-col bg-white border-l border-slate-200">
+<div class="p-md border-b border-slate-200 bg-paper-50">
+<h4 class="font-bold text-body-md">Client Summary</h4>
+</div>
+<div class="p-md space-y-lg">
+<div>
+<p class="text-[11px] font-label-caps text-on-surface-variant uppercase mb-sm">Active Reconciliation</p>
+<div class="flex items-center gap-sm mb-xs">
+<span class="text-body-lg font-bold">Sharma Traders</span>
+<span class="px-xs py-0.5 bg-amber-500/10 text-amber-500 text-[9px] font-bold rounded">MED PRIORITY</span>
+</div>
+<!-- Custom Reconciliation Strip Component -->
+<div class="flex h-3 w-full rounded-sm overflow-hidden mb-xs">
+<div class="w-[70%] bg-teal-600" title="Captured: 14"></div>
+<div class="w-[30%] bg-rust-600" title="Missing: 6"></div>
+</div>
+<div class="flex justify-between text-[11px] font-medium text-on-surface-variant">
+<span>14 Filed</span>
+<span>6 Missing</span>
+</div>
+</div>
+<div class="space-y-md">
+<p class="text-[11px] font-label-caps text-on-surface-variant uppercase">Potential Issues</p>
+<div class="flex gap-sm items-start p-sm bg-error-container/20 rounded border border-error-container/40">
+<span class="material-symbols-outlined text-rust-600 text-lg">error</span>
+<div>
+<p class="text-body-sm font-bold text-rust-600">GSTIN Mismatch</p>
+<p class="text-[11px] leading-tight text-on-surface-variant">OCR confidence below 40% on recent upload.</p>
+</div>
+</div>
+</div>
+<div class="pt-lg border-t border-slate-200">
+<button class="w-full py-sm bg-teal-600/10 text-teal-600 font-bold text-body-sm rounded hover:bg-teal-600 hover:text-white transition-all">
+                            Generate GSTR-1 Draft
+                        </button>
+</div>
+</div>
+</section>
+</div>
+<!-- Mobile Bottom Nav (Shared Component Mapping) -->
+<nav class="md:hidden h-16 bg-white border-t border-slate-200 flex justify-around items-center px-md">
+<div class="flex flex-col items-center gap-xs text-teal-600">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">chat</span>
+<span class="text-[10px] font-bold">Chats</span>
+</div>
+<div class="flex flex-col items-center gap-xs text-on-surface-variant">
+<span class="material-symbols-outlined">analytics</span>
+<span class="text-[10px] font-medium">Insights</span>
+</div>
+<div class="flex flex-col items-center gap-xs text-on-surface-variant">
+<span class="material-symbols-outlined">folder</span>
+<span class="text-[10px] font-medium">Ledger</span>
+</div>
+<div class="flex flex-col items-center gap-xs text-on-surface-variant">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-[10px] font-medium">Settings</span>
+</div>
+</nav>
+</main>
+<!-- Interactions Script -->
+<script>
+        // Simple micro-interaction for hover states and transitions
+        document.querySelectorAll('.chat-bubble-left').forEach(bubble => {
+            bubble.addEventListener('mouseenter', () => {
+                bubble.style.transform = 'translateY(-2px)';
+                bubble.style.transition = 'transform 0.2s ease';
+            });
+            bubble.addEventListener('mouseleave', () => {
+                bubble.style.transform = 'translateY(0)';
+            });
+        });
+    </script>
+</body></html>
