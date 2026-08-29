@@ -671,6 +671,79 @@ async function sendWhatsAppMessage(to, text) {
   }
 }
 
+// Helper to call Google Gemini 1.5 Flash API to extract metadata from invoice images
+async function extractInvoiceWithGemini(mediaUrl) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey.includes('YOUR_GEMINI_API_KEY')) {
+    console.warn('[Gemini AI] GEMINI_API_KEY is not configured in .env. Falling back to simulation.');
+    return null;
+  }
+
+  try {
+    console.log(`[Gemini AI] Fetching image from URL: ${mediaUrl}...`);
+    
+    // For local mock testing, if the mediaUrl is a mock placeholder, return mock results
+    if (mediaUrl.includes('unsplash.com') || mediaUrl.includes('googleusercontent.com') || !mediaUrl.startsWith('http')) {
+      console.log('[Gemini AI] Mock URL received. Returning simulated parse.');
+      return null; // triggers simulation fallback
+    }
+
+    const imageResponse = await fetch(mediaUrl);
+    if (!imageResponse.ok) {
+      throw new Error(`Failed to download image (HTTP ${imageResponse.status})`);
+    }
+
+    const arrayBuffer = await imageResponse.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    console.log('[Gemini AI] Connecting to Gemini 1.5 Flash API...');
+    const { GoogleGenAI } = await import('@google/genai');
+    const aiClient = new GoogleGenAI({ apiKey });
+    
+    const prompt = `Identify the tax invoice details. Return strictly as a JSON object matching this schema. Do not wrap the JSON inside markdown codeblocks (do not write \`\`\`json):
+    {
+      "vendor_name": "string (Legal name of the vendor/supplier)",
+      "vendor_gstin": "string (15-character GSTIN of the vendor)",
+      "invoice_number": "string (invoice number)",
+      "invoice_date": "string (YYYY-MM-DD format)",
+      "taxable_amount": number (taxable value),
+      "cgst_rate": number (CGST tax percentage, e.g. 9.0),
+      "cgst_amount": number,
+      "sgst_rate": number,
+      "sgst_amount": number,
+      "igst_rate": number,
+      "igst_amount": number,
+      "total_amount": number (invoice total),
+      "hsn_sac_code": "string (primary HSN or SAC code)"
+    }`;
+
+    const aiResponse = await aiClient.models.generateContent({
+      model: 'gemini-1.5-flash',
+      contents: [
+        {
+          inlineData: {
+            mimeType: 'image/jpeg',
+            data: buffer.toString('base64')
+          }
+        },
+        prompt
+      ]
+    });
+
+    let rawText = aiResponse.text || '';
+    console.log('[Gemini AI] Raw response received:', rawText);
+    
+    // Clean markdown wraps if present
+    rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    const parsed = JSON.parse(rawText);
+    return parsed;
+  } catch (err) {
+    console.error('[Gemini AI Error] Failed to process image extraction:', err.message);
+    return null;
+  }
+}
+
 // 10. POST WhatsApp Webhook (Accepts both Meta webhook payloads and mock frontend payloads)
 app.post('/webhooks/whatsapp', async (req, res) => {
   let from = req.body.from;
@@ -741,32 +814,74 @@ app.post('/webhooks/whatsapp', async (req, res) => {
         return;
       }
 
-      // Handle Image / Document upload
-      const isSuccess = Math.random() > 0.3;
-      const invId = mockDb.invoices.length + 1;
-      mockDb.invoices.push({
-        id: invId,
-        business_id: biz.id,
-        source_type: 'whatsapp',
-        file_url: media_url || 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500',
-        vendor_name: isSuccess ? 'Simulated Vendor Ltd' : '',
-        vendor_gstin: isSuccess ? '24ABCDE9999Z1Z0' : '',
-        invoice_number: isSuccess ? `SIM-${Math.floor(1000 + Math.random()*9000)}` : '',
-        invoice_date: new Date().toISOString().split('T')[0],
-        taxable_amount: isSuccess ? 10000.00 : 0.00,
-        cgst_rate: isSuccess ? 6.0 : 0.00, cgst_amount: isSuccess ? 600.00 : 0.00,
-        sgst_rate: isSuccess ? 6.0 : 0.00, sgst_amount: isSuccess ? 600.00 : 0.00,
-        igst_rate: 0.0, igst_amount: 0.0,
-        total_amount: isSuccess ? 11200.00 : 0.00,
-        hsn_sac_code: isSuccess ? '8471' : '',
-        extraction_confidence: isSuccess ? 0.88 : 0.42,
-        extraction_status: isSuccess ? 'extracted' : 'needs_review'
-      });
+      // Handle Image / Document upload (Try Gemini first, fallback to mock)
+      let extractedData = null;
+      if (message_type === 'image' || message_type === 'document') {
+        extractedData = await extractInvoiceWithGemini(media_url);
+      }
 
-      if (isSuccess) {
-        await sendWhatsAppMessage(from, `✅ Received! Invoice from Simulated Vendor Ltd logged. Total: ₹11,200. GSTIN valid.`);
+      if (extractedData) {
+        console.log('[Gemini AI] Successfully parsed data in Mock mode:', extractedData);
+        const hasGstin = !!extractedData.vendor_gstin;
+        const confidence = hasGstin ? 0.95 : 0.42;
+        const status = hasGstin ? 'extracted' : 'needs_review';
+
+        const invId = mockDb.invoices.length + 1;
+        mockDb.invoices.push({
+          id: invId,
+          business_id: biz.id,
+          source_type: 'whatsapp',
+          file_url: media_url,
+          vendor_name: extractedData.vendor_name || 'Gemini Parsed Vendor',
+          vendor_gstin: extractedData.vendor_gstin || '',
+          invoice_number: extractedData.invoice_number || `GEM-${Math.floor(1000 + Math.random()*9000)}`,
+          invoice_date: extractedData.invoice_date || new Date().toISOString().split('T')[0],
+          taxable_amount: parseFloat(extractedData.taxable_amount) || 0.00,
+          cgst_rate: parseFloat(extractedData.cgst_rate) || 0.00, 
+          cgst_amount: parseFloat(extractedData.cgst_amount) || 0.00,
+          sgst_rate: parseFloat(extractedData.sgst_rate) || 0.00, 
+          sgst_amount: parseFloat(extractedData.sgst_amount) || 0.00,
+          igst_rate: parseFloat(extractedData.igst_rate) || 0.00, 
+          igst_amount: parseFloat(extractedData.igst_amount) || 0.00,
+          total_amount: parseFloat(extractedData.total_amount) || 0.00,
+          hsn_sac_code: extractedData.hsn_sac_code || '',
+          extraction_confidence: confidence,
+          extraction_status: status
+        });
+
+        if (hasGstin) {
+          await sendWhatsAppMessage(from, `✅ Received! Invoice from ${extractedData.vendor_name || 'Vendor'} logged. Total: ₹${extractedData.total_amount}. GSTIN is valid.`);
+        } else {
+          await sendWhatsAppMessage(from, `Couldn't clearly read the GSTIN on this invoice from ${extractedData.vendor_name || 'Vendor'}. Please reply with the 15-character GSTIN directly.`);
+        }
       } else {
-        await sendWhatsAppMessage(from, `Couldn't clearly read the GSTIN on this one. Can you send a clearer photo, or reply with the GSTIN directly?`);
+        // Fallback to random mock simulation
+        const isSuccess = Math.random() > 0.3;
+        const invId = mockDb.invoices.length + 1;
+        mockDb.invoices.push({
+          id: invId,
+          business_id: biz.id,
+          source_type: 'whatsapp',
+          file_url: media_url || 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500',
+          vendor_name: isSuccess ? 'Simulated Vendor Ltd' : '',
+          vendor_gstin: isSuccess ? '24ABCDE9999Z1Z0' : '',
+          invoice_number: isSuccess ? `SIM-${Math.floor(1000 + Math.random()*9000)}` : '',
+          invoice_date: new Date().toISOString().split('T')[0],
+          taxable_amount: isSuccess ? 10000.00 : 0.00,
+          cgst_rate: isSuccess ? 6.0 : 0.00, cgst_amount: isSuccess ? 600.00 : 0.00,
+          sgst_rate: isSuccess ? 6.0 : 0.00, sgst_amount: isSuccess ? 600.00 : 0.00,
+          igst_rate: 0.0, igst_amount: 0.0,
+          total_amount: isSuccess ? 11200.00 : 0.00,
+          hsn_sac_code: isSuccess ? '8471' : '',
+          extraction_confidence: isSuccess ? 0.88 : 0.42,
+          extraction_status: isSuccess ? 'extracted' : 'needs_review'
+        });
+
+        if (isSuccess) {
+          await sendWhatsAppMessage(from, `✅ Received! Invoice from Simulated Vendor Ltd logged. Total: ₹11,200. GSTIN valid.`);
+        } else {
+          await sendWhatsAppMessage(from, `Couldn't clearly read the GSTIN on this one. Can you send a clearer photo, or reply with the GSTIN directly?`);
+        }
       }
       return;
     }
@@ -814,21 +929,63 @@ app.post('/webhooks/whatsapp', async (req, res) => {
         return;
       }
 
-      // Handle Image / Document upload
-      const isSuccess = Math.random() > 0.3;
-      if (isSuccess) {
-        const invNo = `SIM-${Math.floor(1000 + Math.random()*9000)}`;
+      // Handle Image / Document upload (Try Gemini first, fallback to mock)
+      let extractedData = null;
+      if (message_type === 'image' || message_type === 'document') {
+        extractedData = await extractInvoiceWithGemini(media_url);
+      }
+
+      if (extractedData) {
+        console.log('[Gemini AI] Successfully parsed data in Live DB mode:', extractedData);
+        const hasGstin = !!extractedData.vendor_gstin;
+        const confidence = hasGstin ? 0.95 : 0.42;
+        const status = hasGstin ? 'extracted' : 'needs_review';
+
         await dbPool.query(`
           INSERT INTO invoices (business_id, source_type, file_url, vendor_name, vendor_gstin, invoice_number, invoice_date, taxable_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount, total_amount, hsn_sac_code, extraction_confidence, extraction_status)
-          VALUES (?, 'whatsapp', ?, 'Simulated Vendor Ltd', '24ABCDE9999Z1Z0', ?, CURDATE(), 10000.00, 6.0, 600.00, 6.0, 600.00, 0.0, 0.0, 11200.00, '8471', 0.88, 'extracted')
-        `, [businessId, media_url || '', invNo]);
-        await sendWhatsAppMessage(from, `✅ Received! Invoice from Simulated Vendor Ltd logged. Total: ₹11,200. GSTIN valid.`);
+          VALUES (?, 'whatsapp', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          businessId,
+          media_url,
+          extractedData.vendor_name || 'Gemini Parsed Vendor',
+          extractedData.vendor_gstin || '',
+          extractedData.invoice_number || `GEM-${Math.floor(1000 + Math.random()*9000)}`,
+          extractedData.invoice_date || new Date().toISOString().split('T')[0],
+          parseFloat(extractedData.taxable_amount) || 0.00,
+          parseFloat(extractedData.cgst_rate) || 0.00,
+          parseFloat(extractedData.cgst_amount) || 0.00,
+          parseFloat(extractedData.sgst_rate) || 0.00,
+          parseFloat(extractedData.sgst_amount) || 0.00,
+          parseFloat(extractedData.igst_rate) || 0.00,
+          parseFloat(extractedData.igst_amount) || 0.00,
+          parseFloat(extractedData.total_amount) || 0.00,
+          extractedData.hsn_sac_code || '',
+          confidence,
+          status
+        ]);
+
+        if (hasGstin) {
+          await sendWhatsAppMessage(from, `✅ Received! Invoice from ${extractedData.vendor_name || 'Vendor'} logged. Total: ₹${extractedData.total_amount}. GSTIN is valid.`);
+        } else {
+          await sendWhatsAppMessage(from, `Couldn't clearly read the GSTIN on this invoice from ${extractedData.vendor_name || 'Vendor'}. Please reply with the 15-character GSTIN directly.`);
+        }
       } else {
-        await dbPool.query(`
-          INSERT INTO invoices (business_id, source_type, file_url, vendor_name, vendor_gstin, invoice_number, invoice_date, taxable_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount, total_amount, hsn_sac_code, extraction_confidence, extraction_status)
-          VALUES (?, 'whatsapp', ?, '', '', '', NULL, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, NULL, 0.42, 'needs_review')
-        `, [businessId, media_url || '']);
-        await sendWhatsAppMessage(from, `Couldn't clearly read the GSTIN on this one. Can you send a clearer photo, or reply with the GSTIN directly?`);
+        // Fallback to random mock simulation
+        const isSuccess = Math.random() > 0.3;
+        if (isSuccess) {
+          const invNo = `SIM-${Math.floor(1000 + Math.random()*9000)}`;
+          await dbPool.query(`
+            INSERT INTO invoices (business_id, source_type, file_url, vendor_name, vendor_gstin, invoice_number, invoice_date, taxable_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount, total_amount, hsn_sac_code, extraction_confidence, extraction_status)
+            VALUES (?, 'whatsapp', ?, 'Simulated Vendor Ltd', '24ABCDE9999Z1Z0', ?, CURDATE(), 10000.00, 6.0, 600.00, 6.0, 600.00, 0.0, 0.0, 11200.00, '8471', 0.88, 'extracted')
+          `, [businessId, media_url || '', invNo]);
+          await sendWhatsAppMessage(from, `✅ Received! Invoice from Simulated Vendor Ltd logged. Total: ₹11,200. GSTIN valid.`);
+        } else {
+          await dbPool.query(`
+            INSERT INTO invoices (business_id, source_type, file_url, vendor_name, vendor_gstin, invoice_number, invoice_date, taxable_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount, total_amount, hsn_sac_code, extraction_confidence, extraction_status)
+            VALUES (?, 'whatsapp', ?, '', '', '', NULL, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, NULL, 0.42, 'needs_review')
+          `, [businessId, media_url || '']);
+          await sendWhatsAppMessage(from, `Couldn't clearly read the GSTIN on this one. Can you send a clearer photo, or reply with the GSTIN directly?`);
+        }
       }
     } catch (err) {
       console.error('WhatsApp webhook processing error:', err.message);
