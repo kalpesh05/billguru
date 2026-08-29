@@ -50,3 +50,43 @@ npm install
 npm run dev
 ```
 Open `http://localhost:5173` in your browser. Use the header toggle to switch between **Desktop View** and **Simulate Mobile**.
+
+---
+
+## 🔑 Environment Configuration (`.env`)
+
+Create a `.env` file in the `backend/` directory to configure credentials:
+
+```env
+PORT=5001
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=billguru_ai
+JWT_SECRET=billguru-super-secret-key-123
+WHATSAPP_VERIFY_TOKEN=billguru_verify_token
+
+# Production Cloud Keys
+META_ACCESS_TOKEN=YOUR_META_SYSTEM_USER_ACCESS_TOKEN
+META_PHONE_NUMBER_ID=YOUR_META_WHATSAPP_PHONE_NUMBER_ID
+GEMINI_API_KEY=YOUR_GOOGLE_AI_STUDIO_API_KEY
+```
+
+---
+
+## 🌐 Production Deployment
+
+### 1. Backend Hosting (Render.com)
+*   **Service Type:** Web Service
+*   **Root Directory:** `backend`
+*   **Build Command:** `npm install`
+*   **Start Command:** `npm start`
+*   **Environment Variables:** Copy all keys from your local `.env`. If a cloud database is not provided, the server automatically defaults to **Mock In-Memory DB Mode** (for easy interface demoing).
+
+### 2. Frontend Hosting (Netlify)
+*   **Base Directory:** `frontend`
+*   **Build Command:** `npm run build`
+*   **Publish Directory:** `dist` (resolves as `frontend/dist`)
+*   **Environment Variables:** Add `VITE_API_BASE_URL` pointing to your Render server (e.g. `https://your-backend.onrender.com/api`).
+*   **Client-Side Routing:** The repository includes a `frontend/public/_redirects` file (`/* /index.html 200`) which Netlify uses to prevent 404 page errors on page refresh.
