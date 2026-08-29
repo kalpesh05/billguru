@@ -55,14 +55,20 @@ async function initializeDatabase() {
     port: parseInt(process.env.DB_PORT) || 3306,
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
+    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined
   };
 
   try {
-    console.log('🔌 Connecting to XAMPP MySQL server at:', `${dbConfig.host}:${dbConfig.port}`);
-    // Connect without selecting DB first
-    const tempConnection = await mysql.createConnection(dbConfig);
-    await tempConnection.query(`CREATE DATABASE IF NOT EXISTS \`${process.env.DB_NAME || 'billguru_ai'}\`;`);
-    await tempConnection.end();
+    console.log('🔌 Connecting to MySQL server at:', `${dbConfig.host}:${dbConfig.port}`);
+    
+    // Attempt database creation, catch & ignore privilege errors common on managed cloud DBs
+    try {
+      const tempConnection = await mysql.createConnection(dbConfig);
+      await tempConnection.query(`CREATE DATABASE IF NOT EXISTS \`${process.env.DB_NAME || 'billguru_ai'}\`;`);
+      await tempConnection.end();
+    } catch (dbErr) {
+      console.log('ℹ️ Database creation step skipped or unauthorized (using pre-created database).');
+    }
 
     // Recreate connection pool with database selected
     dbPool = mysql.createPool({
