@@ -633,15 +633,115 @@ app.get('/webhooks/whatsapp', (req, res) => {
   res.sendStatus(400);
 });
 
-// 10. POST WhatsApp Webhook simulator (Public route, verified via from lookup)
+// Helper to send real outbound WhatsApp messages via Meta Graph API
+async function sendWhatsAppMessage(to, text) {
+  const token = process.env.META_ACCESS_TOKEN;
+  const phoneId = process.env.META_PHONE_NUMBER_ID;
+
+  if (!token || !phoneId) {
+    console.log(`[WhatsApp Mock Outbound] To: ${to} | Text: "${text}"`);
+    return;
+  }
+
+  try {
+    console.log(`[WhatsApp Live Outbound] Sending message to ${to}...`);
+    const response = await fetch(`https://graph.facebook.com/v20.0/${phoneId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: to,
+        type: 'text',
+        text: { body: text }
+      })
+    });
+
+    const resData = await response.json();
+    if (!response.ok) {
+      console.error('[WhatsApp Live Outbound Error] Meta API response:', resData);
+    } else {
+      console.log(`[WhatsApp Live Outbound Success] Message sent to ${to}. Message ID:`, resData.messages?.[0]?.id);
+    }
+  } catch (err) {
+    console.error('[WhatsApp Live Outbound Error] Failed to send request:', err.message);
+  }
+}
+
+// 10. POST WhatsApp Webhook (Accepts both Meta webhook payloads and mock frontend payloads)
 app.post('/webhooks/whatsapp', async (req, res) => {
-  const { from, media_url, message_type } = req.body;
+  let from = req.body.from;
+  let media_url = req.body.media_url || '';
+  let message_type = req.body.message_type || 'image';
+  let message_text = req.body.message_text || '';
+
+  // Check if it is a real Meta Webhook payload and extract details
+  if (req.body.object === 'whatsapp_business_account') {
+    try {
+      const entry = req.body.entry?.[0];
+      const change = entry?.changes?.[0];
+      const val = change?.value;
+      const msg = val?.messages?.[0];
+
+      if (msg) {
+        from = msg.from;
+        message_type = msg.type;
+        if (msg.type === 'text') {
+          message_text = msg.text?.body;
+        } else if (msg.type === 'image') {
+          const mediaId = msg.image?.id;
+          media_url = `meta-media-id:${mediaId}`;
+        } else if (msg.type === 'document') {
+          const mediaId = msg.document?.id;
+          media_url = `meta-media-id:${mediaId}`;
+        }
+      } else {
+        // Safe return for status messages
+        return res.status(200).send('OK');
+      }
+    } catch (e) {
+      console.warn('Error parsing Meta webhook payload structure:', e.message);
+    }
+  }
+
+  // Respond immediately to prevent timeouts
   res.status(200).send('OK');
 
+  // Process message asynchronously
   setTimeout(async () => {
+    if (!from) return;
+
     if (isDbMockMode) {
-      const biz = mockDb.businesses.find(b => b.whatsapp_number === from || `91${b.whatsapp_number}` === from);
-      if (!biz) return;
+      const biz = mockDb.businesses.find(b => b.whatsapp_number === from || `91${b.whatsapp_number}` === from || from.includes(b.whatsapp_number));
+      if (!biz) {
+        console.warn(`[WhatsApp Webhook] Phone ${from} not registered to any CA client business.`);
+        return;
+      }
+
+      if (message_type === 'text') {
+        const cleanText = message_text.trim().toUpperCase();
+        // Check if text is a 15-character GSTIN
+        if (/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}$/.test(cleanText)) {
+          // Confirm the last needs_review invoice
+          const lastInvoice = mockDb.invoices.reverse().find(i => i.business_id === biz.id && i.extraction_status === 'needs_review');
+          if (lastInvoice) {
+            lastInvoice.vendor_gstin = cleanText;
+            lastInvoice.extraction_status = 'confirmed';
+            lastInvoice.vendor_name = 'Confirmed Vendor Ltd';
+            await sendWhatsAppMessage(from, `✅ Valid GSTIN received for ${biz.name}. Extraction completed successfully. Invoice confirmed!`);
+          } else {
+            await sendWhatsAppMessage(from, `ℹ️ GSTIN received, but no pending invoice require review. Thank you!`);
+          }
+        } else {
+          await sendWhatsAppMessage(from, `⚠️ GSTIN unrecognized. Please reply with your 15-character GSTIN code (e.g. 24ABCDE1234F1Z5).`);
+        }
+        return;
+      }
+
+      // Handle Image / Document upload
       const isSuccess = Math.random() > 0.3;
       const invId = mockDb.invoices.length + 1;
       mockDb.invoices.push({
@@ -662,32 +762,76 @@ app.post('/webhooks/whatsapp', async (req, res) => {
         extraction_confidence: isSuccess ? 0.88 : 0.42,
         extraction_status: isSuccess ? 'extracted' : 'needs_review'
       });
+
+      if (isSuccess) {
+        await sendWhatsAppMessage(from, `✅ Received! Invoice from Simulated Vendor Ltd logged. Total: ₹11,200. GSTIN valid.`);
+      } else {
+        await sendWhatsAppMessage(from, `Couldn't clearly read the GSTIN on this one. Can you send a clearer photo, or reply with the GSTIN directly?`);
+      }
       return;
     }
 
+    // LIVE DATABASE MODE (MySQL query flow)
     try {
+      const searchPhone = from.replace('+', '');
       const [bizList] = await dbPool.query(`
-        SELECT id FROM businesses 
-        WHERE whatsapp_number = ? OR whatsapp_number = ? OR whatsapp_number = ?
-      `, [from, from.replace('91', ''), from.replace('+91', '')]);
+        SELECT id, name FROM businesses 
+        WHERE whatsapp_number = ? OR whatsapp_number = ? OR whatsapp_number = ? 
+        OR ? LIKE CONCAT('%', whatsapp_number)
+      `, [searchPhone, searchPhone.replace('91', ''), searchPhone.replace('+91', ''), searchPhone]);
 
-      if (bizList.length === 0) return;
+      if (bizList.length === 0) {
+        console.warn(`[WhatsApp Webhook] Received message from unregistered number: ${from}`);
+        return;
+      }
       const businessId = bizList[0].id;
-      const isSuccess = Math.random() > 0.3;
+      const businessName = bizList[0].name;
 
+      if (message_type === 'text') {
+        const cleanText = message_text.trim().toUpperCase();
+        if (/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}$/.test(cleanText)) {
+          // Find last needs_review invoice
+          const [invList] = await dbPool.query(`
+            SELECT id FROM invoices 
+            WHERE business_id = ? AND extraction_status = 'needs_review' 
+            ORDER BY id DESC LIMIT 1
+          `, [businessId]);
+
+          if (invList.length > 0) {
+            const invoiceId = invList[0].id;
+            await dbPool.query(`
+              UPDATE invoices 
+              SET vendor_gstin = ?, vendor_name = 'Confirmed Vendor Ltd', extraction_status = 'confirmed', extraction_confidence = 1.0 
+              WHERE id = ?
+            `, [cleanText, invoiceId]);
+            await sendWhatsAppMessage(from, `✅ Valid GSTIN received for ${businessName}. Extraction completed successfully. Invoice confirmed!`);
+          } else {
+            await sendWhatsAppMessage(from, `ℹ️ GSTIN received, but no pending invoice require review. Thank you!`);
+          }
+        } else {
+          await sendWhatsAppMessage(from, `⚠️ GSTIN unrecognized. Please reply with your 15-character GSTIN code (e.g. 24ABCDE1234F1Z5).`);
+        }
+        return;
+      }
+
+      // Handle Image / Document upload
+      const isSuccess = Math.random() > 0.3;
       if (isSuccess) {
+        const invNo = `SIM-${Math.floor(1000 + Math.random()*9000)}`;
         await dbPool.query(`
           INSERT INTO invoices (business_id, source_type, file_url, vendor_name, vendor_gstin, invoice_number, invoice_date, taxable_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount, total_amount, hsn_sac_code, extraction_confidence, extraction_status)
           VALUES (?, 'whatsapp', ?, 'Simulated Vendor Ltd', '24ABCDE9999Z1Z0', ?, CURDATE(), 10000.00, 6.0, 600.00, 6.0, 600.00, 0.0, 0.0, 11200.00, '8471', 0.88, 'extracted')
-        `, [businessId, media_url || '', `SIM-${Math.floor(1000 + Math.random()*9000)}`]);
+        `, [businessId, media_url || '', invNo]);
+        await sendWhatsAppMessage(from, `✅ Received! Invoice from Simulated Vendor Ltd logged. Total: ₹11,200. GSTIN valid.`);
       } else {
         await dbPool.query(`
           INSERT INTO invoices (business_id, source_type, file_url, vendor_name, vendor_gstin, invoice_number, invoice_date, taxable_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount, total_amount, hsn_sac_code, extraction_confidence, extraction_status)
           VALUES (?, 'whatsapp', ?, '', '', '', NULL, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, NULL, 0.42, 'needs_review')
         `, [businessId, media_url || '']);
+        await sendWhatsAppMessage(from, `Couldn't clearly read the GSTIN on this one. Can you send a clearer photo, or reply with the GSTIN directly?`);
       }
     } catch (err) {
-      console.error('WhatsApp hook processing error:', err.message);
+      console.error('WhatsApp webhook processing error:', err.message);
     }
   }, 3000);
 });
@@ -696,3 +840,4 @@ app.post('/webhooks/whatsapp', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 BillGuru AI Backend listening on http://localhost:${PORT}`);
 });
+
