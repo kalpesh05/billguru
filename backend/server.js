@@ -41,6 +41,22 @@ const mockDb = {
     { id: 1, invoice_id: 1, business_id: 1, flag_type: 'missing_itc', severity: 'high', message: 'Invoice #INV-4521 not found in filed GSTR-3B. Potential ITC loss: ₹4,200.00', resolved: false },
     { id: 2, invoice_id: 2, business_id: 1, flag_type: 'slab_mismatch', severity: 'medium', message: 'Tax rate mismatch on Invoice #INV-4519: Charged 18% GST (9% CGST + 9% SGST), but HSN code 8471 expects 12% expected rate.', resolved: false },
     { id: 3, invoice_id: 4, business_id: 2, flag_type: 'gstin_invalid', severity: 'high', message: 'The GSTIN (24GUPTA9999K1Z2) on this invoice from Gupta Distributors appears to be Cancelled.', resolved: false }
+  ],
+  salaried_users: [
+    { id: 1, name: 'Ananya Sharma', pan: 'ABCPS1234F', email: 'ananya.s@techcorp.in', whatsapp_number: '9876500001', employer_name: 'TechCorp India Pvt Ltd', annual_ctc: 1800000.00, ca_id: 1, created_at: '2026-04-01' },
+    { id: 2, name: 'Vikram Mehta', pan: 'DEFPM5678K', email: 'vikram.mehta@fintech.co', whatsapp_number: '9876500002', employer_name: 'Fintech Solutions Ltd', annual_ctc: 2400000.00, ca_id: 1, created_at: '2026-04-05' }
+  ],
+  tax_deductions_locker: [
+    { id: 1, user_id: 1, category: '80D_health_insurance', financial_year: '2026-2027', title: 'HDFC ERGO Health Suraksha', amount: 25000.00, institution_or_landlord_pan: 'AAACH1234H', receipt_date: '2026-05-10', document_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', confidence_score: 0.98, verified_status: 'verified' },
+    { id: 2, user_id: 1, category: '80C_elss', financial_year: '2026-2027', title: 'Mirae Asset Tax Saver ELSS Fund', amount: 150000.00, institution_or_landlord_pan: 'AAACM5555M', receipt_date: '2026-06-15', document_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', confidence_score: 0.96, verified_status: 'verified' },
+    { id: 3, user_id: 1, category: 'hra_rent_receipt', financial_year: '2026-2027', title: 'House Rent (Bandra West, Mumbai)', amount: 240000.00, institution_or_landlord_pan: 'ABCDE9876K', receipt_date: '2026-07-01', document_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', confidence_score: 0.92, verified_status: 'verified' },
+    { id: 4, user_id: 1, category: '80G_donation', financial_year: '2026-2027', title: 'PM National Relief Fund', amount: 10000.00, institution_or_landlord_pan: 'PMRF12345T', receipt_date: '2026-07-20', document_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', confidence_score: 0.99, verified_status: 'verified' }
+  ],
+  form16_records: [
+    { id: 1, user_id: 1, financial_year: '2026-2027', employer_name: 'TechCorp India Pvt Ltd', employer_tan: 'MUMB12345C', gross_salary: 1800000.00, standard_deduction: 75000.00, exemptions_total: 180000.00, taxable_salary: 1545000.00, tds_deducted: 165000.00 }
+  ],
+  itr_filings: [
+    { id: 1, user_id: 1, assessment_year: '2027-2028', regime_selected: 'old', total_income: 1800000.00, total_deductions: 425000.00, net_taxable_income: 1375000.00, tax_payable: 147500.00, tds_credited: 165000.00, balance_payable: 0.00, refund_due: 17500.00, filing_status: 'ready_for_upload' }
   ]
 };
 
@@ -168,6 +184,78 @@ async function initializeDatabase() {
       );
     `);
 
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS salaried_users (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        name VARCHAR(255) NOT NULL,
+        pan VARCHAR(10) UNIQUE NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        whatsapp_number VARCHAR(15) UNIQUE NOT NULL,
+        employer_name VARCHAR(255),
+        annual_ctc DECIMAL(12,2),
+        ca_id INT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (ca_id) REFERENCES accountants(id) ON DELETE SET NULL
+      );
+    `);
+
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS tax_deductions_locker (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        user_id INT NOT NULL,
+        category VARCHAR(50) NOT NULL,
+        financial_year VARCHAR(9) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        amount DECIMAL(12,2) NOT NULL,
+        institution_or_landlord_pan VARCHAR(10),
+        receipt_date DATE,
+        document_url VARCHAR(500),
+        confidence_score DECIMAL(3,2) DEFAULT 0.95,
+        verified_status ENUM('pending', 'verified', 'rejected') DEFAULT 'verified',
+        raw_extracted_json JSON,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES salaried_users(id) ON DELETE CASCADE
+      );
+    `);
+
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS form16_records (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        user_id INT NOT NULL,
+        financial_year VARCHAR(9) NOT NULL,
+        employer_name VARCHAR(255) NOT NULL,
+        employer_tan VARCHAR(10) NOT NULL,
+        gross_salary DECIMAL(12,2) NOT NULL,
+        standard_deduction DECIMAL(12,2) DEFAULT 75000.00,
+        exemptions_total DECIMAL(12,2) DEFAULT 0.00,
+        taxable_salary DECIMAL(12,2) NOT NULL,
+        tds_deducted DECIMAL(12,2) NOT NULL,
+        raw_extracted_json JSON,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES salaried_users(id) ON DELETE CASCADE
+      );
+    `);
+
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS itr_filings (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        user_id INT NOT NULL,
+        assessment_year VARCHAR(9) NOT NULL,
+        regime_selected ENUM('old', 'new') NOT NULL,
+        total_income DECIMAL(12,2) NOT NULL,
+        total_deductions DECIMAL(12,2) NOT NULL,
+        net_taxable_income DECIMAL(12,2) NOT NULL,
+        tax_payable DECIMAL(12,2) NOT NULL,
+        tds_credited DECIMAL(12,2) NOT NULL,
+        balance_payable DECIMAL(12,2) DEFAULT 0.00,
+        refund_due DECIMAL(12,2) DEFAULT 0.00,
+        filing_status ENUM('draft', 'ready_for_upload', 'filed') DEFAULT 'draft',
+        itr_json_payload JSON,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES salaried_users(id) ON DELETE CASCADE
+      );
+    `);
+
     console.log('🗂️ MySQL schema tables verified/created successfully.');
 
     // Seed mock data if database is empty
@@ -218,6 +306,34 @@ async function initializeDatabase() {
         (1, 1, 'missing_itc', 'high', 'Invoice #INV-4521 not found in filed GSTR-3B. Potential ITC loss: ₹4,200.00', false),
         (2, 2, 'slab_mismatch', 'medium', 'Tax rate mismatch on Invoice #INV-4519: Charged 18% GST (9% CGST + 9% SGST), but HSN code 8471 expects 12% expected rate.', false),
         (3, 4, 'gstin_invalid', 'high', 'The GSTIN (24GUPTA9999K1Z2) on this invoice from Gupta Distributors appears to be Cancelled.', false)
+      `);
+
+      // Seed salaried users
+      await dbPool.query(`
+        INSERT INTO salaried_users (id, name, pan, email, whatsapp_number, employer_name, annual_ctc, ca_id) VALUES
+        (1, 'Ananya Sharma', 'ABCPS1234F', 'ananya.s@techcorp.in', '9876500001', 'TechCorp India Pvt Ltd', 1800000.00, 1),
+        (2, 'Vikram Mehta', 'DEFPM5678K', 'vikram.mehta@fintech.co', '9876500002', 'Fintech Solutions Ltd', 2400000.00, 1)
+      `);
+
+      // Seed deductions locker
+      await dbPool.query(`
+        INSERT INTO tax_deductions_locker (id, user_id, category, financial_year, title, amount, institution_or_landlord_pan, receipt_date, document_url, confidence_score, verified_status) VALUES
+        (1, 1, '80D_health_insurance', '2026-2027', 'HDFC ERGO Health Suraksha', 25000.00, 'AAACH1234H', '2026-05-10', 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', 0.98, 'verified'),
+        (2, 1, '80C_elss', '2026-2027', 'Mirae Asset Tax Saver ELSS Fund', 150000.00, 'AAACM5555M', '2026-06-15', 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', 0.96, 'verified'),
+        (3, 1, 'hra_rent_receipt', '2026-2027', 'House Rent (Bandra West, Mumbai)', 240000.00, 'ABCDE9876K', '2026-07-01', 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', 0.92, 'verified'),
+        (4, 1, '80G_donation', '2026-2027', 'PM National Relief Fund', 10000.00, 'PMRF12345T', '2026-07-20', 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', 0.99, 'verified')
+      `);
+
+      // Seed Form 16
+      await dbPool.query(`
+        INSERT INTO form16_records (id, user_id, financial_year, employer_name, employer_tan, gross_salary, standard_deduction, exemptions_total, taxable_salary, tds_deducted) VALUES
+        (1, 1, '2026-2027', 'TechCorp India Pvt Ltd', 'MUMB12345C', 1800000.00, 75000.00, 180000.00, 1545000.00, 165000.00)
+      `);
+
+      // Seed ITR filing record
+      await dbPool.query(`
+        INSERT INTO itr_filings (id, user_id, assessment_year, regime_selected, total_income, total_deductions, net_taxable_income, tax_payable, tds_credited, balance_payable, refund_due, filing_status) VALUES
+        (1, 1, '2027-2028', 'old', 1800000.00, 425000.00, 1375000.00, 147500.00, 165000.00, 0.00, 17500.00, 'ready_for_upload')
       `);
 
       console.log('🌲 Seeding completed successfully.');
@@ -622,6 +738,503 @@ app.post('/api/businesses', authenticateToken, async (req, res) => {
   }
 });
 
+// ============================================================================
+// 🇮🇳 SALARIED TAX & ITR COPILOT ENGINE (Old vs New Regime + Tax Locker)
+// ============================================================================
+
+function calculateOldRegimeTax(grossSalary, totalDeductions = 0, hraExemption = 0) {
+  const standardDeduction = 50000;
+  const allowableDeductions = Math.min(totalDeductions + hraExemption, grossSalary);
+  const taxableIncome = Math.max(0, grossSalary - standardDeduction - allowableDeductions);
+
+  let tax = 0;
+  if (taxableIncome > 1000000) {
+    tax += (taxableIncome - 1000000) * 0.30;
+    tax += 500000 * 0.20;
+    tax += 250000 * 0.05;
+  } else if (taxableIncome > 500000) {
+    tax += (taxableIncome - 500000) * 0.20;
+    tax += 250000 * 0.05;
+  } else if (taxableIncome > 250000) {
+    tax += (taxableIncome - 250000) * 0.05;
+  }
+
+  // Rebate u/s 87A (Old regime: rebate if taxable income <= 500,000)
+  if (taxableIncome <= 500000) {
+    tax = 0;
+  }
+
+  const cess = tax * 0.04;
+  const totalTax = Math.round(tax + cess);
+
+  return {
+    standardDeduction,
+    allowableDeductions,
+    taxableIncome,
+    baseTax: Math.round(tax),
+    cess: Math.round(cess),
+    totalTax
+  };
+}
+
+function calculateNewRegimeTax(grossSalary) {
+  // Budget 2024 / FY 2026-27: Standard deduction is ₹75,000
+  const standardDeduction = 75000;
+  const taxableIncome = Math.max(0, grossSalary - standardDeduction);
+
+  let tax = 0;
+  if (taxableIncome > 1500000) {
+    tax += (taxableIncome - 1500000) * 0.30;
+    tax += 300000 * 0.20; // 12L to 15L
+    tax += 200000 * 0.15; // 10L to 12L
+    tax += 300000 * 0.10; // 7L to 10L
+    tax += 400000 * 0.05; // 3L to 7L
+  } else if (taxableIncome > 1200000) {
+    tax += (taxableIncome - 1200000) * 0.20;
+    tax += 200000 * 0.15;
+    tax += 300000 * 0.10;
+    tax += 400000 * 0.05;
+  } else if (taxableIncome > 1000000) {
+    tax += (taxableIncome - 1000000) * 0.15;
+    tax += 300000 * 0.10;
+    tax += 400000 * 0.05;
+  } else if (taxableIncome > 700000) {
+    tax += (taxableIncome - 700000) * 0.10;
+    tax += 400000 * 0.05;
+  } else if (taxableIncome > 300000) {
+    tax += (taxableIncome - 300000) * 0.05;
+  }
+
+  // Rebate u/s 87A (New regime: full rebate if taxable income <= 700,000)
+  if (taxableIncome <= 700000) {
+    tax = 0;
+  }
+
+  const cess = tax * 0.04;
+  const totalTax = Math.round(tax + cess);
+
+  return {
+    standardDeduction,
+    allowableDeductions: 0,
+    taxableIncome,
+    baseTax: Math.round(tax),
+    cess: Math.round(cess),
+    totalTax
+  };
+}
+
+// 1. GET CA Salaried Clients List
+app.get('/api/ca/:caId/salaried-clients', authenticateToken, async (req, res) => {
+  const caId = req.ca.id;
+
+  if (isDbMockMode) {
+    const clients = mockDb.salaried_users.filter(u => u.ca_id === caId || !u.ca_id).map(user => {
+      const proofs = mockDb.tax_deductions_locker.filter(d => d.user_id === user.id);
+      const form16 = mockDb.form16_records.find(f => f.user_id === user.id);
+      const filing = mockDb.itr_filings.find(f => f.user_id === user.id);
+      return {
+        ...user,
+        proofs_count: proofs.length,
+        has_form16: !!form16,
+        filing_status: filing ? filing.filing_status : 'pending',
+        regime_selected: filing ? filing.regime_selected : 'undecided'
+      };
+    });
+    return res.json(clients);
+  }
+
+  try {
+    const [rows] = await dbPool.query(`
+      SELECT su.*, 
+        (SELECT COUNT(*) FROM tax_deductions_locker WHERE user_id = su.id) as proofs_count,
+        (SELECT COUNT(*) > 0 FROM form16_records WHERE user_id = su.id) as has_form16,
+        IFNULL((SELECT filing_status FROM itr_filings WHERE user_id = su.id ORDER BY id DESC LIMIT 1), 'pending') as filing_status,
+        IFNULL((SELECT regime_selected FROM itr_filings WHERE user_id = su.id ORDER BY id DESC LIMIT 1), 'undecided') as regime_selected
+      FROM salaried_users su
+      WHERE su.ca_id = ? OR su.ca_id IS NULL
+    `, [caId]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. GET Salaried User Profile
+app.get('/api/salaried/user/:id', async (req, res) => {
+  const userId = parseInt(req.params.id);
+
+  if (isDbMockMode) {
+    const user = mockDb.salaried_users.find(u => u.id === userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    return res.json(user);
+  }
+
+  try {
+    const [rows] = await dbPool.query('SELECT * FROM salaried_users WHERE id = ?', [userId]);
+    if (rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. GET Tax Deductions Locker Items & Caps
+app.get('/api/salaried/user/:id/locker', async (req, res) => {
+  const userId = parseInt(req.params.id);
+
+  if (isDbMockMode) {
+    const proofs = mockDb.tax_deductions_locker.filter(d => d.user_id === userId);
+    
+    // Compute caps
+    let sec80CTotal = 0;
+    let sec80DTotal = 0;
+    let hraTotal = 0;
+    let donationTotal = 0;
+
+    proofs.forEach(p => {
+      const amt = parseFloat(p.amount) || 0;
+      if (p.category.startsWith('80C')) sec80CTotal += amt;
+      else if (p.category.startsWith('80D')) sec80DTotal += amt;
+      else if (p.category === 'hra_rent_receipt') hraTotal += amt;
+      else if (p.category === '80G_donation') donationTotal += amt;
+    });
+
+    const capped80C = Math.min(150000, sec80CTotal);
+    const capped80D = Math.min(50000, sec80DTotal);
+    const totalAllowableOldRegime = capped80C + capped80D + (hraTotal * 0.40) + donationTotal;
+
+    return res.json({
+      proofs,
+      summary: {
+        total_proofs: proofs.length,
+        sec80C_raw: sec80CTotal,
+        sec80C_capped: capped80C,
+        sec80C_limit: 150000,
+        sec80D_raw: sec80DTotal,
+        sec80D_capped: capped80D,
+        sec80D_limit: 50000,
+        hra_rent_total: hraTotal,
+        donations_80G: donationTotal,
+        total_eligible_deductions: totalAllowableOldRegime
+      }
+    });
+  }
+
+  try {
+    const [rows] = await dbPool.query('SELECT * FROM tax_deductions_locker WHERE user_id = ? ORDER BY receipt_date DESC', [userId]);
+
+    let sec80CTotal = 0;
+    let sec80DTotal = 0;
+    let hraTotal = 0;
+    let donationTotal = 0;
+
+    rows.forEach(p => {
+      const amt = parseFloat(p.amount) || 0;
+      if (p.category.startsWith('80C')) sec80CTotal += amt;
+      else if (p.category.startsWith('80D')) sec80DTotal += amt;
+      else if (p.category === 'hra_rent_receipt') hraTotal += amt;
+      else if (p.category === '80G_donation') donationTotal += amt;
+    });
+
+    const capped80C = Math.min(150000, sec80CTotal);
+    const capped80D = Math.min(50000, sec80DTotal);
+    const totalAllowableOldRegime = capped80C + capped80D + (hraTotal * 0.40) + donationTotal;
+
+    res.json({
+      proofs: rows,
+      summary: {
+        total_proofs: rows.length,
+        sec80C_raw: sec80CTotal,
+        sec80C_capped: capped80C,
+        sec80C_limit: 150000,
+        sec80D_raw: sec80DTotal,
+        sec80D_capped: capped80D,
+        sec80D_limit: 50000,
+        hra_rent_total: hraTotal,
+        donations_80G: donationTotal,
+        total_eligible_deductions: totalAllowableOldRegime
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. POST Add Proof to Tax Locker
+app.post('/api/salaried/user/:id/locker', async (req, res) => {
+  const userId = parseInt(req.params.id);
+  const { category, title, amount, institution_or_landlord_pan, receipt_date, document_url } = req.body;
+
+  if (!category || !title || !amount) {
+    return res.status(400).json({ error: 'Missing category, title, or amount' });
+  }
+
+  if (isDbMockMode) {
+    const proof = {
+      id: mockDb.tax_deductions_locker.length + 1,
+      user_id: userId,
+      category,
+      financial_year: '2026-2027',
+      title,
+      amount: parseFloat(amount),
+      institution_or_landlord_pan: institution_or_landlord_pan || null,
+      receipt_date: receipt_date || new Date().toISOString().split('T')[0],
+      document_url: document_url || 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500',
+      confidence_score: 0.98,
+      verified_status: 'verified'
+    };
+    mockDb.tax_deductions_locker.unshift(proof);
+    return res.json({ success: true, proof });
+  }
+
+  try {
+    const [result] = await dbPool.query(`
+      INSERT INTO tax_deductions_locker (user_id, category, financial_year, title, amount, institution_or_landlord_pan, receipt_date, document_url, confidence_score, verified_status)
+      VALUES (?, ?, '2026-2027', ?, ?, ?, ?, ?, 0.98, 'verified')
+    `, [
+      userId,
+      category,
+      title,
+      parseFloat(amount),
+      institution_or_landlord_pan || null,
+      receipt_date || new Date().toISOString().split('T')[0],
+      document_url || 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500'
+    ]);
+
+    res.json({ success: true, id: result.insertId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. DELETE Proof from Tax Locker
+app.delete('/api/salaried/locker/:proofId', async (req, res) => {
+  const proofId = parseInt(req.params.proofId);
+
+  if (isDbMockMode) {
+    const idx = mockDb.tax_deductions_locker.findIndex(p => p.id === proofId);
+    if (idx === -1) return res.status(404).json({ error: 'Proof not found' });
+    mockDb.tax_deductions_locker.splice(idx, 1);
+    return res.json({ success: true });
+  }
+
+  try {
+    await dbPool.query('DELETE FROM tax_deductions_locker WHERE id = ?', [proofId]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 6. GET / POST Form 16 Records
+app.get('/api/salaried/user/:id/form16', async (req, res) => {
+  const userId = parseInt(req.params.id);
+
+  if (isDbMockMode) {
+    const record = mockDb.form16_records.find(f => f.user_id === userId);
+    return res.json(record || null);
+  }
+
+  try {
+    const [rows] = await dbPool.query('SELECT * FROM form16_records WHERE user_id = ? ORDER BY id DESC LIMIT 1', [userId]);
+    res.json(rows[0] || null);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/salaried/user/:id/form16', async (req, res) => {
+  const userId = parseInt(req.params.id);
+  const { employer_name, employer_tan, gross_salary, standard_deduction, exemptions_total, taxable_salary, tds_deducted } = req.body;
+
+  if (isDbMockMode) {
+    let existing = mockDb.form16_records.find(f => f.user_id === userId);
+    if (existing) {
+      Object.assign(existing, {
+        employer_name,
+        employer_tan,
+        gross_salary: parseFloat(gross_salary),
+        standard_deduction: parseFloat(standard_deduction || 75000),
+        exemptions_total: parseFloat(exemptions_total || 0),
+        taxable_salary: parseFloat(taxable_salary || gross_salary),
+        tds_deducted: parseFloat(tds_deducted || 0)
+      });
+      return res.json({ success: true, record: existing });
+    } else {
+      const record = {
+        id: mockDb.form16_records.length + 1,
+        user_id: userId,
+        financial_year: '2026-2027',
+        employer_name,
+        employer_tan,
+        gross_salary: parseFloat(gross_salary),
+        standard_deduction: parseFloat(standard_deduction || 75000),
+        exemptions_total: parseFloat(exemptions_total || 0),
+        taxable_salary: parseFloat(taxable_salary || gross_salary),
+        tds_deducted: parseFloat(tds_deducted || 0)
+      };
+      mockDb.form16_records.push(record);
+      return res.json({ success: true, record });
+    }
+  }
+
+  try {
+    await dbPool.query(`
+      INSERT INTO form16_records (user_id, financial_year, employer_name, employer_tan, gross_salary, standard_deduction, exemptions_total, taxable_salary, tds_deducted)
+      VALUES (?, '2026-2027', ?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE 
+        employer_name = VALUES(employer_name),
+        employer_tan = VALUES(employer_tan),
+        gross_salary = VALUES(gross_salary),
+        standard_deduction = VALUES(standard_deduction),
+        exemptions_total = VALUES(exemptions_total),
+        taxable_salary = VALUES(taxable_salary),
+        tds_deducted = VALUES(tds_deducted)
+    `, [
+      userId,
+      employer_name,
+      employer_tan,
+      parseFloat(gross_salary),
+      parseFloat(standard_deduction || 75000),
+      parseFloat(exemptions_total || 0),
+      parseFloat(taxable_salary || gross_salary),
+      parseFloat(tds_deducted || 0)
+    ]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 7. GET Regime Comparison (Old vs New)
+app.get('/api/salaried/user/:id/regime-comparison', async (req, res) => {
+  const userId = parseInt(req.params.id);
+
+  let grossSalary = 1800000;
+  let totalDeductions = 175000; // default 80C + 80D
+  let hraExemption = 96000;
+
+  if (isDbMockMode) {
+    const user = mockDb.salaried_users.find(u => u.id === userId);
+    if (user && user.annual_ctc) grossSalary = parseFloat(user.annual_ctc);
+
+    const form16 = mockDb.form16_records.find(f => f.user_id === userId);
+    if (form16) grossSalary = parseFloat(form16.gross_salary);
+
+    const proofs = mockDb.tax_deductions_locker.filter(d => d.user_id === userId);
+    let s80c = 0;
+    let s80d = 0;
+    let rent = 0;
+    let donation = 0;
+
+    proofs.forEach(p => {
+      const amt = parseFloat(p.amount) || 0;
+      if (p.category.startsWith('80C')) s80c += amt;
+      else if (p.category.startsWith('80D')) s80d += amt;
+      else if (p.category === 'hra_rent_receipt') rent += amt;
+      else if (p.category === '80G_donation') donation += amt;
+    });
+
+    totalDeductions = Math.min(150000, s80c) + Math.min(50000, s80d) + donation;
+    hraExemption = rent > 0 ? Math.min(rent * 0.40, 200000) : 0;
+  } else {
+    try {
+      const [uRows] = await dbPool.query('SELECT annual_ctc FROM salaried_users WHERE id = ?', [userId]);
+      if (uRows.length > 0 && uRows[0].annual_ctc) grossSalary = parseFloat(uRows[0].annual_ctc);
+
+      const [fRows] = await dbPool.query('SELECT gross_salary FROM form16_records WHERE user_id = ? ORDER BY id DESC LIMIT 1', [userId]);
+      if (fRows.length > 0) grossSalary = parseFloat(fRows[0].gross_salary);
+
+      const [pRows] = await dbPool.query('SELECT category, amount FROM tax_deductions_locker WHERE user_id = ?', [userId]);
+      let s80c = 0;
+      let s80d = 0;
+      let rent = 0;
+      let donation = 0;
+
+      pRows.forEach(p => {
+        const amt = parseFloat(p.amount) || 0;
+        if (p.category.startsWith('80C')) s80c += amt;
+        else if (p.category.startsWith('80D')) s80d += amt;
+        else if (p.category === 'hra_rent_receipt') rent += amt;
+        else if (p.category === '80G_donation') donation += amt;
+      });
+
+      totalDeductions = Math.min(150000, s80c) + Math.min(50000, s80d) + donation;
+      hraExemption = rent > 0 ? Math.min(rent * 0.40, 200000) : 0;
+    } catch (err) {
+      console.error('Error fetching tax regime data:', err.message);
+    }
+  }
+
+  const oldRegime = calculateOldRegimeTax(grossSalary, totalDeductions, hraExemption);
+  const newRegime = calculateNewRegimeTax(grossSalary);
+
+  const savings = Math.abs(oldRegime.totalTax - newRegime.totalTax);
+  const recommendedRegime = oldRegime.totalTax < newRegime.totalTax ? 'old' : 'new';
+
+  res.json({
+    gross_salary: grossSalary,
+    total_deductions_claimed: totalDeductions + hraExemption,
+    old_regime: oldRegime,
+    new_regime: newRegime,
+    recommended_regime: recommendedRegime,
+    tax_savings: savings,
+    recommendation_note: recommendedRegime === 'old'
+      ? `Old Regime saves you ₹${savings.toLocaleString('en-IN')} because of your significant 80C, 80D, and HRA deductions.`
+      : `New Regime is more beneficial by ₹${savings.toLocaleString('en-IN')} due to lower tax slabs and the ₹75,000 standard deduction.`
+  });
+});
+
+// 8. GET ITR-1 Ready JSON Payload
+app.get('/api/salaried/user/:id/itr-json', async (req, res) => {
+  const userId = parseInt(req.params.id);
+
+  let userName = 'Ananya Sharma';
+  let pan = 'ABCPS1234F';
+  let grossSalary = 1800000;
+
+  if (isDbMockMode) {
+    const user = mockDb.salaried_users.find(u => u.id === userId);
+    if (user) {
+      userName = user.name;
+      pan = user.pan;
+      grossSalary = user.annual_ctc || 1800000;
+    }
+  }
+
+  const newRegime = calculateNewRegimeTax(grossSalary);
+
+  const itr1Payload = {
+    schema_version: 'ITR-1_AY_2027-28_V1.0',
+    creation_date: new Date().toISOString(),
+    personal_info: {
+      assessee_name: userName,
+      pan: pan,
+      employer_category: 'Private Sector',
+      filing_section: '139(1) - On or before due date'
+    },
+    gross_total_income: {
+      salary: grossSalary,
+      standard_deduction: newRegime.standardDeduction,
+      income_chargeable_under_salary: newRegime.taxableIncome,
+      gross_total_income: newRegime.taxableIncome
+    },
+    tax_computation: {
+      regime: '115BAC (New Regime)',
+      total_taxable_income: newRegime.taxableIncome,
+      tax_payable_on_total_income: newRegime.baseTax,
+      health_education_cess: newRegime.cess,
+      total_tax_and_cess: newRegime.totalTax,
+      tds_deducted_by_employer: 165000,
+      net_refund_or_payable: 165000 - newRegime.totalTax > 0 
+        ? { type: 'REFUND', amount: 165000 - newRegime.totalTax } 
+        : { type: 'PAYABLE', amount: newRegime.totalTax - 165000 }
+    }
+  };
+
+  res.json(itr1Payload);
+});
+
 // 9. GET WhatsApp Webhook verification for Meta API Setup
 app.get('/webhooks/whatsapp', (req, res) => {
   const mode = req.query['hub.mode'];
@@ -1000,7 +1613,11 @@ app.post('/webhooks/whatsapp', async (req, res) => {
 });
 
 // App Listening start
-app.listen(PORT, () => {
-  console.log(`🚀 BillGuru AI Backend listening on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`🚀 BillGuru AI Backend listening on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = { app, calculateOldRegimeTax, calculateNewRegimeTax };
 

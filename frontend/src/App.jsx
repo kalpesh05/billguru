@@ -91,7 +91,45 @@ export default function App() {
   const [editVendor, setEditVendor] = useState('');
   const [editTotal, setEditTotal] = useState('');
 
+  // Salaried Professional State (ITR & Tax Locker)
+  const [salariedUser, setSalariedUser] = useState({
+    id: 1,
+    name: 'Ananya Sharma',
+    pan: 'ABCPS1234F',
+    employer_name: 'TechCorp India Pvt Ltd',
+    annual_ctc: 1800000.00
+  });
+
+  const [salariedProofs, setSalariedProofs] = useState([
+    { id: 1, category: '80D_health_insurance', title: 'HDFC ERGO Health Suraksha', amount: 25000, date: '2026-05-10', verified: true, pan: 'AAACH1234H' },
+    { id: 2, category: '80C_elss', title: 'Mirae Asset Tax Saver ELSS Fund', amount: 150000, date: '2026-06-15', verified: true, pan: 'AAACM5555M' },
+    { id: 3, category: 'hra_rent_receipt', title: 'House Rent (Bandra West, Mumbai)', amount: 240000, date: '2026-07-01', verified: true, pan: 'ABCDE9876K' },
+    { id: 4, category: '80G_donation', title: 'PM National Relief Fund', amount: 10000, date: '2026-07-20', verified: true, pan: 'PMRF12345T' }
+  ]);
+
+  const [form16Record, setForm16Record] = useState({
+    employer_name: 'TechCorp India Pvt Ltd',
+    employer_tan: 'MUMB12345C',
+    gross_salary: 1800000.00,
+    standard_deduction: 75000.00,
+    exemptions_total: 180000.00,
+    taxable_salary: 1545000.00,
+    tds_deducted: 165000.00
+  });
+
+  const [showAddProofModal, setShowAddProofModal] = useState(false);
+  const [newProofCat, setNewProofCat] = useState('80C_elss');
+  const [newProofTitle, setNewProofTitle] = useState('');
+  const [newProofAmount, setNewProofAmount] = useState('');
+  const [newProofDate, setNewProofDate] = useState('2026-07-15');
+  const [newProofPan, setNewProofPan] = useState('');
+
+  // Solo Business State (Shop Owner DIY Mode)
+  const [soloShopGstin, setSoloShopGstin] = useState('24ABCDE1234F1Z5');
+  const [soloShopName, setSoloShopName] = useState('Meena Kirana Store');
+
   // WhatsApp Simulation States
+  const [whatsappMode, setWhatsappMode] = useState('business'); // 'business' or 'salaried'
   const [whatsappClient, setWhatsappClient] = useState('Meena Kirana Store');
   const [whatsappStatus, setWhatsappStatus] = useState('Active');
   const [whatsappMessages, setWhatsappMessages] = useState([
@@ -454,12 +492,67 @@ export default function App() {
   const totalCriticalIssues = flags.filter(f => !f.resolved && f.severity === 'high').length;
 
   const navItems = [
-    { view: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+    { view: 'dashboard', label: 'CA Multi-Client', icon: 'dashboard' },
     { view: 'inward', label: 'Inward Queue', icon: 'receipt_long' },
     { view: 'outward', label: 'Sales Ledger', icon: 'upload_file' },
+    { view: 'solo-business', label: 'Solo Shop (DIY)', icon: 'storefront' },
+    { view: 'salaried-portal', label: 'Salaried Tax Locker', icon: 'account_balance_wallet' },
     { view: 'analytics', label: 'Analytics', icon: 'analytics' },
     { view: 'whatsapp', label: 'WhatsApp Sim', icon: 'chat' },
   ];
+
+  const downloadItrJson = () => {
+    const payload = {
+      schema_version: 'ITR-1_AY_2027-28_V1.0',
+      creation_date: new Date().toISOString(),
+      personal_info: {
+        assessee_name: salariedUser.name,
+        pan: salariedUser.pan,
+        employer_category: 'Private Sector',
+        filing_section: '139(1) - On or before due date'
+      },
+      gross_total_income: {
+        salary: salariedUser.annual_ctc,
+        standard_deduction: 75000,
+        income_chargeable_under_salary: salariedUser.annual_ctc - 75000
+      },
+      tax_computation: {
+        regime: '115BAC (New Regime)',
+        total_tax_and_cess: 215800,
+        tds_credited: 165000,
+        balance_payable: 50800
+      }
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ITR1_AY2027-28_${salariedUser.pan}.json`;
+    a.click();
+    showToast('Downloaded official ITR-1 JSON for incometax.gov.in!', 'success');
+  };
+
+  const downloadGstr3bJson = () => {
+    const payload = {
+      gstin: soloShopGstin,
+      fp: '072026',
+      filing_mode: 'DIY_SELF_SERVE',
+      sup_details: {
+        osup_det: { txval: 185000.00, camt: 16650.00, samt: 16650.00, iamt: 0.00 }
+      },
+      itc_elg: {
+        itc_avl: [{ ty: 'OTH', txval: 72000.00, camt: 6480.00, samt: 6480.00, iamt: 0.00 }]
+      }
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `GSTR3B_072026_${soloShopGstin}.json`;
+    a.click();
+    showToast('Downloaded GSTR-3B JSON ready for gst.gov.in!', 'success');
+  };
+
 
   // --- RENDER LOGIN / REGISTER VIEW ---
   if (!token) {
@@ -1346,7 +1439,551 @@ export default function App() {
               );
             })()}
 
-            {/* VIEW: COMPLIANCE ANALYTICS */}
+            {/* VIEW: SOLO BUSINESS (Shop Owner DIY Mode) */}
+            {currentView === 'solo-business' && (() => {
+              const shopInvoices = invoices.filter(i => i.business_id === 1);
+              const validInvoices = shopInvoices.filter(i => i.extraction_status !== 'needs_review');
+              const totalTaxable = validInvoices.reduce((s, i) => s + (Number(i.taxable_amount) || 0), 0);
+              const totalTax = validInvoices.reduce((s, i) => s + (Number(i.cgst_amount) || 0) + (Number(i.sgst_amount) || 0) + (Number(i.igst_amount) || 0), 0);
+              const blockedVendor = shopInvoices.find(i => i.vendor_gstin === '24GUPTA9999K1Z2' || i.extraction_status === 'needs_review');
+
+              return (
+                <div className="space-y-lg">
+                  {/* Shop Header */}
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-md bg-white border border-slate-200 p-md md:p-lg rounded shadow-sm">
+                    <div>
+                      <div className="flex items-center gap-sm">
+                        <span className="material-symbols-outlined text-teal-600 text-[28px]">storefront</span>
+                        <h2 className="font-headline-md text-headline-md font-bold text-ink-900">{soloShopName}</h2>
+                        <span className="px-sm py-xs bg-emerald-100 text-emerald-800 text-[11px] font-bold rounded-full uppercase tracking-wider">
+                          Solo DIY Mode (No CA)
+                        </span>
+                      </div>
+                      <p className="text-body-sm text-on-surface-variant font-data-mono mt-1">
+                        GSTIN: {soloShopGstin} • State: Gujarat (24) • Filing Period: July 2026
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-sm w-full md:w-auto">
+                      <button
+                        onClick={downloadGstr3bJson}
+                        className="flex-1 md:flex-initial bg-teal-600 hover:bg-teal-700 text-white font-bold py-sm px-md rounded transition-all text-body-sm flex items-center justify-center gap-xs shadow-sm active:scale-95"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">download</span>
+                        <span>Download GSTR-3B JSON</span>
+                      </button>
+                      <button
+                        onClick={() => { setCurrentView('whatsapp'); setWhatsappMode('business'); }}
+                        className="bg-paper-50 hover:bg-slate-200 border border-slate-300 text-ink-900 font-bold py-sm px-md rounded transition-all text-body-sm flex items-center gap-xs"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">chat</span>
+                        <span>Snap on WhatsApp</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Warning / Error Prevention Banner */}
+                  <div className="bg-amber-50 border-l-4 border-amber-500 p-md rounded flex items-start gap-md">
+                    <span className="material-symbols-outlined text-amber-600 text-[24px]">verified_user</span>
+                    <div className="flex-1">
+                      <h4 className="font-label-caps text-label-caps font-bold text-amber-900">PROACTIVE FRAUD & NOTICE SHIELD ACTIVE</h4>
+                      <p className="text-body-sm text-amber-800 mt-0.5">
+                        BillGuru AI automatically checked your vendor GSTINs against the government database. 1 invalid/cancelled vendor bill was blocked, saving you from a ₹4,200 penalty notice from the GST department!
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Summary Metric Cards */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-md">
+                    <div className="bg-white border border-slate-200 p-md rounded shadow-sm">
+                      <span className="font-label-caps text-label-caps text-on-surface-variant uppercase text-[10px]">Total Bills Scanned</span>
+                      <p className="font-data-mono text-headline-md font-bold text-ink-900 mt-xs">{shopInvoices.length}</p>
+                      <span className="text-[11px] text-teal-600 font-medium">via WhatsApp</span>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 p-md rounded shadow-sm">
+                      <span className="font-label-caps text-label-caps text-on-surface-variant uppercase text-[10px]">Total Taxable Purchases</span>
+                      <p className="font-data-mono text-headline-md font-bold text-ink-900 mt-xs">₹{totalTaxable.toLocaleString('en-IN')}</p>
+                      <span className="text-[11px] text-on-surface-variant">Purchase ledger</span>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 p-md rounded shadow-sm">
+                      <span className="font-label-caps text-label-caps text-on-surface-variant uppercase text-[10px]">Verified ITC Saved</span>
+                      <p className="font-data-mono text-headline-md font-bold text-emerald-600 mt-xs">₹{totalTax.toLocaleString('en-IN')}</p>
+                      <span className="text-[11px] text-emerald-700">100% safe to claim</span>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 p-md rounded shadow-sm">
+                      <span className="font-label-caps text-label-caps text-on-surface-variant uppercase text-[10px]">Estimated Net GST to Pay</span>
+                      <p className="font-data-mono text-headline-md font-bold text-teal-700 mt-xs">₹13,500</p>
+                      <span className="text-[11px] text-on-surface-variant">Due by 20th August</span>
+                    </div>
+                  </div>
+
+                  {/* Shop Purchase Invoices Table */}
+                  <div className="bg-white border border-slate-200 rounded shadow-sm overflow-hidden">
+                    <div className="p-md bg-paper-50 border-b border-slate-200 flex justify-between items-center">
+                      <div>
+                        <h3 className="font-label-caps text-label-caps font-bold text-ink-900">YOUR VERIFIED PURCHASE BILLS</h3>
+                        <p className="text-body-sm text-on-surface-variant">Every bill is OCR-verified with active GSTIN confirmation</p>
+                      </div>
+                      <span className="text-body-sm font-data-mono text-on-surface-variant">{validInvoices.length} Verified</span>
+                    </div>
+
+                    <div className="overflow-x-auto custom-scrollbar">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="bg-white border-b border-slate-200">
+                            <th className="px-md py-sm text-left font-label-caps text-label-caps text-ink-900">Invoice #</th>
+                            <th className="px-md py-sm text-left font-label-caps text-label-caps text-ink-900">Supplier Name</th>
+                            <th className="px-md py-sm text-left font-label-caps text-label-caps text-ink-900">GSTIN Status</th>
+                            <th className="px-md py-sm text-right font-label-caps text-label-caps text-ink-900">Taxable</th>
+                            <th className="px-md py-sm text-right font-label-caps text-label-caps text-ink-900">GST Rate</th>
+                            <th className="px-md py-sm text-right font-label-caps text-label-caps text-ink-900">Total Amt</th>
+                            <th className="px-md py-sm text-center font-label-caps text-label-caps text-ink-900">Compliance</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {shopInvoices.map(inv => (
+                            <tr key={inv.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                              <td className="px-md py-md font-data-mono font-bold text-ink-900">{inv.invoice_number}</td>
+                              <td className="px-md py-md font-body-md text-ink-900">{inv.vendor_name}</td>
+                              <td className="px-md py-md">
+                                <span className={`px-sm py-0.5 rounded text-[11px] font-bold ${
+                                  inv.vendor_gstin === '24GUPTA9999K1Z2' ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'
+                                }`}>
+                                  {inv.vendor_gstin === '24GUPTA9999K1Z2' ? 'Cancelled / Suspended' : 'Active GSTIN'}
+                                </span>
+                              </td>
+                              <td className="px-md py-md text-right font-data-mono text-ink-900">₹{Number(inv.taxable_amount || 0).toLocaleString('en-IN')}</td>
+                              <td className="px-md py-md text-right font-data-mono text-on-surface-variant">{inv.cgst_rate > 0 ? `${inv.cgst_rate * 2}%` : '18%'}</td>
+                              <td className="px-md py-md text-right font-data-mono font-bold text-teal-700">₹{Number(inv.total_amount || 0).toLocaleString('en-IN')}</td>
+                              <td className="px-md py-md text-center">
+                                <span className="inline-flex items-center gap-1 text-emerald-700 text-body-sm font-medium">
+                                  <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                                  Ready
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* VIEW: SALARIED TAX HUB & ITR-1 COPILOT */}
+            {currentView === 'salaried-portal' && (() => {
+              // Calculate deductions summary dynamically
+              let sec80CTotal = 0;
+              let sec80DTotal = 0;
+              let hraTotal = 0;
+              let donationTotal = 0;
+
+              salariedProofs.forEach(p => {
+                const amt = Number(p.amount) || 0;
+                if (p.category.startsWith('80C')) sec80CTotal += amt;
+                else if (p.category.startsWith('80D')) sec80DTotal += amt;
+                else if (p.category === 'hra_rent_receipt') hraTotal += amt;
+                else if (p.category === '80G_donation') donationTotal += amt;
+              });
+
+              const capped80C = Math.min(150000, sec80CTotal);
+              const capped80D = Math.min(25000, sec80DTotal);
+              const hraExemption = Math.min(hraTotal * 0.40, 150000);
+              const totalDeductionsClaimed = capped80C + capped80D + hraExemption + donationTotal;
+
+              // Compute Tax: Old vs New
+              const grossSalary = salariedUser.annual_ctc;
+              const oldStandardDed = 50000;
+              const oldTaxableIncome = Math.max(0, grossSalary - oldStandardDed - totalDeductionsClaimed);
+              
+              // Old regime tax
+              let oldTax = 0;
+              if (oldTaxableIncome > 1000000) oldTax = 112500 + (oldTaxableIncome - 1000000) * 0.30;
+              else if (oldTaxableIncome > 500000) oldTax = 12500 + (oldTaxableIncome - 500000) * 0.20;
+              else if (oldTaxableIncome > 250000) oldTax = (oldTaxableIncome - 250000) * 0.05;
+              const oldTotalTaxWithCess = Math.round(oldTax * 1.04);
+
+              // New regime tax (Budget 2024 revised slabs)
+              const newStandardDed = 75000;
+              const newTaxableIncome = Math.max(0, grossSalary - newStandardDed);
+              let newTax = 0;
+              if (newTaxableIncome > 1500000) newTax = 140000 + (newTaxableIncome - 1500000) * 0.30;
+              else if (newTaxableIncome > 1200000) newTax = 80000 + (newTaxableIncome - 1200000) * 0.20;
+              else if (newTaxableIncome > 1000000) newTax = 50000 + (newTaxableIncome - 1000000) * 0.15;
+              else if (newTaxableIncome > 700000) newTax = 20000 + (newTaxableIncome - 700000) * 0.10;
+              else if (newTaxableIncome > 300000) newTax = (newTaxableIncome - 300000) * 0.05;
+              const newTotalTaxWithCess = Math.round(newTax * 1.04);
+
+              const savings = Math.abs(oldTotalTaxWithCess - newTotalTaxWithCess);
+              const winner = newTotalTaxWithCess <= oldTotalTaxWithCess ? 'New Regime' : 'Old Regime';
+
+              const handleDeleteProof = (id) => {
+                setSalariedProofs(salariedProofs.filter(p => p.id !== id));
+                showToast('Tax deduction proof removed.', 'info');
+              };
+
+              const handleAddProofSubmit = (e) => {
+                e.preventDefault();
+                if (!newProofTitle || !newProofAmount) return;
+                const newProof = {
+                  id: Date.now(),
+                  category: newProofCat,
+                  title: newProofTitle,
+                  amount: parseFloat(newProofAmount),
+                  date: newProofDate,
+                  pan: newProofPan || 'ABCDE1234F',
+                  verified: true
+                };
+                setSalariedProofs([newProof, ...salariedProofs]);
+                setShowAddProofModal(false);
+                setNewProofTitle('');
+                setNewProofAmount('');
+                showToast(`Saved ₹${parseFloat(newProofAmount).toLocaleString('en-IN')} to your Tax Locker!`, 'success');
+              };
+
+              return (
+                <div className="space-y-lg">
+                  {/* Salaried Profile Banner */}
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-md bg-white border border-slate-200 p-md md:p-lg rounded shadow-sm">
+                    <div>
+                      <div className="flex items-center gap-sm">
+                        <span className="material-symbols-outlined text-teal-600 text-[28px]">account_balance_wallet</span>
+                        <h2 className="font-headline-md text-headline-md font-bold text-ink-900">{salariedUser.name}</h2>
+                        <span className="px-sm py-xs bg-indigo-100 text-indigo-800 text-[11px] font-bold rounded-full uppercase tracking-wider">
+                          Salaried Taxpayer
+                        </span>
+                      </div>
+                      <p className="text-body-sm text-on-surface-variant font-data-mono mt-1">
+                        PAN: {salariedUser.pan} • Employer: {salariedUser.employer_name} • Annual CTC: ₹{salariedUser.annual_ctc.toLocaleString('en-IN')}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-sm w-full md:w-auto">
+                      <button
+                        onClick={downloadItrJson}
+                        className="flex-1 md:flex-initial bg-teal-600 hover:bg-teal-700 text-white font-bold py-sm px-md rounded transition-all text-body-sm flex items-center justify-center gap-xs shadow-sm active:scale-95"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">download</span>
+                        <span>Download ITR-1 JSON</span>
+                      </button>
+                      <button
+                        onClick={() => setShowAddProofModal(true)}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-sm px-md rounded transition-all text-body-sm flex items-center gap-xs shadow-sm active:scale-95"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">add</span>
+                        <span>＋ Add Tax Proof</span>
+                      </button>
+                      <button
+                        onClick={() => { setCurrentView('whatsapp'); setWhatsappMode('salaried'); }}
+                        className="bg-paper-50 hover:bg-slate-200 border border-slate-300 text-ink-900 font-bold py-sm px-md rounded transition-all text-body-sm flex items-center gap-xs"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">chat</span>
+                        <span>WhatsApp Locker</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ⚖️ Old vs New Regime Live Comparison Matrix */}
+                  <div className="bg-gradient-to-r from-teal-900 to-slate-900 text-white p-lg rounded-xl shadow-lg">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-md mb-md border-b border-teal-800 pb-md">
+                      <div>
+                        <span className="text-teal-400 font-label-caps text-label-caps uppercase tracking-wider text-[11px]">AI REGIME OPTIMIZER</span>
+                        <h3 className="text-xl font-bold text-white mt-0.5">Old vs. New Tax Regime Analysis (FY 2026-27)</h3>
+                      </div>
+                      <div className="bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 px-md py-sm rounded-lg flex items-center gap-sm">
+                        <span className="material-symbols-outlined text-[20px]">thumb_up</span>
+                        <span className="font-bold text-body-sm">
+                          🏆 {winner} saves you ₹{savings.toLocaleString('en-IN')}!
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-md">
+                      {/* Old Regime Card */}
+                      <div className={`p-md rounded-lg border transition-all ${
+                        winner === 'Old Regime' ? 'bg-teal-800/40 border-teal-400' : 'bg-slate-800/40 border-slate-700'
+                      }`}>
+                        <div className="flex justify-between items-center mb-sm">
+                          <h4 className="font-bold text-white">Old Tax Regime</h4>
+                          <span className="text-xs bg-slate-700 px-2 py-0.5 rounded text-slate-300">With Deductions</span>
+                        </div>
+                        <div className="space-y-xs text-sm text-slate-300">
+                          <div className="flex justify-between">
+                            <span>Standard Deduction:</span>
+                            <span className="font-data-mono">₹50,000</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Total Section 80 & HRA Claimed:</span>
+                            <span className="font-data-mono text-teal-300">₹{totalDeductionsClaimed.toLocaleString('en-IN')}</span>
+                          </div>
+                          <div className="flex justify-between border-t border-slate-700 pt-xs">
+                            <span>Net Taxable Income:</span>
+                            <span className="font-data-mono font-bold text-white">₹{oldTaxableIncome.toLocaleString('en-IN')}</span>
+                          </div>
+                          <div className="flex justify-between text-base font-bold text-white pt-xs border-t border-slate-700">
+                            <span>Total Tax Payable:</span>
+                            <span className="font-data-mono text-teal-400">₹{oldTotalTaxWithCess.toLocaleString('en-IN')}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* New Regime Card */}
+                      <div className={`p-md rounded-lg border transition-all ${
+                        winner === 'New Regime' ? 'bg-teal-800/40 border-teal-400' : 'bg-slate-800/40 border-slate-700'
+                      }`}>
+                        <div className="flex justify-between items-center mb-sm">
+                          <h4 className="font-bold text-white">New Tax Regime (Sec 115BAC)</h4>
+                          <span className="text-xs bg-teal-500/20 text-teal-300 px-2 py-0.5 rounded">Default Standard</span>
+                        </div>
+                        <div className="space-y-xs text-sm text-slate-300">
+                          <div className="flex justify-between">
+                            <span>Standard Deduction (Budget 2024):</span>
+                            <span className="font-data-mono text-emerald-300">₹75,000</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Deductions Allowed:</span>
+                            <span className="font-data-mono text-slate-400">₹0 (Zero paperwork)</span>
+                          </div>
+                          <div className="flex justify-between border-t border-slate-700 pt-xs">
+                            <span>Net Taxable Income:</span>
+                            <span className="font-data-mono font-bold text-white">₹{newTaxableIncome.toLocaleString('en-IN')}</span>
+                          </div>
+                          <div className="flex justify-between text-base font-bold text-white pt-xs border-t border-slate-700">
+                            <span>Total Tax Payable:</span>
+                            <span className="font-data-mono text-teal-400">₹{newTotalTaxWithCess.toLocaleString('en-IN')}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Deduction Progress Bars */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-md">
+                    {/* Section 80C */}
+                    <div className="bg-white border border-slate-200 p-md rounded shadow-sm">
+                      <div className="flex justify-between items-center mb-xs">
+                        <span className="font-label-caps text-label-caps font-bold text-ink-900">SECTION 80C (ELSS, LIC, PPF)</span>
+                        <span className="font-data-mono text-xs font-bold text-teal-700">
+                          ₹{capped80C.toLocaleString('en-IN')} / ₹1,50,000
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                        <div 
+                          className="bg-teal-600 h-2.5 rounded-full transition-all" 
+                          style={{ width: `${Math.min(100, (sec80CTotal / 150000) * 100)}%` }}
+                        ></div>
+                      </div>
+                      <p className="text-[11px] text-on-surface-variant mt-1.5">
+                        {sec80CTotal >= 150000 ? '✅ 100% Maximum deduction reached!' : `₹${(150000 - sec80CTotal).toLocaleString('en-IN')} left to invest before March 31`}
+                      </p>
+                    </div>
+
+                    {/* Section 80D */}
+                    <div className="bg-white border border-slate-200 p-md rounded shadow-sm">
+                      <div className="flex justify-between items-center mb-xs">
+                        <span className="font-label-caps text-label-caps font-bold text-ink-900">SECTION 80D (HEALTH INSURANCE)</span>
+                        <span className="font-data-mono text-xs font-bold text-teal-700">
+                          ₹{capped80D.toLocaleString('en-IN')} / ₹25,000
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                        <div 
+                          className="bg-indigo-600 h-2.5 rounded-full transition-all" 
+                          style={{ width: `${Math.min(100, (sec80DTotal / 25000) * 100)}%` }}
+                        ></div>
+                      </div>
+                      <p className="text-[11px] text-on-surface-variant mt-1.5">
+                        {sec80DTotal >= 25000 ? '✅ Full ₹25,000 premium claimed' : `₹${(25000 - sec80DTotal).toLocaleString('en-IN')} remaining limit`}
+                      </p>
+                    </div>
+
+                    {/* HRA Rent Receipts */}
+                    <div className="bg-white border border-slate-200 p-md rounded shadow-sm">
+                      <div className="flex justify-between items-center mb-xs">
+                        <span className="font-label-caps text-label-caps font-bold text-ink-900">HRA RENT RECEIPTS TRACKER</span>
+                        <span className="font-data-mono text-xs font-bold text-teal-700">
+                          ₹{hraTotal.toLocaleString('en-IN')} Total
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                        <div className="bg-amber-500 h-2.5 rounded-full" style={{ width: '85%' }}></div>
+                      </div>
+                      <p className="text-[11px] text-on-surface-variant mt-1.5">
+                        Landlord PAN verified for all rent over ₹1L/year
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* WhatsApp Tax Savings Locker Document List */}
+                  <div className="bg-white border border-slate-200 rounded shadow-sm overflow-hidden">
+                    <div className="p-md bg-paper-50 border-b border-slate-200 flex justify-between items-center">
+                      <div>
+                        <h3 className="font-label-caps text-label-caps font-bold text-ink-900">YOUR TAX SAVINGS LOCKER</h3>
+                        <p className="text-body-sm text-on-surface-variant">Proof documents captured via WhatsApp or Web, organized for HR & ITR-1</p>
+                      </div>
+                      <button
+                        onClick={() => setShowAddProofModal(true)}
+                        className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-1 px-3 rounded text-xs flex items-center gap-1 active:scale-95 transition-all shadow-sm"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">add</span>
+                        <span>Add Proof</span>
+                      </button>
+                    </div>
+
+                    <div className="overflow-x-auto custom-scrollbar">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="bg-white border-b border-slate-200">
+                            <th className="px-md py-sm text-left font-label-caps text-label-caps text-ink-900">Section</th>
+                            <th className="px-md py-sm text-left font-label-caps text-label-caps text-ink-900">Proof Title</th>
+                            <th className="px-md py-sm text-left font-label-caps text-label-caps text-ink-900">Institution / Landlord PAN</th>
+                            <th className="px-md py-sm text-left font-label-caps text-label-caps text-ink-900">Date</th>
+                            <th className="px-md py-sm text-right font-label-caps text-label-caps text-ink-900">Amount</th>
+                            <th className="px-md py-sm text-center font-label-caps text-label-caps text-ink-900">Status</th>
+                            <th className="px-md py-sm text-center font-label-caps text-label-caps text-ink-900">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {salariedProofs.map(proof => (
+                            <tr key={proof.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                              <td className="px-md py-md">
+                                <span className={`px-sm py-0.5 rounded text-[11px] font-bold ${
+                                  proof.category.startsWith('80C') ? 'bg-teal-100 text-teal-800' :
+                                  proof.category.startsWith('80D') ? 'bg-indigo-100 text-indigo-800' :
+                                  proof.category === 'hra_rent_receipt' ? 'bg-amber-100 text-amber-800' : 'bg-purple-100 text-purple-800'
+                                }`}>
+                                  {proof.category.replace('_', ' ').toUpperCase()}
+                                </span>
+                              </td>
+                              <td className="px-md py-md font-body-md font-medium text-ink-900">{proof.title}</td>
+                              <td className="px-md py-md font-data-mono text-sm text-on-surface-variant">{proof.pan || '—'}</td>
+                              <td className="px-md py-md font-data-mono text-sm text-on-surface-variant">{proof.date}</td>
+                              <td className="px-md py-md text-right font-data-mono font-bold text-ink-900">₹{Number(proof.amount).toLocaleString('en-IN')}</td>
+                              <td className="px-md py-md text-center">
+                                <span className="inline-flex items-center gap-1 text-emerald-700 text-body-sm font-medium">
+                                  <span className="material-symbols-outlined text-[16px]">verified</span>
+                                  Verified
+                                </span>
+                              </td>
+                              <td className="px-md py-md text-center">
+                                <button
+                                  onClick={() => handleDeleteProof(proof.id)}
+                                  className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
+                                  title="Delete proof"
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">delete</span>
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* MODAL: ADD TAX PROOF POPUP */}
+            {showAddProofModal && (
+              <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-md">
+                <div className="bg-white border border-slate-200 rounded-xl shadow-2xl w-full max-w-md p-lg space-y-md">
+                  <div className="flex justify-between items-center border-b border-slate-200 pb-sm">
+                    <h3 className="font-headline-sm font-bold text-ink-900 flex items-center gap-xs">
+                      <span className="material-symbols-outlined text-teal-600">receipt_long</span>
+                      <span>Add Tax Deduction Proof</span>
+                    </h3>
+                    <button onClick={() => setShowAddProofModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+                  </div>
+
+                  <form onSubmit={handleAddProofSubmit} className="space-y-sm">
+                    <div>
+                      <label className="font-label-caps text-on-surface-variant block mb-1 text-xs">Tax Deduction Category</label>
+                      <select
+                        value={newProofCat}
+                        onChange={(e) => setNewProofCat(e.target.value)}
+                        className="w-full bg-white border border-slate-300 p-sm rounded text-body-sm focus:border-teal-600 focus:ring-0"
+                      >
+                        <option value="80C_elss">Section 80C (ELSS Mutual Fund, PPF, Term LIC)</option>
+                        <option value="80D_health_insurance">Section 80D (Health Insurance Premium)</option>
+                        <option value="hra_rent_receipt">House Rent Receipt (HRA Exemption)</option>
+                        <option value="80G_donation">Section 80G (Charitable Donation)</option>
+                        <option value="education_loan">Section 80E (Education Loan Interest)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="font-label-caps text-on-surface-variant block mb-1 text-xs">Proof / Institution Title</label>
+                      <input
+                        type="text"
+                        value={newProofTitle}
+                        onChange={(e) => setNewProofTitle(e.target.value)}
+                        placeholder="e.g. Star Health Insurance Policy"
+                        className="w-full bg-white border border-slate-300 p-sm rounded text-body-sm focus:border-teal-600 focus:ring-0"
+                        required
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-sm">
+                      <div>
+                        <label className="font-label-caps text-on-surface-variant block mb-1 text-xs">Amount (₹)</label>
+                        <input
+                          type="number"
+                          value={newProofAmount}
+                          onChange={(e) => setNewProofAmount(e.target.value)}
+                          placeholder="e.g. 25000"
+                          className="w-full bg-white border border-slate-300 p-sm rounded text-body-sm font-data-mono focus:border-teal-600 focus:ring-0"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="font-label-caps text-on-surface-variant block mb-1 text-xs">Receipt Date</label>
+                        <input
+                          type="date"
+                          value={newProofDate}
+                          onChange={(e) => setNewProofDate(e.target.value)}
+                          className="w-full bg-white border border-slate-300 p-sm rounded text-body-sm font-data-mono focus:border-teal-600 focus:ring-0"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="font-label-caps text-on-surface-variant block mb-1 text-xs">Institution / Landlord PAN (Optional)</label>
+                      <input
+                        type="text"
+                        value={newProofPan}
+                        onChange={(e) => setNewProofPan(e.target.value.toUpperCase())}
+                        placeholder="e.g. AAACH1234H"
+                        maxLength={10}
+                        className="w-full bg-white border border-slate-300 p-sm rounded text-body-sm font-data-mono uppercase focus:border-teal-600 focus:ring-0"
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-sm pt-sm border-t border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => setShowAddProofModal(false)}
+                        className="px-md py-sm border border-slate-300 text-ink-900 rounded font-bold text-body-sm hover:bg-slate-100"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-md py-sm bg-teal-600 hover:bg-teal-700 text-white rounded font-bold text-body-sm shadow-sm active:scale-95"
+                      >
+                        Save to Locker
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
             {/* VIEW: COMPLIANCE ANALYTICS */}
             {currentView === 'analytics' && (() => {
               const totalItcClaimed = invoices
@@ -1544,13 +2181,83 @@ export default function App() {
                   <div className="flex flex-col lg:flex-row bg-white border border-slate-200 rounded shadow-sm overflow-hidden h-[540px]">
                     <div className="flex-1 overflow-y-auto p-md border-r border-slate-200 flex flex-col justify-between">
                       <div>
-                        <header className="mb-md">
+                        <header className="mb-sm">
                           <span className="text-label-caps font-label-caps text-on-surface-variant uppercase tracking-wider text-[10px] font-bold">Active Triage Feed</span>
-                          <h4 className="text-headline-sm font-headline-sm text-ink-900 font-bold">Client Ingestion Feed</h4>
+                          <h4 className="text-headline-sm font-headline-sm text-ink-900 font-bold mb-xs">Client Ingestion Feed</h4>
+                          
+                          {/* DUAL FEED SWITCHER: BUSINESS VS SALARIED */}
+                          <div className="flex gap-2 p-1 bg-slate-100 rounded-lg mt-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setWhatsappMode('business');
+                                setWhatsappClient('Meena Kirana Store');
+                                setWhatsappStatus('Active');
+                                setWhatsappMessages([
+                                  { sender: 'client', text: 'Sent the latest purchase bills for July reconciliation.', time: '09:12 AM' },
+                                  { sender: 'bot', text: 'Got it! Checking your invoice now — back to you shortly.', time: '09:13 AM' },
+                                  { sender: 'bot', text: 'Couldn\'t clearly read the GSTIN on this one. Can you send a clearer photo, or reply with the GSTIN directly?', time: '09:15 AM', type: 'low-confidence' }
+                                ]);
+                              }}
+                              className={`flex-1 py-1 px-2 rounded text-xs font-bold transition-all ${
+                                whatsappMode === 'business' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-600 hover:text-ink-900'
+                              }`}
+                            >
+                              🏪 Shop Invoices
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setWhatsappMode('salaried');
+                                setWhatsappClient('Ananya Sharma');
+                                setWhatsappStatus('Active');
+                                setWhatsappMessages([
+                                  { sender: 'client', text: 'Forwarding my HDFC ERGO health insurance premium receipt (80D).', time: '11:20 AM' },
+                                  { sender: 'bot', text: '✅ Saved ₹25,000 to your Tax Locker under Section 80D (Health Insurance)! Landlord/Insurer PAN AAACH1234H verified.', time: '11:21 AM' },
+                                  { sender: 'client', text: 'Forwarded Form 16 Part A & B from TechCorp India.', time: '11:25 AM' },
+                                  { sender: 'bot', text: '📄 Form 16 Parsed! Gross CTC: ₹18,00,000 | TDS: ₹1,65,000.\n💡 Comparison: New Regime saves you ₹10,400 over Old Regime! Pre-filled ITR-1 is ready.', time: '11:26 AM' }
+                                ]);
+                              }}
+                              className={`flex-1 py-1 px-2 rounded text-xs font-bold transition-all ${
+                                whatsappMode === 'salaried' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-ink-900'
+                              }`}
+                            >
+                              👔 Salaried Tax Proofs
+                            </button>
+                          </div>
                         </header>
 
                         <div className="space-y-sm">
-                          {triageList.map((client, idx) => (
+                          {whatsappMode === 'salaried' ? (
+                            [
+                              { name: 'Ananya Sharma', role: 'Software Engineer (TechCorp)', status: 'Active', proofs: 4 },
+                              { name: 'Vikram Mehta', role: 'Lead Architect (Fintech Co)', status: 'Active', proofs: 2 }
+                            ].map((user, idx) => (
+                              <div
+                                key={idx}
+                                onClick={() => {
+                                  setWhatsappClient(user.name);
+                                  setWhatsappStatus('Active');
+                                  setWhatsappMessages([
+                                    { sender: 'client', text: `Forwarding tax deduction proofs for ${user.name}.`, time: '10:00 AM' },
+                                    { sender: 'bot', text: `Hi ${user.name}! Forward your Rent receipts, 80C/80D proofs or Form 16 anytime. We automatically organize them into your Tax Locker.`, time: '10:01 AM' }
+                                  ]);
+                                }}
+                                className={`p-sm border rounded cursor-pointer transition-colors ${
+                                  whatsappClient === user.name ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-200 hover:bg-slate-50'
+                                }`}
+                              >
+                                <div className="flex justify-between items-center text-xs">
+                                  <span className="font-bold text-ink-900">{user.name}</span>
+                                  <span className="text-[9px] bg-indigo-100 text-indigo-800 font-bold px-1.5 py-0.5 rounded">
+                                    {user.proofs} PROOFS
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-on-surface-variant mt-0.5">{user.role}</div>
+                              </div>
+                            ))
+                          ) : (
+                            triageList.map((client, idx) => (
                             <div 
                               key={idx} 
                               onClick={() => {
@@ -1594,7 +2301,7 @@ export default function App() {
                               </div>
                               <span className="text-[10px] text-on-surface-variant font-data-mono block mt-1">{client.rate}</span>
                             </div>
-                          ))}
+                          )))}
                         </div>
                       </div>
 
@@ -1658,6 +2365,44 @@ export default function App() {
                           className="w-full py-1.5 bg-white border border-teal-600 text-teal-600 font-bold text-xs rounded hover:bg-teal-600/5 active:scale-95 transition-all text-center"
                         >
                           🔑 Submit Valid GSTIN: 24SHRMA1234A1Z9
+                        </button>
+                      </div>
+                    )}
+
+                    {/* QUICK ACTION SIMULATION BUTTONS FOR SALARIED */}
+                    {whatsappMode === 'salaried' && (
+                      <div className="p-xs bg-slate-100 border-t border-slate-300 flex flex-wrap gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setWhatsappMessages(prev => [
+                              ...prev,
+                              { sender: 'client', text: '📸 [Photo] House Rent receipt for Bandra flat: ₹20,000 for July.', time: 'Just now' },
+                              { sender: 'bot', text: '✅ Saved ₹20,000 under HRA Rent Receipts! Landlord PAN ABCDE9876K verified. Total HRA tracked: ₹2,60,000.', time: 'Just now' }
+                            ]);
+                            setSalariedProofs(prev => [
+                              { id: Date.now(), category: 'hra_rent_receipt', title: 'July Rent Receipt (Bandra)', amount: 20000, date: '2026-07-31', pan: 'ABCDE9876K', verified: true },
+                              ...prev
+                            ]);
+                            showToast('Rent receipt parsed & saved to Tax Locker!', 'success');
+                          }}
+                          className="text-[10px] bg-white border border-teal-600 text-teal-700 px-2 py-1 rounded font-bold hover:bg-teal-50 active:scale-95"
+                        >
+                          📸 Snap Rent (HRA)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setWhatsappMessages(prev => [
+                              ...prev,
+                              { sender: 'client', text: '📄 [PDF] Uploaded Form 16 Part A & B for FY 2026-27.', time: 'Just now' },
+                              { sender: 'bot', text: '📄 Form 16 extracted! Standard Deduction: ₹75,000. New Regime wins with ₹10,400 tax saved.', time: 'Just now' }
+                            ]);
+                            showToast('Form 16 analyzed and regime comparison refreshed!', 'success');
+                          }}
+                          className="text-[10px] bg-white border border-indigo-600 text-indigo-700 px-2 py-1 rounded font-bold hover:bg-indigo-50 active:scale-95"
+                        >
+                          📄 Send Form 16 PDF
                         </button>
                       </div>
                     )}

@@ -1,23 +1,28 @@
 # BillGuru AI
 
-GST Compliance Copilot for Small Indian Businesses. This product sits as a proactive validation layer *before* filing software like Tally or Zoho Books, catching GST errors before they cost money.
+AI-Powered GST & Personal Tax Copilot for Indian Businesses, Salaried Professionals, and Chartered Accountants (CAs).
+
+BillGuru AI acts as a proactive validation and tax organization layer via **WhatsApp**:
+- **For Shop Owners & Small Businesses:** Snaps purchase/sales bills to catch fake GSTINs, tax slab errors, and protect Input Tax Credit (ITC) before filing.
+- **For Salaried Professionals:** Snaps rent slips and investment proofs (80C/80D/HRA) into a WhatsApp Tax Locker, parses Form 16 PDFs, and optimizes Old vs. New Tax Regime.
+- **For Chartered Accountants (CAs):** A multi-client command center providing unified client ledgers, OCR triage queues, and filing preparation for both GST and ITR seasons.
 
 ---
 
 ## 📂 Project Structure
 
-*   **`backend/`**: Node.js + Express API server. Connects to a local MySQL instance (e.g. XAMPP). Contains schema scripts and handles invoice processing Webhooks, GSTIN validations, and client management.
-*   **`frontend/`**: React + Vite SPA. Emulates the CA dashboard, ledgers, analytics, and includes a WhatsApp Bot phone simulator and screen emulator.
+*   **`backend/`**: Node.js + Express API server. Connects to a local MySQL instance (e.g. XAMPP). Contains schema scripts and handles invoice & proof processing webhooks, GSTIN validations, and client management.
+*   **`frontend/`**: React + Vite SPA. Features the CA multi-client dashboard, ledgers, analytics, self-service portals, and includes a WhatsApp Bot phone simulator and screen emulator.
 *   **`docs/`**: Product Requirements Documents (PRD), Architecture Designs, and Stitch exported UI code.
 
 ---
 
 ## ⚡ Key Features Integrated
 
-1.  **CA Dashboard Desktop & Mobile**: Dense, ledger-style tables featuring monospaced amounts (`IBM Plex Mono`) and the signature **Reconciliation Strip** showing filing progress.
+1.  **CA Multi-Client Hub (Desktop & Mobile)**: Dense, ledger-style tables featuring monospaced amounts (`IBM Plex Mono`) and the signature **Reconciliation Strip** showing filing progress.
 2.  **Compliance Analytics**: Statistics Bento grid and monthly **ITC Trend Analysis** bar chart.
-3.  **Inward Triage Queue**: CA verification screen for low-confidence WhatsApp OCR receipt parses.
-4.  **WhatsApp Bot Simulator**: Phone chassis frame simulating how the bot prompts users to resubmit blurry invoices or warns them of cancelled/suspended GSTINs.
+3.  **Inward Triage Queue**: Fast verification screen for low-confidence WhatsApp OCR receipt parses.
+4.  **WhatsApp Bot Simulator**: Phone chassis frame simulating how the bot handles business bills (checking GSTINs) and personal tax proofs.
 5.  **Device Emulator Toggle**: Switch between Desktop Layout and simulated Mobile screen view.
 6.  **XAMPP MySQL Integration**: Automatically handles database creation, schema tables setup, and mock client seeding on startup. Gracefully falls back to local mock memory if MySQL is offline.
 

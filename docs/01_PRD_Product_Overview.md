@@ -7,44 +7,45 @@ Version 1.0 | Prepared by: Kalpesh | Date: August 2026
 
 ## 1. Problem Statement
 
-Small businesses and freelancers in India (annual turnover typically ₹20L–₹5Cr) routinely lose money and time due to:
+Indian taxpayers face costly friction across both businesses and individuals:
 
-- **Manual invoice entry errors** — misread amounts, wrong GST slabs, missed HSN/SAC codes
-- **Fake or cancelled GSTIN acceptance** — leads to Input Tax Credit (ITC) rejection during GSTR-2A/2B reconciliation
-- **Late-discovered mismatches** — GSTR-1 vs GSTR-3B discrepancies are usually found *after* a notice arrives from the GST department, not before filing
-- **No accessible compliance layer** — existing accounting software (Tally, Zoho Books) requires trained staff; most small shop owners don't have a dedicated accountant on payroll
-
-This costs small businesses real money: rejected ITC claims, late fees, notices, and CA time spent fixing avoidable errors.
+- **Small Businesses & Shop Owners:** Manual invoice entry errors, fake/cancelled vendor GSTINs, rejected Input Tax Credit (ITC), and late-discovered GSTR-1 vs 3B mismatches. Most small shops cannot afford dedicated full-time accountants.
+- **Salaried Employees & Individuals:** Year-end panic gathering HRA rent slips, 80C/80D proofs, and donation receipts for HR portals; confusion over Old vs. New Tax Regime optimization; and painful July ITR-1/2 filing with Form 16, AIS, and capital gains.
+- **Chartered Accountants (CAs):** Waste 20+ hours a month chasing clients for missing receipts (both monthly GST bills and annual ITR Form 16s/deduction proofs) and manually correcting avoidable data entry errors.
 
 ## 2. Target Users
 
-| Segment | Description | Buying Motion |
+| Segment | Description | Buying & Usage Motion |
 |---|---|---|
-| **Primary: Chartered Accountants (CAs)** | Manage GST filing for 30–200 small business clients each | B2B2C — CA subscribes, rolls out to clients |
-| **Secondary: Small business owners** | Direct users forwarding invoices via WhatsApp | Freemium → paid via CA or direct |
+| **Primary: Chartered Accountants (CAs)** | Manage GST & ITR filings for 30–200 business and individual clients | B2B2C — CA subscribes, onboard clients to their firm workspace |
+| **Secondary: Small Business & Shop Owners** | Kirana stores, retailers, traders, and freelancers with GSTINs | WhatsApp bill forwarder → Free trial / Solo DIY plan or via their CA |
+| **Tertiary: Salaried Professionals & Individuals** | Employees filing ITR-1/2 with Form 16, rent, 80C/80D deductions | WhatsApp Tax Locker & Form 16 Copilot → Freemium / DIY or shared with CA |
 
-CAs are the primary buyer because they control the filing relationship and can drive adoption across many clients at once — this is the fastest path to revenue (see USP doc for detail).
+CAs remain the primary distribution engine because they control existing client relationships across both businesses and individual salary earners, while self-serve tiers capture independent shop owners and salaried employees directly.
 
 ## 3. Core Value Proposition
 
-> "Forward your invoice photo on WhatsApp. We catch GST errors before they cost you money — not after the notice arrives."
+> **For Businesses:** "Forward your invoice photo on WhatsApp. We catch GST errors before they cost you money — not after the notice arrives."
+> 
+> **For Salaried Employees:** "Snap your rent slips, medical policies, and Form 16 on WhatsApp. We organize your deductions, optimize Old vs New Regime, and prep your ITR."
 
-## 4. MVP Scope (Phase 1, ~3–4 months)
+## 4. MVP & Phased Scope
 
-1. **Invoice capture** via WhatsApp photo/PDF upload
-2. **AI extraction** of vendor GSTIN, amount, tax slab, HSN/SAC code
-3. **GSTIN validation** against GST portal (catch fake/cancelled numbers)
-4. **Slab mismatch detection** (tax rate vs expected rate for HSN/SAC)
-5. **Monthly GSTR-1/3B reconciliation view** — surfaces mismatches before filing deadline
-6. **WhatsApp-first UX** — no app download required for end business owners
-7. **CA dashboard** — web view across all managed clients
+### Phase 1: Core Foundation (Current)
+1. **Invoice & Proof Capture** via WhatsApp photo/PDF upload.
+2. **AI Extraction** of vendor GSTIN, taxable amount, tax slab, HSN/SAC code, and personal deduction fields (HRA, 80C, 80D, 80G).
+3. **GSTIN Validation** against GST portal (catches fake/cancelled/suspended vendors).
+4. **Slab & Rate Mismatch Detection** (tax rate vs expected rate for HSN/SAC).
+5. **Monthly GSTR-1/3B Reconciliation View** for businesses.
+6. **Salaried Tax Savings Locker & Form 16 Analyzer** (extracts Part A & B, compares Old vs. New Regime).
+7. **Role-Tailored Dashboards**:
+   - **CA Dashboard**: Multi-client GST & ITR management.
+   - **Solo Business / Salaried View**: Personal ledger, tax locker, and summaries.
 
-## 5. Out of Scope (Phase 1)
-
-- Full accounting/bookkeeping (ledgers, P&L, balance sheets)
-- E-way bill generation
-- Payroll or inventory management
-- Direct GST portal filing (Phase 2 candidate)
+### Phase 2: Direct E-Filing & Integrations
+- Direct GSTR-1/3B filing via GST Suvidha Provider (GSP) APIs.
+- Direct ITR-1 e-filing via Income Tax E-filing API / JSON download.
+- AIS / TIS / 26AS data pull and capital gains integration (Zerodha, Groww).
 
 ## 6. Success Metrics
 

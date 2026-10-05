@@ -35,18 +35,31 @@ Three pillars that differentiate this from existing tools:
 
 ## 4. Pricing Model
 
-### For CAs (primary buyer)
+### For CAs (primary B2B2C buyer)
 | Tier | Price | Includes |
 |---|---|---|
-| Trial | Free, 14 days | Up to 10 clients, full features |
+| Trial | Free, 14 days | Up to 10 clients, full features (GST + ITR) |
 | Starter | ₹999/month | Up to 25 clients |
 | Pro | ₹2,499/month | Up to 100 clients, priority support, bulk export |
 | Enterprise | Custom | 100+ clients, API access, white-label option |
 
+### For Direct Shop Owners & Solo Businesses (No CA / DIY)
+| Tier | Price | Includes |
+|---|---|---|
+| Starter | Free | Up to 20 invoices/month, WhatsApp verification alerts |
+| Growth | ₹299/month | Unlimited invoice captures, monthly GSTR-3B summary & JSON export |
+
+### For Salaried Individuals (Personal Tax & ITR)
+| Tier | Price | Includes |
+|---|---|---|
+| Tax Locker | Free | WhatsApp receipt saving (80C, 80D, HRA), proof organization |
+| ITR-1 Self-Filer | ₹299 / filing | Form 16 instant parsing, Old vs New Regime optimization, pre-filled ITR JSON |
+| CA-Assisted ITR | ₹699 / filing | In-app review & submission by an affiliated BillGuru verified CA |
+
 ### Rationale
-- Per-CA subscription (not per-client) keeps pricing simple and predictable for the buyer
-- Free trial removes risk for a naturally cautious buyer persona (CAs are conservative adopters)
-- Enterprise/white-label tier opens a path to selling into larger CA firms and GST practitioner networks
+- Per-CA subscription keeps pricing simple and predictable for high-volume firms.
+- Freemium + micro-transactions for salaried individuals ensures massive organic consumer adoption, creating top-of-funnel brand trust.
+- Solo business plan gives shop owners a low-cost, self-serve alternative before they scale up to needing full CA services.
 
 ## 5. Go-To-Market Strategy
 

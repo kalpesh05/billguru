@@ -18,7 +18,13 @@ This document walks through exactly how the product works end-to-end — every f
 ### Persona B: Meena — Kirana (grocery) shop owner
 - No accounting background, uses WhatsApp daily for business
 - Currently hands a shoebox of paper invoices to her CA monthly
-- Wants: minimum effort, doesn't want to learn new software
+- Wants: minimum effort, doesn't want to learn new software, avoids GST notices
+
+### Persona C: Ananya — Salaried Software Engineer
+- Annual salary ₹18L, pays house rent, health insurance, and invests in mutual funds/ELSS
+- Scrambles in January to submit rent slips and investment proofs to her company HR portal
+- Confused about Old vs New Regime and struggles with Form 16, AIS, and capital gains in July
+- Wants: a single WhatsApp locker to snap and save tax proofs year-round, clear advice on tax regime, and simple ITR filing
 
 ## 3. End-to-End Flow
 
@@ -52,6 +58,30 @@ This document walks through exactly how the product works end-to-end — every f
 ### Step 6: CA Review & Action
 - CA dashboard shows all clients, sorted by flagged issue count
 - CA can bulk-approve confirmed invoices, request client resend on flagged ones, export reconciled data to their existing filing software
+
+---
+
+### 3.2 Salaried Individual Flow (Tax Locker & ITR Copilot)
+
+#### Step 1: Proof Capture via WhatsApp
+- Salaried individual sends rent receipts, medical insurance premium receipts (80D), donation slips (80G), or education loan interest certificates to the same WhatsApp bot.
+- Bot classifies the document, extracts the amount, dates, landlord/institution PAN/name, and files it under the respective tax section (HRA, 80C, 80D, 80G).
+- User receives instant confirmation: *"Saved ₹25,000 under Section 80D (Health Insurance). Total deductions recorded for FY 2026-27: ₹1,65,000."*
+
+#### Step 2: Form 16 Drop & Regime Optimizer
+- When employer issues Form 16 (May/June), user drops the PDF on WhatsApp or web app.
+- AI parses Part A (TDS deposited by employer, TAN, PAN) and Part B (salary breakdown, standard deduction, exemptions).
+- Compares Old vs. New Tax Regime automatically:
+  - *"Under the New Regime, your tax liability is ₹72,500."*
+  - *"Under the Old Regime (with your ₹1.8L deductions + ₹1.5L HRA), your tax liability is ₹56,200. You save ₹16,300 under Old Regime!"*
+
+#### Step 3: ITR-1 Preparation & CA / Self-File Export
+- System compiles the pre-filled ITR-1 summary / JSON.
+- User can either:
+  1. Download the JSON to file directly on `incometax.gov.in`.
+  2. Share the verified tax pack directly with their CA with 1 click.
+
+---
 
 ## 4. Feature Details
 

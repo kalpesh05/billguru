@@ -61,20 +61,21 @@ Version 1.0 | Audience: Engineering leads, technical stakeholders
 | LLM Router | Route extraction calls, handle fallback | Custom Node service (pattern reused from Myra's llmClient.js) | Multi-provider resilience, avoids vendor lock-in and outage risk |
 | GSTIN Validation | Verify GSTIN status | GST portal public search API | Authoritative source |
 | Database | Structured invoice/reconciliation data | MySQL (RDS) | Team's existing expertise; relational fits well-defined schema |
-| Reconciliation Engine | Compare captured vs filed data | Scheduled Node job (cron via ECS scheduled task) | Monthly batch process, no need for real-time |
-| CA Dashboard | Multi-client view, review, export | React (SPA) | Team's existing stack |
+| Reconciliation & Tax Engine | Compare captured vs filed GST data, calculate Old vs New Regime | Scheduled Node job & tax rule engine | Relieves CA and user from manual calculation |
+| Web Portal / Dashboards | Multi-client CA view, Solo business dashboard, Salaried tax locker | React (SPA) | Team's existing stack |
 
-## 4. Data Flow: Invoice Processing (Happy Path)
+## 4. Data Flow: Processing Pipeline (Happy Path)
 
-1. Business owner sends photo via WhatsApp → webhook hits backend
-2. Backend stores raw image in S3, enqueues extraction job in SQS, immediately replies "Processing..."
-3. Worker picks up job, calls LLM Router with image + structured output schema
-4. LLM Router selects provider (primary: Bedrock/Claude; fallback: OpenAI on failure/timeout)
+1. User (shop owner or salaried employee) sends photo/PDF via WhatsApp → webhook hits backend
+2. Backend stores raw image in S3, enqueues processing job in SQS, immediately replies "Processing..."
+3. Worker picks up job, prompts LLM with classification & extraction schema:
+   - **Case A: GST Invoice:** Extracts vendor GSTIN, taxable value, tax slabs, HSN/SAC. Triggers GSTIN status verification.
+   - **Case B: Salaried Tax Proof / Form 16:** Classifies category (80C, 80D, HRA rent slip, Form 16 Part A/B), extracts amounts and PAN/period, updates personal Tax Savings Locker.
+4. LLM Router selects provider (primary: Bedrock/Claude; fallback: OpenAI/Gemini on failure/timeout)
 5. Extracted data validated against schema, confidence scored
-6. If confidence ≥ threshold: saved to MySQL as `extracted`, GSTIN validation triggered async
-7. If confidence < threshold: saved as `needs_review`, WhatsApp follow-up sent to user
-8. Flags generated (mismatch, invalid GSTIN, duplicate) and stored
-9. CA dashboard reflects new data in near-real-time (polling or WebSocket, TBD in low-level doc)
+6. If confidence ≥ threshold: saved to MySQL, user notified via WhatsApp with structured summary
+7. If confidence < threshold: saved as `needs_review`, WhatsApp follow-up sent to user or routed to CA triage
+8. Dashboards (CA multi-client portal, Solo business ledger, or Salaried personal locker) reflect new data in near-real-time
 
 ## 5. Non-Functional Requirements
 
