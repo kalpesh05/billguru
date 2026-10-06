@@ -25,6 +25,7 @@ BillGuru AI acts as a proactive validation and tax organization layer via **What
 4.  **WhatsApp Bot Simulator**: Phone chassis frame simulating how the bot handles business bills (checking GSTINs) and personal tax proofs.
 5.  **Device Emulator Toggle**: Switch between Desktop Layout and simulated Mobile screen view.
 6.  **XAMPP MySQL Integration**: Automatically handles database creation, schema tables setup, and mock client seeding on startup. Gracefully falls back to local mock memory if MySQL is offline.
+7.  **In-App Guide & FAQ Center**: Dedicated walkthroughs for CAs, Shop Owners (DIY mode), and Salaried Professionals, featuring an interactive search and accordion FAQ. (See detailed manual: [docs/07_User_Guide_and_FAQ.md](docs/07_User_Guide_and_FAQ.md)).
 
 ---
 

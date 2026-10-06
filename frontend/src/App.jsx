@@ -20,7 +20,53 @@ const localFallbackData = {
   ]
 };
 
+const FAQ_ITEMS = [
+  {
+    id: 1,
+    category: 'General',
+    q: 'Do I or my clients need to install any mobile app from Play Store or App Store?',
+    a: 'No! BillGuru AI is completely WhatsApp-native for end clients (shop owners and salaried employees). They simply forward photos and PDFs to the BillGuru WhatsApp bot. CAs and managers access the dashboard on any desktop or mobile browser without downloading anything.'
+  },
+  {
+    id: 2,
+    category: 'Businesses & GST',
+    q: 'Can a small shop owner use BillGuru AI without hiring a CA?',
+    a: 'Yes! The Solo Shop (DIY) mode is specifically created for independent retailers and traders. BillGuru validates all incoming bills, catches fake or cancelled vendor GSTINs, and generates pre-filled GSTR-3B JSON files that you can directly upload to gst.gov.in for free.'
+  },
+  {
+    id: 3,
+    category: 'Businesses & GST',
+    q: 'How does BillGuru AI prevent Input Tax Credit (ITC) rejection and fake GSTIN fraud?',
+    a: 'When an invoice photo arrives, our engine extracts the supplier’s GSTIN and validates it in real time against the government GST registry. If a vendor’s GSTIN is cancelled, suspended, or invalid, you receive an immediate WhatsApp warning to pause vendor payment and reject the bill before it results in a tax notice.'
+  },
+  {
+    id: 4,
+    category: 'Salaried Employees',
+    q: 'How does the AI Regime Optimizer decide between Old vs. New Tax Regime?',
+    a: 'Under FY 2026-27 tax rules, the system compares: (1) Old Regime with standard deduction ₹50,000 + your recorded Section 80C, 80D, HRA rent, and 80G deductions against (2) New Regime with ₹75,000 standard deduction (Budget 2024 update) and lower progressive slabs. It calculates your net tax payable for both and highlights the exact amount saved.'
+  },
+  {
+    id: 5,
+    category: 'Salaried Employees',
+    q: 'How does the WhatsApp Tax Locker work for year-round tax saving?',
+    a: 'Throughout the financial year, whenever you pay rent, health insurance, term insurance, or donations, snap a photo and forward it to BillGuru on WhatsApp. The AI categorizes it, tracks your Section 80C/80D limits, and keeps everything ready for your HR proof submission and ITR filing.'
+  },
+  {
+    id: 6,
+    category: 'Chartered Accountants',
+    q: 'How does the Inward Triage Queue assist CAs during monthly filing?',
+    a: 'Instead of AI silently guessing on blurry or smudged receipts (which risks penalties), any scan with low confidence routes to the Inward Triage Queue. The CA sees the crop side-by-side with extracted values to approve with 1 click or request a clearer photo from the client.'
+  },
+  {
+    id: 7,
+    category: 'Security & Privacy',
+    q: 'Is my financial, PAN, and invoice data confidential and secure?',
+    a: 'Yes. All data is encrypted with bank-grade TLS 1.3 in transit and AES-256 at rest. BillGuru AI strictly complies with India’s Digital Personal Data Protection (DPDP) Act 2023. We never share or sell financial information.'
+  }
+];
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api';
+
 
 export default function App() {
   // Authentication State
@@ -139,6 +185,12 @@ export default function App() {
   ]);
   const [whatsappInput, setWhatsappInput] = useState('');
   const [isBotTyping, setIsBotTyping] = useState(false);
+
+  // Guide & FAQ Page States
+  const [guideTab, setGuideTab] = useState('overview'); // 'overview', 'ca', 'business', 'salaried', 'faq'
+  const [faqSearchQuery, setFaqSearchQuery] = useState('');
+  const [expandedFaqId, setExpandedFaqId] = useState(1);
+
 
   // Fetch helper with JWT header
   const authFetch = async (url, options = {}) => {
@@ -499,7 +551,9 @@ export default function App() {
     { view: 'salaried-portal', label: 'Salaried Tax Locker', icon: 'account_balance_wallet' },
     { view: 'analytics', label: 'Analytics', icon: 'analytics' },
     { view: 'whatsapp', label: 'WhatsApp Sim', icon: 'chat' },
+    { view: 'guide', label: 'Guide & FAQ', icon: 'help_outline' },
   ];
+
 
   const downloadItrJson = () => {
     const payload = {
@@ -2573,8 +2627,391 @@ export default function App() {
               </div>
             )}
 
+            {/* VIEW: USER GUIDE & FAQ CENTER */}
+            {currentView === 'guide' && (() => {
+
+              const filteredFaqs = FAQ_ITEMS.filter(item => 
+                !faqSearchQuery.trim() ||
+                item.q.toLowerCase().includes(faqSearchQuery.toLowerCase()) ||
+                item.a.toLowerCase().includes(faqSearchQuery.toLowerCase()) ||
+                item.category.toLowerCase().includes(faqSearchQuery.toLowerCase())
+              );
+
+              return (
+                <div className="space-y-lg max-w-7xl mx-auto w-full">
+                  {/* Header Banner */}
+                  <div className="bg-gradient-to-r from-teal-900 via-slate-900 to-indigo-950 text-white p-lg md:p-xl rounded-xl shadow-md border border-slate-700">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-md">
+                      <div>
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-teal-500/20 text-teal-300 rounded-full text-xs font-bold uppercase tracking-wider mb-2 border border-teal-500/30">
+                          <span className="material-symbols-outlined text-[14px]">school</span>
+                          <span>Help Center & Knowledge Base</span>
+                        </div>
+                        <h2 className="text-2xl md:text-3xl font-headline-md font-bold text-white">How to Use BillGuru AI</h2>
+                        <p className="text-slate-300 text-body-sm md:text-body-md mt-1 max-w-2xl">
+                          Everything you need to know: step-by-step guides for Chartered Accountants, independent shop owners, and salaried taxpayers, plus answers to top questions.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => { setCurrentView('whatsapp'); }}
+                          className="bg-teal-600 hover:bg-teal-500 text-white font-bold px-4 py-2 rounded-lg text-body-sm flex items-center gap-1.5 shadow active:scale-95 transition-all"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">chat</span>
+                          <span>Try Live WhatsApp Sim</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Guide Tabs Switcher */}
+                    <div className="flex flex-wrap gap-2 mt-6 pt-4 border-t border-slate-700/80">
+                      {[
+                        { id: 'overview', label: '🚀 Quick Start', icon: 'bolt' },
+                        { id: 'ca', label: '💼 CA Firm Hub', icon: 'business_center' },
+                        { id: 'business', label: '🏪 Shop Owner (DIY)', icon: 'storefront' },
+                        { id: 'salaried', label: '👔 Salaried Tax Locker', icon: 'account_balance_wallet' },
+                        { id: 'faq', label: '❓ FAQ & Answers', icon: 'quiz' }
+                      ].map(t => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setGuideTab(t.id)}
+                          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            guideTab === t.id
+                              ? 'bg-teal-500 text-slate-950 shadow-md font-extrabold'
+                              : 'bg-white/10 text-slate-200 hover:bg-white/20'
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-[16px]">{t.icon}</span>
+                          <span>{t.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* TAB 1: OVERVIEW & 3-STEP QUICK START */}
+                  {guideTab === 'overview' && (
+                    <div className="space-y-lg">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-md">
+                        {/* Persona Card: CA */}
+                        <div className="bg-white border border-slate-200 p-lg rounded-xl shadow-sm hover:border-teal-500/50 transition-all flex flex-col justify-between">
+                          <div>
+                            <div className="w-10 h-10 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center mb-md">
+                              <span className="material-symbols-outlined text-[24px]">business_center</span>
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 font-label-caps">FOR ACCOUNTANTS</span>
+                            <h3 className="text-lg font-bold text-ink-900 mt-0.5">Chartered Accountants (CAs)</h3>
+                            <p className="text-body-sm text-on-surface-variant mt-2 leading-relaxed">
+                              Collect bills automatically from 30–200+ clients via WhatsApp. Low-confidence OCR routed to Triage Queue for 1-click verification.
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setGuideTab('ca')}
+                            className="mt-4 text-xs font-bold text-teal-700 hover:text-teal-800 flex items-center gap-1"
+                          >
+                            <span>Read CA Walkthrough</span>
+                            <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                          </button>
+                        </div>
+
+                        {/* Persona Card: Shop Owner */}
+                        <div className="bg-white border border-slate-200 p-lg rounded-xl shadow-sm hover:border-teal-500/50 transition-all flex flex-col justify-between">
+                          <div>
+                            <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center mb-md">
+                              <span className="material-symbols-outlined text-[24px]">storefront</span>
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 font-label-caps">FOR RETAILERS & SHOPS</span>
+                            <h3 className="text-lg font-bold text-ink-900 mt-0.5">Shop Owners (DIY Mode)</h3>
+                            <p className="text-body-sm text-on-surface-variant mt-2 leading-relaxed">
+                              No expensive software or CA required. Forward bills on WhatsApp, catch fake GSTINs immediately, and download GSTR-3B JSON with 1 click.
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setGuideTab('business')}
+                            className="mt-4 text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1"
+                          >
+                            <span>Read Shop Owner Walkthrough</span>
+                            <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                          </button>
+                        </div>
+
+                        {/* Persona Card: Salaried */}
+                        <div className="bg-white border border-slate-200 p-lg rounded-xl shadow-sm hover:border-indigo-500/50 transition-all flex flex-col justify-between">
+                          <div>
+                            <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center mb-md">
+                              <span className="material-symbols-outlined text-[24px]">account_balance_wallet</span>
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 font-label-caps">FOR SALARIED EMPLOYEES</span>
+                            <h3 className="text-lg font-bold text-ink-900 mt-0.5">Salaried Professionals</h3>
+                            <p className="text-body-sm text-on-surface-variant mt-2 leading-relaxed">
+                              WhatsApp Tax Locker saves rent and 80D receipts year-round. Drop Form 16 PDF to find out whether Old or New Regime saves you more.
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setGuideTab('salaried')}
+                            className="mt-4 text-xs font-bold text-indigo-700 hover:text-indigo-800 flex items-center gap-1"
+                          >
+                            <span>Read Salaried Walkthrough</span>
+                            <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 3-Step Visual Architecture Strip */}
+                      <div className="bg-white border border-slate-200 p-lg rounded-xl shadow-sm">
+                        <h4 className="font-label-caps text-label-caps uppercase text-on-surface-variant font-bold text-xs mb-md">
+                          HOW BILLGURU AI OPERATES IN 3 SIMPLE STEPS
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-md relative">
+                          <div className="p-md bg-paper-50 border border-slate-200 rounded-lg">
+                            <span className="w-7 h-7 rounded-full bg-teal-600 text-white font-bold flex items-center justify-center text-xs mb-sm">1</span>
+                            <h5 className="font-bold text-ink-900">Snap on WhatsApp</h5>
+                            <p className="text-body-sm text-on-surface-variant mt-1">Take a photo of any bill or proof document. No login, no password, zero learning curve.</p>
+                          </div>
+
+                          <div className="p-md bg-paper-50 border border-slate-200 rounded-lg">
+                            <span className="w-7 h-7 rounded-full bg-teal-600 text-white font-bold flex items-center justify-center text-xs mb-sm">2</span>
+                            <h5 className="font-bold text-ink-900">Real-Time AI Validation</h5>
+                            <p className="text-body-sm text-on-surface-variant mt-1">Our engine checks active GST registry status, HSN tax rates, and Section 80 deduction caps in 3 seconds.</p>
+                          </div>
+
+                          <div className="p-md bg-paper-50 border border-slate-200 rounded-lg">
+                            <span className="w-7 h-7 rounded-full bg-teal-600 text-white font-bold flex items-center justify-center text-xs mb-sm">3</span>
+                            <h5 className="font-bold text-ink-900">1-Click Portal JSON</h5>
+                            <p className="text-body-sm text-on-surface-variant mt-1">Export clean GSTR-3B or ITR-1 JSON ready to upload directly to government tax portals.</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 2: CA FIRM GUIDE */}
+                  {guideTab === 'ca' && (
+                    <div className="bg-white border border-slate-200 p-lg md:p-xl rounded-xl shadow-sm space-y-lg">
+                      <div className="border-b border-slate-200 pb-md">
+                        <span className="text-teal-700 font-label-caps text-label-caps font-bold text-xs uppercase">CA Firm Manual</span>
+                        <h3 className="text-xl font-bold text-ink-900 mt-1">Managing 30–200+ Clients with Zero Receipt Chasing</h3>
+                        <p className="text-body-sm text-on-surface-variant mt-1">Transform your firm's monthly compliance cycle from reactive firefighting to automated ingest.</p>
+                      </div>
+
+                      <div className="space-y-md">
+                        <div className="flex gap-md items-start">
+                          <span className="w-8 h-8 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center shrink-0 text-sm">1</span>
+                          <div>
+                            <h4 className="font-bold text-ink-900">Onboarding Clients (30 Seconds per Client)</h4>
+                            <p className="text-body-sm text-on-surface-variant mt-0.5">
+                              Click <strong>"＋ Add Client Business"</strong> in your sidebar. Enter client name, GSTIN, and mobile number. The system dispatches an automatic WhatsApp opt-in message with your firm's name. Your client just replies "YES" and starts snapping photos.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-md items-start">
+                          <span className="w-8 h-8 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center shrink-0 text-sm">2</span>
+                          <div>
+                            <h4 className="font-bold text-ink-900">Inward Triage Queue for Low-Confidence Scans</h4>
+                            <p className="text-body-sm text-on-surface-variant mt-0.5">
+                              Unlike generic OCR tools that guess and risk filing penalties, anything with confidence &lt; 0.70 enters your <strong>Inward Queue</strong>. You see the cropped image side-by-side with extracted values. Correct any typo in 2 seconds and confirm, or click "Request Clearer Photo".
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-md items-start">
+                          <span className="w-8 h-8 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center shrink-0 text-sm">3</span>
+                          <div>
+                            <h4 className="font-bold text-ink-900">The Reconciliation Strip</h4>
+                            <p className="text-body-sm text-on-surface-variant mt-0.5">
+                              On the dashboard, every client has a green/amber reconciliation bar showing total bills captured vs. draft GSTR-3B filings. Spot missing ITC before filing deadline rather than waiting for tax notice.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-teal-50 border border-teal-200 p-md rounded-lg flex items-center justify-between">
+                        <div className="flex items-center gap-sm">
+                          <span className="material-symbols-outlined text-teal-700">lightbulb</span>
+                          <span className="text-body-sm font-medium text-teal-900">Ready to onboard your first business client?</span>
+                        </div>
+                        <button
+                          onClick={() => setCurrentView('onboard')}
+                          className="bg-teal-600 hover:bg-teal-700 text-white font-bold px-3 py-1.5 rounded text-xs shadow-sm"
+                        >
+                          Open Client Onboarding
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 3: SHOP OWNER DIY GUIDE */}
+                  {guideTab === 'business' && (
+                    <div className="bg-white border border-slate-200 p-lg md:p-xl rounded-xl shadow-sm space-y-lg">
+                      <div className="border-b border-slate-200 pb-md">
+                        <span className="text-emerald-700 font-label-caps text-label-caps font-bold text-xs uppercase">Shop Owner Manual</span>
+                        <h3 className="text-xl font-bold text-ink-900 mt-1">Self-Serve GST Compliance (No CA Fees)</h3>
+                        <p className="text-body-sm text-on-surface-variant mt-1">Save ₹2,000–₹5,000 every month by managing your purchase bills and GSTR-3B yourself.</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-md">
+                        <div className="p-md bg-paper-50 border border-slate-200 rounded-lg">
+                          <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold mb-sm">📸</div>
+                          <h4 className="font-bold text-ink-900">1. Snap Bill on WhatsApp</h4>
+                          <p className="text-body-sm text-on-surface-variant mt-1">
+                            When goods arrive at your shop, snap a photo of the invoice and send it to our WhatsApp number. That's it!
+                          </p>
+                        </div>
+
+                        <div className="p-md bg-paper-50 border border-slate-200 rounded-lg">
+                          <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center font-bold mb-sm">🛡️</div>
+                          <h4 className="font-bold text-ink-900">2. Fake GSTIN Shield</h4>
+                          <p className="text-body-sm text-on-surface-variant mt-1">
+                            The AI instantly pings the government portal. If a supplier's GSTIN is cancelled, you get an immediate red warning to pause payment!
+                          </p>
+                        </div>
+
+                        <div className="p-md bg-paper-50 border border-slate-200 rounded-lg">
+                          <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-800 flex items-center justify-center font-bold mb-sm">📥</div>
+                          <h4 className="font-bold text-ink-900">3. Download GSTR-3B JSON</h4>
+                          <p className="text-body-sm text-on-surface-variant mt-1">
+                            At month-end, click <strong>"Download GSTR-3B JSON"</strong> in the Solo Shop tab and upload it directly to gst.gov.in.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="bg-emerald-50 border border-emerald-200 p-md rounded-lg flex items-center justify-between">
+                        <div className="flex items-center gap-sm">
+                          <span className="material-symbols-outlined text-emerald-700">storefront</span>
+                          <span className="text-body-sm font-medium text-emerald-900">Switch to your self-serve shop portal now:</span>
+                        </div>
+                        <button
+                          onClick={() => setCurrentView('solo-business')}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded text-xs shadow-sm"
+                        >
+                          View Solo Shop Portal
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 4: SALARIED TAX LOCKER GUIDE */}
+                  {guideTab === 'salaried' && (
+                    <div className="bg-white border border-slate-200 p-lg md:p-xl rounded-xl shadow-sm space-y-lg">
+                      <div className="border-b border-slate-200 pb-md">
+                        <span className="text-indigo-700 font-label-caps text-label-caps font-bold text-xs uppercase">Salaried Professional Manual</span>
+                        <h3 className="text-xl font-bold text-ink-900 mt-1">WhatsApp Tax Locker & ITR-1 Copilot</h3>
+                        <p className="text-body-sm text-on-surface-variant mt-1">Keep deduction proofs organized year-round, compare regimes with mathematical accuracy, and file ITR-1.</p>
+                      </div>
+
+                      <div className="space-y-md">
+                        <div className="p-md bg-paper-50 border border-slate-200 rounded-lg flex gap-md items-start">
+                          <span className="material-symbols-outlined text-indigo-600 text-[28px]">lock</span>
+                          <div>
+                            <h4 className="font-bold text-ink-900">Your Year-Round WhatsApp Tax Locker</h4>
+                            <p className="text-body-sm text-on-surface-variant mt-0.5">
+                              Stop scrambling in January when HR asks for investment proof. Whenever you pay rent, buy medical insurance, or make donations, forward the slip to WhatsApp. BillGuru tags it under Section 80C, 80D, or HRA and keeps your progress bars updated.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="p-md bg-paper-50 border border-slate-200 rounded-lg flex gap-md items-start">
+                          <span className="material-symbols-outlined text-teal-600 text-[28px]">balance</span>
+                          <div>
+                            <h4 className="font-bold text-ink-900">Old vs. New Tax Regime Optimizer</h4>
+                            <p className="text-body-sm text-on-surface-variant mt-0.5">
+                              Our tax engine factors in the ₹75,000 standard deduction under the New Regime versus your recorded HRA and 80C/80D deductions under the Old Regime. You receive an instant verdict showing exactly how many rupees you save under each regime!
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="p-md bg-paper-50 border border-slate-200 rounded-lg flex gap-md items-start">
+                          <span className="material-symbols-outlined text-emerald-600 text-[28px]">download</span>
+                          <div>
+                            <h4 className="font-bold text-ink-900">1-Click ITR-1 JSON Download</h4>
+                            <p className="text-body-sm text-on-surface-variant mt-0.5">
+                              When tax season arrives, click <strong>"Download ITR-1 JSON"</strong> to get the official schema file. Upload it directly on the income tax portal (incometax.gov.in) with zero manual form filling.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-indigo-50 border border-indigo-200 p-md rounded-lg flex items-center justify-between">
+                        <div className="flex items-center gap-sm">
+                          <span className="material-symbols-outlined text-indigo-700">account_balance_wallet</span>
+                          <span className="text-body-sm font-medium text-indigo-900">Explore your personal Tax Savings Locker:</span>
+                        </div>
+                        <button
+                          onClick={() => setCurrentView('salaried-portal')}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded text-xs shadow-sm"
+                        >
+                          View Salaried Tax Locker
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 5: INTERACTIVE ACCORDION FAQ */}
+                  {guideTab === 'faq' && (
+                    <div className="space-y-md">
+                      {/* Search Bar */}
+                      <div className="relative">
+                        <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-[20px]">search</span>
+                        <input
+                          type="text"
+                          value={faqSearchQuery}
+                          onChange={(e) => setFaqSearchQuery(e.target.value)}
+                          placeholder="Search questions (e.g. fake GSTIN, Form 16, pricing, privacy, filing)..."
+                          className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-lg text-body-sm focus:border-teal-600 focus:ring-1 focus:ring-teal-600"
+                        />
+                      </div>
+
+                      {/* Accordion FAQ Items */}
+                      <div className="space-y-sm">
+                        {filteredFaqs.length === 0 ? (
+                          <div className="bg-white p-lg text-center rounded border border-slate-200 text-on-surface-variant">
+                            No matching questions found for "{faqSearchQuery}". Try another keyword!
+                          </div>
+                        ) : (
+                          filteredFaqs.map(item => {
+                            const isExpanded = expandedFaqId === item.id;
+                            return (
+                              <div
+                                key={item.id}
+                                className="bg-white border border-slate-200 rounded-lg overflow-hidden transition-all shadow-sm"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedFaqId(isExpanded ? null : item.id)}
+                                  className="w-full text-left p-md flex justify-between items-center gap-md hover:bg-slate-50 transition-colors"
+                                >
+                                  <div className="flex items-center gap-sm">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
+                                      {item.category}
+                                    </span>
+                                    <span className="font-bold text-ink-900 text-body-md">{item.q}</span>
+                                  </div>
+                                  <span className="material-symbols-outlined text-slate-400 shrink-0">
+                                    {isExpanded ? 'expand_less' : 'expand_more'}
+                                  </span>
+                                </button>
+
+                                {isExpanded && (
+                                  <div className="p-md pt-0 text-body-sm text-slate-700 bg-slate-50/50 border-t border-slate-100 leading-relaxed">
+                                    {item.a}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* VIEW: CLIENT DETAIL */}
             {currentView === 'client-detail' && selectedBusiness && (
+
               <div className="space-y-lg max-w-7xl mx-auto w-full">
                 {!isMobileLayout && (
                   <div className="flex items-center gap-sm">
@@ -2687,9 +3124,9 @@ export default function App() {
             <nav className="h-14 bg-white border-t border-slate-200 flex justify-around items-center shrink-0 pb-1 z-40">
               {[
                 { view: 'dashboard', label: 'Home', icon: 'dashboard' },
-                { view: 'inward', label: 'Queue', icon: 'receipt_long' },
-                { view: 'outward', label: 'Ledger', icon: 'upload_file' },
-                { view: 'analytics', label: 'Analytics', icon: 'analytics' },
+                { view: 'solo-business', label: 'Shop', icon: 'storefront' },
+                { view: 'salaried-portal', label: 'Salaried', icon: 'account_balance_wallet' },
+                { view: 'guide', label: 'Guide & FAQ', icon: 'help_outline' },
                 { view: 'settings', label: 'Settings', icon: 'settings' }
               ].map(item => (
                 <button 
