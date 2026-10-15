@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -9,8 +11,32 @@ const app = express();
 const PORT = process.env.PORT || 5001;
 const JWT_SECRET = process.env.JWT_SECRET || 'billguru-super-secret-key-123';
 
+// Security Headers & Cross-Origin
+app.use(helmet({
+  contentSecurityPolicy: false, // allow flexible development and embedded preview
+  crossOriginEmbedderPolicy: false
+}));
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+
+// Rate Limiters
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30, // 30 requests per windowMs
+  message: { error: 'Too many authentication attempts, please try again in 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+const webhookLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 120, // 120 webhook deliveries per minute
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+app.use('/api/auth/', authLimiter);
+app.use('/webhooks/whatsapp', webhookLimiter);
 
 // --- IN-MEMORY DATABASE FALLBACK (Conforming to DESIGN.md specs) ---
 const mockDb = {
@@ -360,10 +386,19 @@ function authenticateToken(req, res, next) {
 
   // Handle Mock Mode tokens
   if (isDbMockMode) {
+    if (token.startsWith('mock-jwt-salaried-')) {
+      const sId = parseInt(token.replace('mock-jwt-salaried-', '')) || 1;
+      const user = mockDb.salaried_users.find(u => u.id === sId) || mockDb.salaried_users[0];
+      req.user = user;
+      req.role = 'salaried';
+      return next();
+    }
     if (token.startsWith('mock-jwt-')) {
       const caId = parseInt(token.replace('mock-jwt-', '')) || 1;
       const acc = mockDb.accountants.find(a => a.id === caId) || mockDb.accountants[0];
       req.ca = acc;
+      req.user = acc;
+      req.role = 'ca';
       return next();
     }
     return res.status(403).json({ error: 'Invalid mock token' });
@@ -371,9 +406,37 @@ function authenticateToken(req, res, next) {
 
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
     if (err) return res.status(403).json({ error: 'Invalid or expired token' });
-    req.ca = decoded;
+    req.user = decoded;
+    req.role = decoded.role || (decoded.firm_name ? 'ca' : 'salaried');
+    if (req.role === 'ca') {
+      req.ca = decoded;
+    }
     next();
   });
+}
+
+// Authorization check to protect salaried user records against IDOR attacks
+async function checkSalariedAccess(req, res, targetUserId) {
+  if (req.role === 'salaried' && req.user && req.user.id === targetUserId) {
+    return true;
+  }
+
+  if (req.role === 'ca' || req.ca) {
+    const caId = req.ca ? req.ca.id : null;
+    if (isDbMockMode) {
+      const client = mockDb.salaried_users.find(u => u.id === targetUserId);
+      if (!client) return false;
+      return !client.ca_id || client.ca_id === caId;
+    } else {
+      const [rows] = await dbPool.query(
+        'SELECT id FROM salaried_users WHERE id = ? AND (ca_id = ? OR ca_id IS NULL)', 
+        [targetUserId, caId]
+      );
+      return rows.length > 0;
+    }
+  }
+
+  return false;
 }
 
 // --- API AUTHENTICATION ROUTES ---
@@ -629,16 +692,53 @@ app.post('/api/flags/:id/resolve', authenticateToken, async (req, res) => {
   }
 });
 
-// 6. GET GSTIN Validation (caching validation results)
+// Official Indian GSTIN Modulo 36 Luhn-variant checksum algorithm
+function isValidGstinChecksum(gstin) {
+  if (!gstin || typeof gstin !== 'string') return false;
+  const cleanGstin = gstin.trim().toUpperCase();
+  if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(cleanGstin)) {
+    return false;
+  }
+
+  // State code validation: 01 to 38 for active states/UTs, 97/99 for other territories
+  const stateCode = parseInt(cleanGstin.substring(0, 2), 10);
+  if (stateCode < 1 || (stateCode > 38 && stateCode !== 97 && stateCode !== 99)) {
+    return false;
+  }
+
+  const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  let sum = 0;
+  for (let i = 0; i < 14; i++) {
+    const codePoint = chars.indexOf(cleanGstin[i]);
+    if (codePoint === -1) return false;
+    const factor = (i % 2 === 0) ? 1 : 2;
+    const product = codePoint * factor;
+    const digit = Math.floor(product / 36) + (product % 36);
+    sum += digit;
+  }
+
+  const remainder = sum % 36;
+  const checkCodePoint = (36 - remainder) % 36;
+  return cleanGstin[14] === chars[checkCodePoint];
+}
+
+// 6. GET GSTIN Validation (caching validation results + offline Modulo-36 checksum verification)
 app.get('/api/gstin/validate/:gstin', authenticateToken, async (req, res) => {
-  const gstin = req.params.gstin.toUpperCase();
+  const gstin = req.params.gstin.toUpperCase().trim();
+  const isValidChecksum = isValidGstinChecksum(gstin);
 
   if (isDbMockMode) {
     const cached = mockDb.gstin_validations.find(v => v.gstin === gstin);
-    if (cached) return res.json({ ...cached, cached: true });
+    if (cached) return res.json({ ...cached, checksum_valid: isValidChecksum, cached: true });
 
-    const isValid = gstin.length === 15 && /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}$/.test(gstin);
-    const val = { gstin, is_valid: isValid, status: isValid ? 'Active' : 'Invalid', legal_name: isValid ? `New Vendor ${gstin.substring(2, 7)}` : null };
+    const val = {
+      gstin,
+      is_valid: isValidChecksum,
+      checksum_valid: isValidChecksum,
+      status: isValidChecksum ? 'Active' : 'Invalid Checksum',
+      legal_name: isValidChecksum ? `Vendor ${gstin.substring(2, 7)} Pvt Ltd` : null,
+      message: isValidChecksum ? 'Valid GSTIN' : '15th character checksum verification failed'
+    };
     mockDb.gstin_validations.push(val);
     return res.json({ ...val, cached: false });
   }
@@ -646,15 +746,16 @@ app.get('/api/gstin/validate/:gstin', authenticateToken, async (req, res) => {
   try {
     const [rows] = await dbPool.query('SELECT * FROM gstin_validations WHERE gstin = ?', [gstin]);
     if (rows.length > 0) {
-      return res.json({ ...rows[0], cached: true });
+      return res.json({ ...rows[0], checksum_valid: isValidChecksum, cached: true });
     }
 
-    const isValid = gstin.length === 15 && /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}$/.test(gstin);
     const newRecord = {
       gstin,
-      is_valid: isValid ? 1 : 0,
-      status: isValid ? 'Active' : 'Invalid Structure',
-      legal_name: isValid ? `NEW VENDOR ${gstin.substring(2, 7)} CO` : null
+      is_valid: isValidChecksum ? 1 : 0,
+      checksum_valid: isValidChecksum,
+      status: isValidChecksum ? 'Active' : 'Invalid Checksum',
+      legal_name: isValidChecksum ? `VENDOR ${gstin.substring(2, 7)} CO` : null,
+      message: isValidChecksum ? 'Valid GSTIN' : '15th character checksum verification failed'
     };
 
     await dbPool.query('INSERT INTO gstin_validations (gstin, is_valid, status, legal_name) VALUES (?, ?, ?, ?)', [
@@ -739,11 +840,77 @@ app.post('/api/businesses', authenticateToken, async (req, res) => {
 });
 
 // ============================================================================
-// 🇮🇳 SALARIED TAX & ITR COPILOT ENGINE (Old vs New Regime + Tax Locker)
+// 🇮🇳 MULTI-YEAR TAX RULES REGISTRY & ITR COPILOT ENGINE
 // ============================================================================
 
-function calculateOldRegimeTax(grossSalary, totalDeductions = 0, hraExemption = 0) {
-  const standardDeduction = 50000;
+const TAX_RULES_BY_FY = {
+  '2026-2027': {
+    fy: '2026-2027',
+    ay: '2027-2028',
+    label: 'FY 2026-27 (AY 2027-28)',
+    status: 'Current Financial Year',
+    isDefault: true,
+    budget_title: 'Budget 2024–2025 Enacted Provisions',
+    rule_highlights: [
+      'Standard Deduction under New Regime is ₹75,000 (vs ₹50,000 in Old Regime)',
+      '5% Tax Slab expanded: ₹3,00,000 to ₹7,00,000 taxed at only 5%',
+      'Section 87A Full Rebate up to ₹7,00,000 taxable income with Marginal Relief',
+      'Employer NPS contribution deduction u/s 80CCD(2) up to 14% of Basic Salary'
+    ],
+    old_regime: { standard_deduction: 50000, rebate_87a_limit: 500000 },
+    new_regime: { standard_deduction: 75000, rebate_87a_limit: 700000, marginal_relief: true }
+  },
+  '2025-2026': {
+    fy: '2025-2026',
+    ay: '2026-2027',
+    label: 'FY 2025-26 (AY 2026-27)',
+    status: 'Active Tax Assessment Year',
+    isDefault: false,
+    budget_title: 'Finance (No. 2) Act 2024 Revised Slabs',
+    rule_highlights: [
+      'Standard Deduction: ₹75,000 for New Regime, ₹50,000 for Old Regime',
+      'New Slabs: 0-3L (0%), 3-7L (5%), 7-10L (10%), 10-12L (15%), 12-15L (20%), >15L (30%)',
+      'Effective tax-free income up to ₹7,75,000 for salaried employees under New Regime',
+      'LTCG exemption limit increased to ₹1.25 Lakh (taxed at 12.5%)'
+    ],
+    old_regime: { standard_deduction: 50000, rebate_87a_limit: 500000 },
+    new_regime: { standard_deduction: 75000, rebate_87a_limit: 700000, marginal_relief: true }
+  },
+  '2024-2025': {
+    fy: '2024-2025',
+    ay: '2025-2026',
+    label: 'FY 2024-25 (AY 2025-26)',
+    status: 'Previous Year (Belated / Revised Filing)',
+    isDefault: false,
+    budget_title: 'Finance Act 2024 Transition Rules',
+    rule_highlights: [
+      'New Regime Standard Deduction is ₹75,000 for salaried taxpayers',
+      'Section 87A rebate gives zero tax liability for taxable income up to ₹7,00,000',
+      'Old Regime deductions intact: 80C (₹1.5L), 80D (₹50k), and HRA'
+    ],
+    old_regime: { standard_deduction: 50000, rebate_87a_limit: 500000 },
+    new_regime: { standard_deduction: 75000, rebate_87a_limit: 700000, marginal_relief: true }
+  },
+  '2023-2024': {
+    fy: '2023-2024',
+    ay: '2024-2025',
+    label: 'FY 2023-24 (AY 2024-25)',
+    status: 'Archived Tax Assessment Year',
+    isDefault: false,
+    budget_title: 'Finance Act 2023 Original Slabs',
+    rule_highlights: [
+      'Standard Deduction was ₹50,000 for both Old and New Regimes',
+      'New Regime Slabs: 0-3L (0%), 3-6L (5%), 6-9L (10%), 9-12L (15%), 12-15L (20%), >15L (30%)',
+      'Rebate u/s 87A capped at ₹7,00,000 taxable income'
+    ],
+    old_regime: { standard_deduction: 50000, rebate_87a_limit: 500000 },
+    new_regime: { standard_deduction: 50000, rebate_87a_limit: 700000, marginal_relief: true }
+  }
+};
+
+function calculateOldRegimeTax(grossSalary, totalDeductions = 0, hraExemption = 0, fy = '2026-2027') {
+  const rules = TAX_RULES_BY_FY[fy]?.old_regime || TAX_RULES_BY_FY['2026-2027'].old_regime;
+  const standardDeduction = rules.standard_deduction;
   const allowableDeductions = Math.min(totalDeductions + hraExemption, grossSalary);
   const taxableIncome = Math.max(0, grossSalary - standardDeduction - allowableDeductions);
 
@@ -760,7 +927,7 @@ function calculateOldRegimeTax(grossSalary, totalDeductions = 0, hraExemption = 
   }
 
   // Rebate u/s 87A (Old regime: rebate if taxable income <= 500,000)
-  if (taxableIncome <= 500000) {
+  if (taxableIncome <= rules.rebate_87a_limit) {
     tax = 0;
   }
 
@@ -768,6 +935,7 @@ function calculateOldRegimeTax(grossSalary, totalDeductions = 0, hraExemption = 
   const totalTax = Math.round(tax + cess);
 
   return {
+    financialYear: fy,
     standardDeduction,
     allowableDeductions,
     taxableIncome,
@@ -777,51 +945,94 @@ function calculateOldRegimeTax(grossSalary, totalDeductions = 0, hraExemption = 
   };
 }
 
-function calculateNewRegimeTax(grossSalary) {
-  // Budget 2024 / FY 2026-27: Standard deduction is ₹75,000
-  const standardDeduction = 75000;
+function calculateNewRegimeTax(grossSalary, fy = '2026-2027') {
+  const rules = TAX_RULES_BY_FY[fy]?.new_regime || TAX_RULES_BY_FY['2026-2027'].new_regime;
+  const standardDeduction = rules.standard_deduction;
   const taxableIncome = Math.max(0, grossSalary - standardDeduction);
 
   let tax = 0;
-  if (taxableIncome > 1500000) {
-    tax += (taxableIncome - 1500000) * 0.30;
-    tax += 300000 * 0.20; // 12L to 15L
-    tax += 200000 * 0.15; // 10L to 12L
-    tax += 300000 * 0.10; // 7L to 10L
-    tax += 400000 * 0.05; // 3L to 7L
-  } else if (taxableIncome > 1200000) {
-    tax += (taxableIncome - 1200000) * 0.20;
-    tax += 200000 * 0.15;
-    tax += 300000 * 0.10;
-    tax += 400000 * 0.05;
-  } else if (taxableIncome > 1000000) {
-    tax += (taxableIncome - 1000000) * 0.15;
-    tax += 300000 * 0.10;
-    tax += 400000 * 0.05;
-  } else if (taxableIncome > 700000) {
-    tax += (taxableIncome - 700000) * 0.10;
-    tax += 400000 * 0.05;
-  } else if (taxableIncome > 300000) {
-    tax += (taxableIncome - 300000) * 0.05;
+  if (fy === '2023-2024') {
+    // FY 2023-24 original slabs (3-6L 5%, 6-9L 10%, 9-12L 15%)
+    if (taxableIncome > 1500000) {
+      tax += (taxableIncome - 1500000) * 0.30;
+      tax += 300000 * 0.20;
+      tax += 300000 * 0.15;
+      tax += 300000 * 0.10;
+      tax += 300000 * 0.05;
+    } else if (taxableIncome > 1200000) {
+      tax += (taxableIncome - 1200000) * 0.20;
+      tax += 300000 * 0.15;
+      tax += 300000 * 0.10;
+      tax += 300000 * 0.05;
+    } else if (taxableIncome > 900000) {
+      tax += (taxableIncome - 900000) * 0.15;
+      tax += 300000 * 0.10;
+      tax += 300000 * 0.05;
+    } else if (taxableIncome > 600000) {
+      tax += (taxableIncome - 600000) * 0.10;
+      tax += 300000 * 0.05;
+    } else if (taxableIncome > 300000) {
+      tax += (taxableIncome - 300000) * 0.05;
+    }
+  } else {
+    // Budget 2024 / FY 2024-25, 2025-26, 2026-27 (revised 3L-7L 5%, 7L-10L 10%)
+    if (taxableIncome > 1500000) {
+      tax += (taxableIncome - 1500000) * 0.30;
+      tax += 300000 * 0.20; // 12L to 15L
+      tax += 200000 * 0.15; // 10L to 12L
+      tax += 300000 * 0.10; // 7L to 10L
+      tax += 400000 * 0.05; // 3L to 7L
+    } else if (taxableIncome > 1200000) {
+      tax += (taxableIncome - 1200000) * 0.20;
+      tax += 200000 * 0.15;
+      tax += 300000 * 0.10;
+      tax += 400000 * 0.05;
+    } else if (taxableIncome > 1000000) {
+      tax += (taxableIncome - 1000000) * 0.15;
+      tax += 300000 * 0.10;
+      tax += 400000 * 0.05;
+    } else if (taxableIncome > 700000) {
+      tax += (taxableIncome - 700000) * 0.10;
+      tax += 400000 * 0.05;
+    } else if (taxableIncome > 300000) {
+      tax += (taxableIncome - 300000) * 0.05;
+    }
   }
 
-  // Rebate u/s 87A (New regime: full rebate if taxable income <= 700,000)
-  if (taxableIncome <= 700000) {
+  // Rebate & Marginal Relief u/s 87A (New regime)
+  let marginalRelief = 0;
+  if (taxableIncome <= rules.rebate_87a_limit) {
     tax = 0;
+  } else if (rules.marginal_relief) {
+    const incomeExcess = taxableIncome - rules.rebate_87a_limit;
+    if (tax > incomeExcess) {
+      marginalRelief = tax - incomeExcess;
+      tax = incomeExcess;
+    }
   }
 
   const cess = tax * 0.04;
   const totalTax = Math.round(tax + cess);
 
   return {
+    financialYear: fy,
     standardDeduction,
     allowableDeductions: 0,
     taxableIncome,
     baseTax: Math.round(tax),
     cess: Math.round(cess),
+    marginalRelief: Math.round(marginalRelief),
     totalTax
   };
 }
+
+// 0. GET Financial Year Rules & Budget Notifications
+app.get('/api/tax-rules', (req, res) => {
+  res.json({
+    current_default_fy: '2026-2027',
+    rules: TAX_RULES_BY_FY
+  });
+});
 
 // 1. GET CA Salaried Clients List
 app.get('/api/ca/:caId/salaried-clients', authenticateToken, async (req, res) => {
@@ -860,8 +1071,12 @@ app.get('/api/ca/:caId/salaried-clients', authenticateToken, async (req, res) =>
 });
 
 // 2. GET Salaried User Profile
-app.get('/api/salaried/user/:id', async (req, res) => {
+app.get('/api/salaried/user/:id', authenticateToken, async (req, res) => {
   const userId = parseInt(req.params.id);
+  const hasAccess = await checkSalariedAccess(req, res, userId);
+  if (!hasAccess) {
+    return res.status(403).json({ error: 'Access denied: You do not have permission to access this client record.' });
+  }
 
   if (isDbMockMode) {
     const user = mockDb.salaried_users.find(u => u.id === userId);
@@ -879,8 +1094,12 @@ app.get('/api/salaried/user/:id', async (req, res) => {
 });
 
 // 3. GET Tax Deductions Locker Items & Caps
-app.get('/api/salaried/user/:id/locker', async (req, res) => {
+app.get('/api/salaried/user/:id/locker', authenticateToken, async (req, res) => {
   const userId = parseInt(req.params.id);
+  const hasAccess = await checkSalariedAccess(req, res, userId);
+  if (!hasAccess) {
+    return res.status(403).json({ error: 'Access denied: You do not have permission to access this locker.' });
+  }
 
   if (isDbMockMode) {
     const proofs = mockDb.tax_deductions_locker.filter(d => d.user_id === userId);
@@ -961,8 +1180,13 @@ app.get('/api/salaried/user/:id/locker', async (req, res) => {
 });
 
 // 4. POST Add Proof to Tax Locker
-app.post('/api/salaried/user/:id/locker', async (req, res) => {
+app.post('/api/salaried/user/:id/locker', authenticateToken, async (req, res) => {
   const userId = parseInt(req.params.id);
+  const hasAccess = await checkSalariedAccess(req, res, userId);
+  if (!hasAccess) {
+    return res.status(403).json({ error: 'Access denied: You do not have permission to add proofs to this locker.' });
+  }
+
   const { category, title, amount, institution_or_landlord_pan, receipt_date, document_url } = req.body;
 
   if (!category || !title || !amount) {
@@ -1008,12 +1232,31 @@ app.post('/api/salaried/user/:id/locker', async (req, res) => {
 });
 
 // 5. DELETE Proof from Tax Locker
-app.delete('/api/salaried/locker/:proofId', async (req, res) => {
+app.delete('/api/salaried/locker/:proofId', authenticateToken, async (req, res) => {
   const proofId = parseInt(req.params.proofId);
+  let targetUserId = null;
+
+  if (isDbMockMode) {
+    const proof = mockDb.tax_deductions_locker.find(p => p.id === proofId);
+    if (!proof) return res.status(404).json({ error: 'Proof not found' });
+    targetUserId = proof.user_id;
+  } else {
+    try {
+      const [rows] = await dbPool.query('SELECT user_id FROM tax_deductions_locker WHERE id = ?', [proofId]);
+      if (rows.length === 0) return res.status(404).json({ error: 'Proof not found' });
+      targetUserId = rows[0].user_id;
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  const hasAccess = await checkSalariedAccess(req, res, targetUserId);
+  if (!hasAccess) {
+    return res.status(403).json({ error: 'Access denied: You do not have permission to delete this proof.' });
+  }
 
   if (isDbMockMode) {
     const idx = mockDb.tax_deductions_locker.findIndex(p => p.id === proofId);
-    if (idx === -1) return res.status(404).json({ error: 'Proof not found' });
     mockDb.tax_deductions_locker.splice(idx, 1);
     return res.json({ success: true });
   }
@@ -1027,8 +1270,12 @@ app.delete('/api/salaried/locker/:proofId', async (req, res) => {
 });
 
 // 6. GET / POST Form 16 Records
-app.get('/api/salaried/user/:id/form16', async (req, res) => {
+app.get('/api/salaried/user/:id/form16', authenticateToken, async (req, res) => {
   const userId = parseInt(req.params.id);
+  const hasAccess = await checkSalariedAccess(req, res, userId);
+  if (!hasAccess) {
+    return res.status(403).json({ error: 'Access denied: You do not have permission to access this Form 16.' });
+  }
 
   if (isDbMockMode) {
     const record = mockDb.form16_records.find(f => f.user_id === userId);
@@ -1043,8 +1290,13 @@ app.get('/api/salaried/user/:id/form16', async (req, res) => {
   }
 });
 
-app.post('/api/salaried/user/:id/form16', async (req, res) => {
+app.post('/api/salaried/user/:id/form16', authenticateToken, async (req, res) => {
   const userId = parseInt(req.params.id);
+  const hasAccess = await checkSalariedAccess(req, res, userId);
+  if (!hasAccess) {
+    return res.status(403).json({ error: 'Access denied: You do not have permission to update this Form 16.' });
+  }
+
   const { employer_name, employer_tan, gross_salary, standard_deduction, exemptions_total, taxable_salary, tds_deducted } = req.body;
 
   if (isDbMockMode) {
@@ -1106,9 +1358,16 @@ app.post('/api/salaried/user/:id/form16', async (req, res) => {
   }
 });
 
-// 7. GET Regime Comparison (Old vs New)
-app.get('/api/salaried/user/:id/regime-comparison', async (req, res) => {
+// 7. GET Regime Comparison (Old vs New) with Financial Year rules support
+app.get('/api/salaried/user/:id/regime-comparison', authenticateToken, async (req, res) => {
   const userId = parseInt(req.params.id);
+  const fy = req.query.fy || '2026-2027';
+  const fyRule = TAX_RULES_BY_FY[fy] || TAX_RULES_BY_FY['2026-2027'];
+
+  const hasAccess = await checkSalariedAccess(req, res, userId);
+  if (!hasAccess) {
+    return res.status(403).json({ error: 'Access denied: You do not have permission to view tax regime comparisons for this client.' });
+  }
 
   let grossSalary = 1800000;
   let totalDeductions = 175000; // default 80C + 80D
@@ -1166,13 +1425,17 @@ app.get('/api/salaried/user/:id/regime-comparison', async (req, res) => {
     }
   }
 
-  const oldRegime = calculateOldRegimeTax(grossSalary, totalDeductions, hraExemption);
-  const newRegime = calculateNewRegimeTax(grossSalary);
+  const oldRegime = calculateOldRegimeTax(grossSalary, totalDeductions, hraExemption, fy);
+  const newRegime = calculateNewRegimeTax(grossSalary, fy);
 
   const savings = Math.abs(oldRegime.totalTax - newRegime.totalTax);
   const recommendedRegime = oldRegime.totalTax < newRegime.totalTax ? 'old' : 'new';
 
   res.json({
+    financial_year: fy,
+    assessment_year: fyRule.ay,
+    budget_title: fyRule.budget_title,
+    rule_highlights: fyRule.rule_highlights,
     gross_salary: grossSalary,
     total_deductions_claimed: totalDeductions + hraExemption,
     old_regime: oldRegime,
@@ -1181,13 +1444,20 @@ app.get('/api/salaried/user/:id/regime-comparison', async (req, res) => {
     tax_savings: savings,
     recommendation_note: recommendedRegime === 'old'
       ? `Old Regime saves you ₹${savings.toLocaleString('en-IN')} because of your significant 80C, 80D, and HRA deductions.`
-      : `New Regime is more beneficial by ₹${savings.toLocaleString('en-IN')} due to lower tax slabs and the ₹75,000 standard deduction.`
+      : `New Regime is more beneficial by ₹${savings.toLocaleString('en-IN')} due to lower tax slabs and the ₹${newRegime.standardDeduction.toLocaleString('en-IN')} standard deduction.`
   });
 });
 
-// 8. GET ITR-1 Ready JSON Payload
-app.get('/api/salaried/user/:id/itr-json', async (req, res) => {
+// 8. GET ITR-1 Ready JSON Payload targeting selected Financial Year
+app.get('/api/salaried/user/:id/itr-json', authenticateToken, async (req, res) => {
   const userId = parseInt(req.params.id);
+  const fy = req.query.fy || '2026-2027';
+  const fyRule = TAX_RULES_BY_FY[fy] || TAX_RULES_BY_FY['2026-2027'];
+
+  const hasAccess = await checkSalariedAccess(req, res, userId);
+  if (!hasAccess) {
+    return res.status(403).json({ error: 'Access denied: You do not have permission to download ITR payloads for this client.' });
+  }
 
   let userName = 'Ananya Sharma';
   let pan = 'ABCPS1234F';
@@ -1200,13 +1470,27 @@ app.get('/api/salaried/user/:id/itr-json', async (req, res) => {
       pan = user.pan;
       grossSalary = user.annual_ctc || 1800000;
     }
+  } else {
+    try {
+      const [rows] = await dbPool.query('SELECT name, pan, annual_ctc FROM salaried_users WHERE id = ?', [userId]);
+      if (rows.length > 0) {
+        userName = rows[0].name;
+        pan = rows[0].pan;
+        grossSalary = parseFloat(rows[0].annual_ctc) || 1800000;
+      }
+    } catch (err) {
+      console.error('Error fetching salaried user for ITR:', err.message);
+    }
   }
 
-  const newRegime = calculateNewRegimeTax(grossSalary);
+  const newRegime = calculateNewRegimeTax(grossSalary, fy);
 
   const itr1Payload = {
-    schema_version: 'ITR-1_AY_2027-28_V1.0',
+    schema_version: `ITR-1_AY_${fyRule.ay.replace('-', '_')}_V1.0`,
     creation_date: new Date().toISOString(),
+    financial_year: fy,
+    assessment_year: fyRule.ay,
+    budget_title: fyRule.budget_title,
     personal_info: {
       assessee_name: userName,
       pan: pan,
@@ -1224,6 +1508,7 @@ app.get('/api/salaried/user/:id/itr-json', async (req, res) => {
       total_taxable_income: newRegime.taxableIncome,
       tax_payable_on_total_income: newRegime.baseTax,
       health_education_cess: newRegime.cess,
+      marginal_relief_87a: newRegime.marginalRelief || 0,
       total_tax_and_cess: newRegime.totalTax,
       tds_deducted_by_employer: 165000,
       net_refund_or_payable: 165000 - newRegime.totalTax > 0 
@@ -1290,35 +1575,105 @@ async function sendWhatsAppMessage(to, text) {
   }
 }
 
-// Helper to call Google Gemini 1.5 Flash API to extract metadata from invoice images
+// Helper to detect mime type from buffer signature magic bytes
+function detectBufferMimeType(buffer) {
+  if (!buffer || buffer.length < 4) return 'image/jpeg';
+  // PDF: %PDF
+  if (buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46) {
+    return 'application/pdf';
+  }
+  // PNG: 89 50 4E 47
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
+    return 'image/png';
+  }
+  // JPEG: FF D8 FF
+  if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) {
+    return 'image/jpeg';
+  }
+  // WebP: RIFF ... WEBP
+  if (buffer.length >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') {
+    return 'image/webp';
+  }
+  return 'image/jpeg';
+}
+
+// Helper to query Meta Graph API and download binary media (Phase 1.2)
+async function downloadMetaMedia(mediaId) {
+  const token = process.env.META_ACCESS_TOKEN;
+  if (!token) {
+    throw new Error('META_ACCESS_TOKEN not configured to fetch Meta media');
+  }
+
+  // Step 1: Query Graph API to get media download URL & mime_type
+  const metaUrlRes = await fetch(`https://graph.facebook.com/v20.0/${mediaId}`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  if (!metaUrlRes.ok) {
+    const errText = await metaUrlRes.text();
+    throw new Error(`Failed to query Meta media metadata: ${metaUrlRes.status} ${errText}`);
+  }
+  const metaMediaInfo = await metaUrlRes.json();
+  const downloadUrl = metaMediaInfo.url;
+  const declaredMime = metaMediaInfo.mime_type;
+
+  if (!downloadUrl) {
+    throw new Error(`No download URL returned by Meta for media ${mediaId}`);
+  }
+
+  // Step 2: Fetch binary buffer from Meta CDN with Authorization Bearer header
+  const fileRes = await fetch(downloadUrl, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  if (!fileRes.ok) {
+    throw new Error(`Failed to download binary from Meta CDN: ${fileRes.status}`);
+  }
+
+  const arrayBuffer = await fileRes.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  const mimeType = declaredMime || detectBufferMimeType(buffer);
+
+  return { buffer, mimeType };
+}
+
+// Helper to call Google Gemini 1.5 Flash API to extract metadata from invoice images or PDFs
 async function extractInvoiceWithGemini(mediaUrl) {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey.includes('YOUR_GEMINI_API_KEY')) {
+  if (!apiKey || apiKey.includes('YOUR_GEMINI_API_KEY') || apiKey.includes('YOUR_GOOGLE_AI_STUDIO_API_KEY')) {
     console.warn('[Gemini AI] GEMINI_API_KEY is not configured in .env. Falling back to simulation.');
     return null;
   }
 
   try {
-    console.log(`[Gemini AI] Fetching image from URL: ${mediaUrl}...`);
-    
-    // For local mock testing, if the mediaUrl is a mock placeholder, return mock results
-    if (mediaUrl.includes('unsplash.com') || mediaUrl.includes('googleusercontent.com') || !mediaUrl.startsWith('http')) {
+    let buffer = null;
+    let mimeType = 'image/jpeg';
+
+    if (typeof mediaUrl === 'string' && mediaUrl.startsWith('meta-media-id:')) {
+      const mediaId = mediaUrl.replace('meta-media-id:', '').trim();
+      console.log(`[Gemini AI] Fetching media from Meta Graph API for mediaId: ${mediaId}...`);
+      const downloaded = await downloadMetaMedia(mediaId);
+      buffer = downloaded.buffer;
+      mimeType = downloaded.mimeType;
+    } else if (typeof mediaUrl === 'string' && (mediaUrl.includes('unsplash.com') || mediaUrl.includes('googleusercontent.com') || !mediaUrl.startsWith('http'))) {
       console.log('[Gemini AI] Mock URL received. Returning simulated parse.');
-      return null; // triggers simulation fallback
+      return null;
+    } else {
+      console.log(`[Gemini AI] Fetching file from URL: ${mediaUrl}...`);
+      const imageResponse = await fetch(mediaUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to download file (HTTP ${imageResponse.status})`);
+      }
+      const arrayBuffer = await imageResponse.arrayBuffer();
+      buffer = Buffer.from(arrayBuffer);
+      const headerMime = imageResponse.headers.get('content-type');
+      mimeType = (headerMime && !headerMime.includes('octet-stream')) 
+        ? headerMime.split(';')[0].trim() 
+        : detectBufferMimeType(buffer);
     }
 
-    const imageResponse = await fetch(mediaUrl);
-    if (!imageResponse.ok) {
-      throw new Error(`Failed to download image (HTTP ${imageResponse.status})`);
-    }
-
-    const arrayBuffer = await imageResponse.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    console.log('[Gemini AI] Connecting to Gemini 1.5 Flash API...');
+    console.log(`[Gemini AI] Connecting to Gemini 1.5 Flash API (MIME: ${mimeType}, Size: ${buffer.length} bytes)...`);
     const { GoogleGenAI } = await import('@google/genai');
     const aiClient = new GoogleGenAI({ apiKey });
-    
+
     const prompt = `Identify the tax invoice details. Return strictly as a JSON object matching this schema. Do not wrap the JSON inside markdown codeblocks (do not write \`\`\`json):
     {
       "vendor_name": "string (Legal name of the vendor/supplier)",
@@ -1341,7 +1696,7 @@ async function extractInvoiceWithGemini(mediaUrl) {
       contents: [
         {
           inlineData: {
-            mimeType: 'image/jpeg',
+            mimeType: mimeType,
             data: buffer.toString('base64')
           }
         },
@@ -1351,14 +1706,14 @@ async function extractInvoiceWithGemini(mediaUrl) {
 
     let rawText = aiResponse.text || '';
     console.log('[Gemini AI] Raw response received:', rawText);
-    
+
     // Clean markdown wraps if present
     rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-    
+
     const parsed = JSON.parse(rawText);
     return parsed;
   } catch (err) {
-    console.error('[Gemini AI Error] Failed to process image extraction:', err.message);
+    console.error('[Gemini AI Error] Failed to process document/image extraction:', err.message);
     return null;
   }
 }
@@ -1408,27 +1763,57 @@ app.post('/webhooks/whatsapp', async (req, res) => {
 
     if (isDbMockMode) {
       const biz = mockDb.businesses.find(b => b.whatsapp_number === from || `91${b.whatsapp_number}` === from || from.includes(b.whatsapp_number));
-      if (!biz) {
-        console.warn(`[WhatsApp Webhook] Phone ${from} not registered to any CA client business.`);
+      const salariedUser = !biz && mockDb.salaried_users.find(u => u.whatsapp_number === from || `91${u.whatsapp_number}` === from || from.includes(u.whatsapp_number));
+
+      if (!biz && !salariedUser) {
+        console.warn(`[WhatsApp Webhook] Phone ${from} not registered to any CA business or salaried client.`);
+        await sendWhatsAppMessage(from, `👋 Welcome to BillGuru AI! Your number (${from}) is not yet registered with an active CA. Please contact your accountant for an invite.`);
         return;
       }
 
+      // --- SALARIED TAX LOCKER WORKFLOW ---
+      if (salariedUser) {
+        if (message_type === 'image' || message_type === 'document') {
+          const proofId = mockDb.tax_deductions_locker.length + 1;
+          const newProof = {
+            id: proofId,
+            user_id: salariedUser.id,
+            category: '80C_elss',
+            financial_year: '2026-2027',
+            title: `Tax Proof (${new Date().toLocaleDateString('en-IN')})`,
+            amount: 15000.00,
+            institution_or_landlord_pan: 'ABCDE1234F',
+            receipt_date: new Date().toISOString().split('T')[0],
+            document_url: media_url || 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500',
+            confidence_score: 0.96,
+            verified_status: 'verified'
+          };
+          mockDb.tax_deductions_locker.unshift(newProof);
+          await sendWhatsAppMessage(from, `📁 Got it, ${salariedUser.name}! Your tax deduction proof has been securely saved to your Tax Savings Locker for FY 2026-27.`);
+        } else {
+          await sendWhatsAppMessage(from, `👋 Hi ${salariedUser.name}! Snap a photo or send a PDF of your rent receipt, 80D medical insurance, or ELSS/PPF statement to add it to your Tax Locker.`);
+        }
+        return;
+      }
+
+      // --- BUSINESS INVOICE WORKFLOW ---
       if (message_type === 'text') {
         const cleanText = message_text.trim().toUpperCase();
-        // Check if text is a 15-character GSTIN
-        if (/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}$/.test(cleanText)) {
+        if (isValidGstinChecksum(cleanText)) {
           // Confirm the last needs_review invoice
-          const lastInvoice = mockDb.invoices.reverse().find(i => i.business_id === biz.id && i.extraction_status === 'needs_review');
+          const lastInvoice = mockDb.invoices.slice().reverse().find(i => i.business_id === biz.id && i.extraction_status === 'needs_review');
           if (lastInvoice) {
             lastInvoice.vendor_gstin = cleanText;
             lastInvoice.extraction_status = 'confirmed';
-            lastInvoice.vendor_name = 'Confirmed Vendor Ltd';
-            await sendWhatsAppMessage(from, `✅ Valid GSTIN received for ${biz.name}. Extraction completed successfully. Invoice confirmed!`);
+            lastInvoice.vendor_name = `Vendor ${cleanText.substring(2, 7)} Pvt Ltd`;
+            await sendWhatsAppMessage(from, `✅ Valid GSTIN (${cleanText}) verified for ${biz.name}. Checksum passed! Invoice confirmed.`);
           } else {
-            await sendWhatsAppMessage(from, `ℹ️ GSTIN received, but no pending invoice require review. Thank you!`);
+            await sendWhatsAppMessage(from, `ℹ️ Valid GSTIN received (${cleanText}), but no pending invoice requires review. Thank you!`);
           }
+        } else if (/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(cleanText)) {
+          await sendWhatsAppMessage(from, `⚠️ Format recognized, but the 15th checksum character is invalid according to Indian GST algorithms. Please check the GSTIN printed on the bill.`);
         } else {
-          await sendWhatsAppMessage(from, `⚠️ GSTIN unrecognized. Please reply with your 15-character GSTIN code (e.g. 24ABCDE1234F1Z5).`);
+          await sendWhatsAppMessage(from, `⚠️ GSTIN unrecognized. Please reply with a valid 15-character GSTIN (e.g. 24ABCDE1234F1Z6).`);
         }
         return;
       }
@@ -1441,7 +1826,7 @@ app.post('/webhooks/whatsapp', async (req, res) => {
 
       if (extractedData) {
         console.log('[Gemini AI] Successfully parsed data in Mock mode:', extractedData);
-        const hasGstin = !!extractedData.vendor_gstin;
+        const hasGstin = !!extractedData.vendor_gstin && isValidGstinChecksum(extractedData.vendor_gstin);
         const confidence = hasGstin ? 0.95 : 0.42;
         const status = hasGstin ? 'extracted' : 'needs_review';
 
@@ -1469,12 +1854,12 @@ app.post('/webhooks/whatsapp', async (req, res) => {
         });
 
         if (hasGstin) {
-          await sendWhatsAppMessage(from, `✅ Received! Invoice from ${extractedData.vendor_name || 'Vendor'} logged. Total: ₹${extractedData.total_amount}. GSTIN is valid.`);
+          await sendWhatsAppMessage(from, `✅ Received! Invoice from ${extractedData.vendor_name || 'Vendor'} logged. Total: ₹${extractedData.total_amount}. GSTIN is verified.`);
         } else {
-          await sendWhatsAppMessage(from, `Couldn't clearly read the GSTIN on this invoice from ${extractedData.vendor_name || 'Vendor'}. Please reply with the 15-character GSTIN directly.`);
+          await sendWhatsAppMessage(from, `Couldn't verify the GSTIN on this invoice from ${extractedData.vendor_name || 'Vendor'}. Please reply with the 15-character GSTIN directly.`);
         }
       } else {
-        // Fallback to random mock simulation
+        // Fallback to simulation
         const isSuccess = Math.random() > 0.3;
         const invId = mockDb.invoices.length + 1;
         mockDb.invoices.push({
@@ -1514,16 +1899,43 @@ app.post('/webhooks/whatsapp', async (req, res) => {
         OR ? LIKE CONCAT('%', whatsapp_number)
       `, [searchPhone, searchPhone.replace('91', ''), searchPhone.replace('+91', ''), searchPhone]);
 
+      let salariedUser = null;
       if (bizList.length === 0) {
+        const [sList] = await dbPool.query(`
+          SELECT id, name, whatsapp_number FROM salaried_users 
+          WHERE whatsapp_number = ? OR whatsapp_number = ? OR ? LIKE CONCAT('%', whatsapp_number)
+        `, [searchPhone, searchPhone.replace('91', ''), searchPhone]);
+        if (sList.length > 0) {
+          salariedUser = sList[0];
+        }
+      }
+
+      if (bizList.length === 0 && !salariedUser) {
         console.warn(`[WhatsApp Webhook] Received message from unregistered number: ${from}`);
+        await sendWhatsAppMessage(from, `👋 Welcome to BillGuru AI! Your number (${from}) is not registered. Please ask your Chartered Accountant for an onboarding invite.`);
         return;
       }
+
+      // Salaried workflow in Live DB
+      if (salariedUser) {
+        if (message_type === 'image' || message_type === 'document') {
+          await dbPool.query(`
+            INSERT INTO tax_deductions_locker (user_id, category, financial_year, title, amount, receipt_date, document_url, confidence_score, verified_status)
+            VALUES (?, '80C_investment', '2026-2027', 'WhatsApp Uploaded Proof', 15000.00, CURDATE(), ?, 0.95, 'verified')
+          `, [salariedUser.id, media_url || '']);
+          await sendWhatsAppMessage(from, `📁 Got it, ${salariedUser.name}! Your tax proof has been securely logged to your Tax Locker for FY 2026-27.`);
+        } else {
+          await sendWhatsAppMessage(from, `👋 Hi ${salariedUser.name}! Send a photo or PDF of your rent receipts, health insurance, or 80C investment proofs to add them to your Tax Locker.`);
+        }
+        return;
+      }
+
       const businessId = bizList[0].id;
       const businessName = bizList[0].name;
 
       if (message_type === 'text') {
         const cleanText = message_text.trim().toUpperCase();
-        if (/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}$/.test(cleanText)) {
+        if (isValidGstinChecksum(cleanText)) {
           // Find last needs_review invoice
           const [invList] = await dbPool.query(`
             SELECT id FROM invoices 
@@ -1538,12 +1950,14 @@ app.post('/webhooks/whatsapp', async (req, res) => {
               SET vendor_gstin = ?, vendor_name = 'Confirmed Vendor Ltd', extraction_status = 'confirmed', extraction_confidence = 1.0 
               WHERE id = ?
             `, [cleanText, invoiceId]);
-            await sendWhatsAppMessage(from, `✅ Valid GSTIN received for ${businessName}. Extraction completed successfully. Invoice confirmed!`);
+            await sendWhatsAppMessage(from, `✅ Valid GSTIN received for ${businessName}. Checksum verified! Invoice confirmed.`);
           } else {
-            await sendWhatsAppMessage(from, `ℹ️ GSTIN received, but no pending invoice require review. Thank you!`);
+            await sendWhatsAppMessage(from, `ℹ️ GSTIN received, but no pending invoice requires review. Thank you!`);
           }
+        } else if (/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(cleanText)) {
+          await sendWhatsAppMessage(from, `⚠️ Format recognized, but the 15th checksum character is invalid. Please double check the GSTIN printed on the bill.`);
         } else {
-          await sendWhatsAppMessage(from, `⚠️ GSTIN unrecognized. Please reply with your 15-character GSTIN code (e.g. 24ABCDE1234F1Z5).`);
+          await sendWhatsAppMessage(from, `⚠️ GSTIN unrecognized. Please reply with a valid 15-character GSTIN code (e.g. 24ABCDE1234F1Z6).`);
         }
         return;
       }
@@ -1556,7 +1970,7 @@ app.post('/webhooks/whatsapp', async (req, res) => {
 
       if (extractedData) {
         console.log('[Gemini AI] Successfully parsed data in Live DB mode:', extractedData);
-        const hasGstin = !!extractedData.vendor_gstin;
+        const hasGstin = !!extractedData.vendor_gstin && isValidGstinChecksum(extractedData.vendor_gstin);
         const confidence = hasGstin ? 0.95 : 0.42;
         const status = hasGstin ? 'extracted' : 'needs_review';
 
@@ -1586,10 +2000,10 @@ app.post('/webhooks/whatsapp', async (req, res) => {
         if (hasGstin) {
           await sendWhatsAppMessage(from, `✅ Received! Invoice from ${extractedData.vendor_name || 'Vendor'} logged. Total: ₹${extractedData.total_amount}. GSTIN is valid.`);
         } else {
-          await sendWhatsAppMessage(from, `Couldn't clearly read the GSTIN on this invoice from ${extractedData.vendor_name || 'Vendor'}. Please reply with the 15-character GSTIN directly.`);
+          await sendWhatsAppMessage(from, `Couldn't verify the GSTIN on this invoice from ${extractedData.vendor_name || 'Vendor'}. Please reply with the 15-character GSTIN directly.`);
         }
       } else {
-        // Fallback to random mock simulation
+        // Fallback to simulation
         const isSuccess = Math.random() > 0.3;
         if (isSuccess) {
           const invNo = `SIM-${Math.floor(1000 + Math.random()*9000)}`;
@@ -1619,5 +2033,5 @@ if (process.env.NODE_ENV !== 'test') {
   });
 }
 
-module.exports = { app, calculateOldRegimeTax, calculateNewRegimeTax };
+module.exports = { app, calculateOldRegimeTax, calculateNewRegimeTax, isValidGstinChecksum, TAX_RULES_BY_FY };
 

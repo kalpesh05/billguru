@@ -67,6 +67,75 @@ const FAQ_ITEMS = [
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api';
 
+const TAX_RULES_BY_FY = {
+  '2026-2027': {
+    fy: '2026-2027',
+    ay: '2027-2028',
+    label: 'FY 2026-27 (AY 2027-28)',
+    status: 'Current FY',
+    budget_title: 'Budget 2024–2025 Enacted Provisions',
+    rule_highlights: [
+      'Standard Deduction under New Regime is ₹75,000 (vs ₹50,000 in Old Regime)',
+      '5% Tax Slab expanded: ₹3,00,000 to ₹7,00,000 taxed at only 5%',
+      'Section 87A Full Rebate up to ₹7,00,000 taxable income with Marginal Relief',
+      'Employer NPS deduction u/s 80CCD(2) up to 14% of Basic Salary'
+    ],
+    old_standard_ded: 50000,
+    new_standard_ded: 75000,
+    new_rebate_limit: 700000,
+    has_marginal_relief: true
+  },
+  '2025-2026': {
+    fy: '2025-2026',
+    ay: '2026-2027',
+    label: 'FY 2025-26 (AY 2026-27)',
+    status: 'Active Assessment Year',
+    budget_title: 'Finance (No. 2) Act 2024 Revised Slabs',
+    rule_highlights: [
+      'Standard Deduction: ₹75,000 for New Regime, ₹50,000 for Old Regime',
+      'Revised Slabs: 0-3L (0%), 3-7L (5%), 7-10L (10%), 10-12L (15%), 12-15L (20%), >15L (30%)',
+      'Effective tax-free income up to ₹7,75,000 for salaried employees under New Regime',
+      'LTCG exemption limit increased to ₹1.25 Lakh (taxed at 12.5%)'
+    ],
+    old_standard_ded: 50000,
+    new_standard_ded: 75000,
+    new_rebate_limit: 700000,
+    has_marginal_relief: true
+  },
+  '2024-2025': {
+    fy: '2024-2025',
+    ay: '2025-2026',
+    label: 'FY 2024-25 (AY 2025-26)',
+    status: 'Belated / Revised Filing',
+    budget_title: 'Finance Act 2024 Transition Rules',
+    rule_highlights: [
+      'New Regime Standard Deduction is ₹75,000 for salaried taxpayers',
+      'Section 87A rebate gives zero tax liability for taxable income up to ₹7,00,000',
+      'Old Regime deductions intact: 80C (₹1.5L), 80D (₹50k), and HRA'
+    ],
+    old_standard_ded: 50000,
+    new_standard_ded: 75000,
+    new_rebate_limit: 700000,
+    has_marginal_relief: true
+  },
+  '2023-2024': {
+    fy: '2023-2024',
+    ay: '2024-2025',
+    label: 'FY 2023-24 (AY 2024-25)',
+    status: 'Archived Tax Year',
+    budget_title: 'Finance Act 2023 Original Slabs',
+    rule_highlights: [
+      'Standard Deduction was ₹50,000 for both Old and New Regimes',
+      'New Regime Slabs: 0-3L (0%), 3-6L (5%), 6-9L (10%), 9-12L (15%), 12-15L (20%), >15L (30%)',
+      'Rebate u/s 87A was capped at ₹7,00,000'
+    ],
+    old_standard_ded: 50000,
+    new_standard_ded: 50000,
+    new_rebate_limit: 700000,
+    has_marginal_relief: true
+  }
+};
+
 
 export default function App() {
   // Authentication State
@@ -88,6 +157,7 @@ export default function App() {
   // Dashboard Core State
   const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard', 'inward', 'outward', 'onboard', 'client-detail', 'settings', 'analytics', 'whatsapp'
   const [selectedBusiness, setSelectedBusiness] = useState(null);
+  const [selectedFinancialYear, setSelectedFinancialYear] = useState('2026-2027');
   
   // Responsive & Simulation Controls
   const [isMobileSim, setIsMobileSim] = useState(false);
@@ -556,9 +626,45 @@ export default function App() {
 
 
   const downloadItrJson = () => {
+    const activeRules = TAX_RULES_BY_FY[selectedFinancialYear] || TAX_RULES_BY_FY['2026-2027'];
+    const grossSalary = salariedUser.annual_ctc;
+    const stdDed = activeRules.new_standard_ded;
+    const taxable = Math.max(0, grossSalary - stdDed);
+
+    // Calculate tax using active FY rules
+    let baseTax = 0;
+    if (selectedFinancialYear === '2023-2024') {
+      if (taxable > 1500000) baseTax = 150000 + (taxable - 1500000) * 0.30;
+      else if (taxable > 1200000) baseTax = 90000 + (taxable - 1200000) * 0.20;
+      else if (taxable > 900000) baseTax = 45000 + (taxable - 900000) * 0.15;
+      else if (taxable > 600000) baseTax = 15000 + (taxable - 600000) * 0.10;
+      else if (taxable > 300000) baseTax = (taxable - 300000) * 0.05;
+    } else {
+      if (taxable > 1500000) baseTax = 140000 + (taxable - 1500000) * 0.30;
+      else if (taxable > 1200000) baseTax = 80000 + (taxable - 1200000) * 0.20;
+      else if (taxable > 1000000) baseTax = 50000 + (taxable - 1000000) * 0.15;
+      else if (taxable > 700000) baseTax = 20000 + (taxable - 700000) * 0.10;
+      else if (taxable > 300000) baseTax = (taxable - 300000) * 0.05;
+    }
+
+    if (taxable <= activeRules.new_rebate_limit) {
+      baseTax = 0;
+    } else if (activeRules.has_marginal_relief) {
+      const excess = taxable - activeRules.new_rebate_limit;
+      if (baseTax > excess) baseTax = excess;
+    }
+
+    const totalTaxAndCess = Math.round(baseTax * 1.04);
+    const tdsCredited = 165000;
+    const balancePayable = Math.max(0, totalTaxAndCess - tdsCredited);
+    const refundDue = Math.max(0, tdsCredited - totalTaxAndCess);
+
     const payload = {
-      schema_version: 'ITR-1_AY_2027-28_V1.0',
+      schema_version: `ITR-1_AY_${activeRules.ay.replace('-', '_')}_V1.0`,
       creation_date: new Date().toISOString(),
+      financial_year: selectedFinancialYear,
+      assessment_year: activeRules.ay,
+      budget_provisions: activeRules.budget_title,
       personal_info: {
         assessee_name: salariedUser.name,
         pan: salariedUser.pan,
@@ -566,24 +672,26 @@ export default function App() {
         filing_section: '139(1) - On or before due date'
       },
       gross_total_income: {
-        salary: salariedUser.annual_ctc,
-        standard_deduction: 75000,
-        income_chargeable_under_salary: salariedUser.annual_ctc - 75000
+        salary: grossSalary,
+        standard_deduction: stdDed,
+        income_chargeable_under_salary: taxable
       },
       tax_computation: {
         regime: '115BAC (New Regime)',
-        total_tax_and_cess: 215800,
-        tds_credited: 165000,
-        balance_payable: 50800
+        total_taxable_income: taxable,
+        total_tax_and_cess: totalTaxAndCess,
+        tds_credited: tdsCredited,
+        balance_payable: balancePayable,
+        refund_due: refundDue
       }
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ITR1_AY2027-28_${salariedUser.pan}.json`;
+    a.download = `ITR1_AY${activeRules.ay.replace('-', '_')}_${salariedUser.pan}.json`;
     a.click();
-    showToast('Downloaded official ITR-1 JSON for incometax.gov.in!', 'success');
+    showToast(`Downloaded official ITR-1 JSON for AY ${activeRules.ay}!`, 'success');
   };
 
   const downloadGstr3bJson = () => {
@@ -606,6 +714,134 @@ export default function App() {
     a.click();
     showToast('Downloaded GSTR-3B JSON ready for gst.gov.in!', 'success');
   };
+
+  const exportToTallyXml = (targetInvoices = null, clientName = 'All_Clients') => {
+    const list = targetInvoices || invoices.filter(i => i.extraction_status !== 'needs_review');
+    if (list.length === 0) {
+      showToast('No confirmed vouchers available to export', 'error');
+      return;
+    }
+
+    const vouchersXml = list.map(inv => {
+      const invDate = (inv.invoice_date || '2026-07-15').replace(/-/g, '');
+      const vendorName = (inv.vendor_name || 'Generic Vendor').replace(/&/g, '&amp;');
+      const invNum = (inv.invoice_number || 'INV-001').replace(/&/g, '&amp;');
+      const total = Number(inv.total_amount) || 0;
+      const taxable = Number(inv.taxable_amount) || 0;
+      const cgst = Number(inv.cgst_amount) || 0;
+      const sgst = Number(inv.sgst_amount) || 0;
+      const igst = Number(inv.igst_amount) || 0;
+
+      return `        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <VOUCHER VCHTYPE="Purchase" ACTION="Create">
+            <DATE>${invDate}</DATE>
+            <VOUCHERTYPENAME>Purchase</VOUCHERTYPENAME>
+            <VOUCHERNUMBER>${invNum}</VOUCHERNUMBER>
+            <PARTYLEDGERNAME>${vendorName}</PARTYLEDGERNAME>
+            <PARTYNAME>${vendorName}</PARTYNAME>
+            <PARTYGSTIN>${inv.vendor_gstin || ''}</PARTYGSTIN>
+            <ALLLEDGERENTRIES.LIST>
+              <LEDGERNAME>${vendorName}</LEDGERNAME>
+              <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+              <AMOUNT>${total.toFixed(2)}</AMOUNT>
+            </ALLLEDGERENTRIES.LIST>
+            <ALLLEDGERENTRIES.LIST>
+              <LEDGERNAME>Purchase Account</LEDGERNAME>
+              <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+              <AMOUNT>-${taxable.toFixed(2)}</AMOUNT>
+            </ALLLEDGERENTRIES.LIST>${cgst > 0 ? `
+            <ALLLEDGERENTRIES.LIST>
+              <LEDGERNAME>Input CGST</LEDGERNAME>
+              <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+              <AMOUNT>-${cgst.toFixed(2)}</AMOUNT>
+            </ALLLEDGERENTRIES.LIST>` : ''}${sgst > 0 ? `
+            <ALLLEDGERENTRIES.LIST>
+              <LEDGERNAME>Input SGST</LEDGERNAME>
+              <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+              <AMOUNT>-${sgst.toFixed(2)}</AMOUNT>
+            </ALLLEDGERENTRIES.LIST>` : ''}${igst > 0 ? `
+            <ALLLEDGERENTRIES.LIST>
+              <LEDGERNAME>Input IGST</LEDGERNAME>
+              <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+              <AMOUNT>-${igst.toFixed(2)}</AMOUNT>
+            </ALLLEDGERENTRIES.LIST>` : ''}
+          </VOUCHER>
+        </TALLYMESSAGE>`;
+    }).join('\n');
+
+    const xmlPayload = `<?xml version="1.0" encoding="UTF-8"?>
+<ENVELOPE>
+  <HEADER>
+    <TALLYREQUEST>Import Data</TALLYREQUEST>
+  </HEADER>
+  <BODY>
+    <IMPORTDATA>
+      <REQUESTDESC>
+        <REPORTNAME>Vouchers</REPORTNAME>
+      </REQUESTDESC>
+      <REQUESTDATA>
+${vouchersXml}
+      </REQUESTDATA>
+    </IMPORTDATA>
+  </BODY>
+</ENVELOPE>`;
+
+    const blob = new Blob([xmlPayload], { type: 'application/xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `BillGuru_Tally_${clientName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xml`;
+    a.click();
+    showToast(`Exported ${list.length} vouchers to Tally Prime XML!`, 'success');
+  };
+
+  const exportToGstr2bCsv = (targetInvoices = null, clientName = 'All_Clients') => {
+    const list = targetInvoices || invoices.filter(i => i.extraction_status !== 'needs_review');
+    if (list.length === 0) {
+      showToast('No invoices available to export', 'error');
+      return;
+    }
+
+    const headers = [
+      'GSTIN of Supplier',
+      'Legal Name',
+      'Invoice Number',
+      'Invoice Date',
+      'Invoice Value (INR)',
+      'Taxable Value (INR)',
+      'CGST Amount (INR)',
+      'SGST Amount (INR)',
+      'IGST Amount (INR)',
+      'HSN/SAC',
+      'ITC Availability',
+      'Extraction Status'
+    ];
+
+    const rows = list.map(i => [
+      `"${i.vendor_gstin || ''}"`,
+      `"${(i.vendor_name || '').replace(/"/g, '""')}"`,
+      `"${i.invoice_number || ''}"`,
+      `"${i.invoice_date || ''}"`,
+      Number(i.total_amount || 0).toFixed(2),
+      Number(i.taxable_amount || 0).toFixed(2),
+      Number(i.cgst_amount || 0).toFixed(2),
+      Number(i.sgst_amount || 0).toFixed(2),
+      Number(i.igst_amount || 0).toFixed(2),
+      `"${i.hsn_sac_code || ''}"`,
+      '"Yes"',
+      `"${i.extraction_status}"`
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `GSTR2B_${clientName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    showToast(`Exported ${list.length} invoices to GSTR-2B CSV!`, 'success');
+  };
+
 
 
   // --- RENDER LOGIN / REGISTER VIEW ---
@@ -1397,18 +1633,44 @@ export default function App() {
                       <p className="text-on-surface-variant text-body-md">Comprehensive sales ledger. Monetary figures aligned for compliance verification.</p>
                     </div>
 
-                    <div className="flex items-center gap-sm bg-white border border-slate-200 p-1.5 px-3 rounded shadow-sm">
-                      <label className="text-xs font-bold text-on-surface-variant uppercase font-label-caps shrink-0">Client:</label>
-                      <select 
-                        value={ledgerBusinessFilter} 
-                        onChange={(e) => setLedgerBusinessFilter(e.target.value)}
-                        className="bg-slate-50 border border-slate-200 text-xs font-medium py-1 px-2 rounded focus:ring-2 focus:ring-teal-600 text-ink-900 outline-none"
+                    <div className="flex flex-wrap items-center gap-sm">
+                      <div className="flex items-center gap-sm bg-white border border-slate-200 p-1.5 px-3 rounded shadow-sm">
+                        <label className="text-xs font-bold text-on-surface-variant uppercase font-label-caps shrink-0">Client:</label>
+                        <select 
+                          value={ledgerBusinessFilter} 
+                          onChange={(e) => setLedgerBusinessFilter(e.target.value)}
+                          className="bg-slate-50 border border-slate-200 text-xs font-medium py-1 px-2 rounded focus:ring-2 focus:ring-teal-600 text-ink-900 outline-none"
+                        >
+                          <option value="all">All Clients ({businesses.length})</option>
+                          {businesses.map(b => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          const clientObj = businesses.find(b => String(b.id) === String(ledgerBusinessFilter));
+                          exportToTallyXml(ledgerInvoices, clientObj ? clientObj.name : 'All_Clients');
+                        }}
+                        className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 rounded text-xs shadow-sm flex items-center gap-1 transition-all"
+                        title="Export standard XML vouchers for Tally Prime"
                       >
-                        <option value="all">All Clients ({businesses.length})</option>
-                        {businesses.map(b => (
-                          <option key={b.id} value={b.id}>{b.name}</option>
-                        ))}
-                      </select>
+                        <span className="material-symbols-outlined text-[16px]">file_download</span>
+                        Tally XML
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const clientObj = businesses.find(b => String(b.id) === String(ledgerBusinessFilter));
+                          exportToGstr2bCsv(ledgerInvoices, clientObj ? clientObj.name : 'All_Clients');
+                        }}
+                        className="bg-teal-700 hover:bg-teal-800 text-white font-bold px-3 py-1.5 rounded text-xs shadow-sm flex items-center gap-1 transition-all"
+                        title="Export GSTR-2B purchase register CSV"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">table_view</span>
+                        GSTR-2B CSV
+                      </button>
                     </div>
                   </div>
 
@@ -1649,27 +1911,48 @@ export default function App() {
               const hraExemption = Math.min(hraTotal * 0.40, 150000);
               const totalDeductionsClaimed = capped80C + capped80D + hraExemption + donationTotal;
 
+              // Active Financial Year & Rules
+              const activeRules = TAX_RULES_BY_FY[selectedFinancialYear] || TAX_RULES_BY_FY['2026-2027'];
+
               // Compute Tax: Old vs New
               const grossSalary = salariedUser.annual_ctc;
-              const oldStandardDed = 50000;
+              const oldStandardDed = activeRules.old_standard_ded;
               const oldTaxableIncome = Math.max(0, grossSalary - oldStandardDed - totalDeductionsClaimed);
               
-              // Old regime tax
+              // Old regime tax (Progressive 2.5L, 5L, 10L slabs)
               let oldTax = 0;
               if (oldTaxableIncome > 1000000) oldTax = 112500 + (oldTaxableIncome - 1000000) * 0.30;
               else if (oldTaxableIncome > 500000) oldTax = 12500 + (oldTaxableIncome - 500000) * 0.20;
               else if (oldTaxableIncome > 250000) oldTax = (oldTaxableIncome - 250000) * 0.05;
               const oldTotalTaxWithCess = Math.round(oldTax * 1.04);
 
-              // New regime tax (Budget 2024 revised slabs)
-              const newStandardDed = 75000;
+              // New regime tax (Dynamic according to selected FY)
+              const newStandardDed = activeRules.new_standard_ded;
               const newTaxableIncome = Math.max(0, grossSalary - newStandardDed);
               let newTax = 0;
-              if (newTaxableIncome > 1500000) newTax = 140000 + (newTaxableIncome - 1500000) * 0.30;
-              else if (newTaxableIncome > 1200000) newTax = 80000 + (newTaxableIncome - 1200000) * 0.20;
-              else if (newTaxableIncome > 1000000) newTax = 50000 + (newTaxableIncome - 1000000) * 0.15;
-              else if (newTaxableIncome > 700000) newTax = 20000 + (newTaxableIncome - 700000) * 0.10;
-              else if (newTaxableIncome > 300000) newTax = (newTaxableIncome - 300000) * 0.05;
+
+              if (selectedFinancialYear === '2023-2024') {
+                if (newTaxableIncome > 1500000) newTax = 150000 + (newTaxableIncome - 1500000) * 0.30;
+                else if (newTaxableIncome > 1200000) newTax = 90000 + (newTaxableIncome - 1200000) * 0.20;
+                else if (newTaxableIncome > 900000) newTax = 45000 + (newTaxableIncome - 900000) * 0.15;
+                else if (newTaxableIncome > 600000) newTax = 15000 + (newTaxableIncome - 600000) * 0.10;
+                else if (newTaxableIncome > 300000) newTax = (newTaxableIncome - 300000) * 0.05;
+              } else {
+                // Budget 2024 revised slabs (FY 2024-25, 2025-26, 2026-27)
+                if (newTaxableIncome > 1500000) newTax = 140000 + (newTaxableIncome - 1500000) * 0.30;
+                else if (newTaxableIncome > 1200000) newTax = 80000 + (newTaxableIncome - 1200000) * 0.20;
+                else if (newTaxableIncome > 1000000) newTax = 50000 + (newTaxableIncome - 1000000) * 0.15;
+                else if (newTaxableIncome > 700000) newTax = 20000 + (newTaxableIncome - 700000) * 0.10;
+                else if (newTaxableIncome > 300000) newTax = (newTaxableIncome - 300000) * 0.05;
+              }
+
+              // Apply Section 87A rebate and marginal relief
+              if (newTaxableIncome <= activeRules.new_rebate_limit) {
+                newTax = 0;
+              } else if (activeRules.has_marginal_relief) {
+                const excess = newTaxableIncome - activeRules.new_rebate_limit;
+                if (newTax > excess) newTax = excess;
+              }
               const newTotalTaxWithCess = Math.round(newTax * 1.04);
 
               const savings = Math.abs(oldTotalTaxWithCess - newTotalTaxWithCess);
@@ -1701,10 +1984,10 @@ export default function App() {
 
               return (
                 <div className="space-y-lg">
-                  {/* Salaried Profile Banner */}
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-md bg-white border border-slate-200 p-md md:p-lg rounded shadow-sm">
+                  {/* Salaried Profile Banner with FY Selector */}
+                  <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-md bg-white border border-slate-200 p-md md:p-lg rounded shadow-sm">
                     <div>
-                      <div className="flex items-center gap-sm">
+                      <div className="flex items-center gap-sm flex-wrap">
                         <span className="material-symbols-outlined text-teal-600 text-[28px]">account_balance_wallet</span>
                         <h2 className="font-headline-md text-headline-md font-bold text-ink-900">{salariedUser.name}</h2>
                         <span className="px-sm py-xs bg-indigo-100 text-indigo-800 text-[11px] font-bold rounded-full uppercase tracking-wider">
@@ -1716,20 +1999,41 @@ export default function App() {
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-sm w-full md:w-auto">
+                    <div className="flex flex-wrap items-center gap-sm w-full xl:w-auto">
+                      {/* Financial Year Selector */}
+                      <div className="flex items-center gap-xs bg-slate-100 border border-slate-300 rounded px-sm py-1">
+                        <span className="material-symbols-outlined text-teal-700 text-[18px]">calendar_month</span>
+                        <span className="text-xs font-bold text-slate-700 whitespace-nowrap">Tax Year:</span>
+                        <select
+                          value={selectedFinancialYear}
+                          onChange={(e) => {
+                            setSelectedFinancialYear(e.target.value);
+                            showToast(`Switched tax rules to ${TAX_RULES_BY_FY[e.target.value]?.label}`, 'info');
+                          }}
+                          className="bg-transparent text-ink-900 text-xs font-bold py-0.5 focus:outline-none cursor-pointer"
+                        >
+                          {Object.entries(TAX_RULES_BY_FY).map(([k, v]) => (
+                            <option key={k} value={k}>
+                              {v.label} ({v.status})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
                       <button
                         onClick={downloadItrJson}
-                        className="flex-1 md:flex-initial bg-teal-600 hover:bg-teal-700 text-white font-bold py-sm px-md rounded transition-all text-body-sm flex items-center justify-center gap-xs shadow-sm active:scale-95"
+                        className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-sm px-md rounded transition-all text-body-sm flex items-center justify-center gap-xs shadow-sm active:scale-95"
+                        title={`Download official ITR-1 JSON for ${activeRules.label}`}
                       >
                         <span className="material-symbols-outlined text-[18px]">download</span>
-                        <span>Download ITR-1 JSON</span>
+                        <span>Download ITR-1 ({activeRules.ay})</span>
                       </button>
                       <button
                         onClick={() => setShowAddProofModal(true)}
                         className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-sm px-md rounded transition-all text-body-sm flex items-center gap-xs shadow-sm active:scale-95"
                       >
                         <span className="material-symbols-outlined text-[18px]">add</span>
-                        <span>＋ Add Tax Proof</span>
+                        <span>＋ Add Proof</span>
                       </button>
                       <button
                         onClick={() => { setCurrentView('whatsapp'); setWhatsappMode('salaried'); }}
@@ -1741,12 +2045,35 @@ export default function App() {
                     </div>
                   </div>
 
+                  {/* 📢 Active Budget Rule Notification Banner */}
+                  <div className="bg-gradient-to-r from-teal-50 via-indigo-50 to-emerald-50 border border-teal-200 rounded-xl p-md shadow-sm">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-sm mb-xs">
+                      <div className="flex items-center gap-xs">
+                        <span className="material-symbols-outlined text-teal-700 text-[20px]">campaign</span>
+                        <h4 className="font-bold text-teal-950 text-sm">
+                          Active Tax Engine Provisions: {activeRules.budget_title}
+                        </h4>
+                      </div>
+                      <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-800 border border-teal-300">
+                        {activeRules.status} • AY {activeRules.ay}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-xs mt-2">
+                      {activeRules.rule_highlights.map((rule, idx) => (
+                        <div key={idx} className="flex items-start gap-1.5 bg-white/95 border border-slate-200 p-2 rounded-md text-xs text-ink-800 shadow-2xs">
+                          <span className="material-symbols-outlined text-teal-600 text-[15px] mt-0.5 shrink-0">check_circle</span>
+                          <span className="leading-tight">{rule}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* ⚖️ Old vs New Regime Live Comparison Matrix */}
                   <div className="bg-gradient-to-r from-teal-900 to-slate-900 text-white p-lg rounded-xl shadow-lg">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-md mb-md border-b border-teal-800 pb-md">
                       <div>
                         <span className="text-teal-400 font-label-caps text-label-caps uppercase tracking-wider text-[11px]">AI REGIME OPTIMIZER</span>
-                        <h3 className="text-xl font-bold text-white mt-0.5">Old vs. New Tax Regime Analysis (FY 2026-27)</h3>
+                        <h3 className="text-xl font-bold text-white mt-0.5">Old vs. New Tax Regime Analysis ({activeRules.label})</h3>
                       </div>
                       <div className="bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 px-md py-sm rounded-lg flex items-center gap-sm">
                         <span className="material-symbols-outlined text-[20px]">thumb_up</span>
@@ -1768,7 +2095,7 @@ export default function App() {
                         <div className="space-y-xs text-sm text-slate-300">
                           <div className="flex justify-between">
                             <span>Standard Deduction:</span>
-                            <span className="font-data-mono">₹50,000</span>
+                            <span className="font-data-mono">₹{oldStandardDed.toLocaleString('en-IN')}</span>
                           </div>
                           <div className="flex justify-between">
                             <span>Total Section 80 & HRA Claimed:</span>
@@ -1795,12 +2122,12 @@ export default function App() {
                         </div>
                         <div className="space-y-xs text-sm text-slate-300">
                           <div className="flex justify-between">
-                            <span>Standard Deduction (Budget 2024):</span>
-                            <span className="font-data-mono text-emerald-300">₹75,000</span>
+                            <span>Standard Deduction ({selectedFinancialYear === '2023-2024' ? 'FY 23-24' : 'Budget 2024'}):</span>
+                            <span className="font-data-mono text-emerald-300">₹{newStandardDed.toLocaleString('en-IN')}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span>Deductions Allowed:</span>
-                            <span className="font-data-mono text-slate-400">₹0 (Zero paperwork)</span>
+                            <span>Rebate Limit (Sec 87A):</span>
+                            <span className="font-data-mono text-slate-300">Up to ₹{(activeRules.new_rebate_limit / 100000).toFixed(0)} Lakhs</span>
                           </div>
                           <div className="flex justify-between border-t border-slate-700 pt-xs">
                             <span>Net Taxable Income:</span>
