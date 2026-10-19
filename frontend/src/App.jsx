@@ -199,7 +199,24 @@ export default function App() {
   const [newClientName, setNewClientName] = useState('');
   const [newClientGstin, setNewClientGstin] = useState('');
   const [newClientPhone, setNewClientPhone] = useState('');
+  const [skipGstin, setSkipGstin] = useState(false);
+  const [sendWhatsAppInvite, setSendWhatsAppInvite] = useState(false);
   const [onboardMessage, setOnboardMessage] = useState({ text: '', type: '' });
+
+  // Fear-Free Demo & Practice Mode Controls
+  const [isDemoMode, setIsDemoMode] = useState(false);
+
+  // Guided Welcome Tour & Purpose Onboarding Modal
+  const [showWelcomeTour, setShowWelcomeTour] = useState(() => {
+    return localStorage.getItem('bg_tour_seen') !== 'true';
+  });
+  const [welcomeTourStep, setWelcomeTourStep] = useState(0);
+
+  // Instant AI Bill Scanner Test Modal
+  const [showBillScannerModal, setShowBillScannerModal] = useState(false);
+  const [scannerSampleId, setScannerSampleId] = useState('sample1');
+  const [scannerScanning, setScannerScanning] = useState(false);
+  const [scannerResult, setScannerResult] = useState(null);
 
   // Form States (Review Queue Editing)
   const [editingInvoiceId, setEditingInvoiceId] = useState(null);
@@ -310,10 +327,111 @@ export default function App() {
     loadData();
   }, [token]);
 
+  const SAMPLE_BILLS = {
+    sample1: {
+      id: 'sample1',
+      title: 'Kirana Wholesale Invoice (Valid ITC)',
+      file: 'INV-4521 · Sharma Wholesale Traders',
+      vendor_name: 'Sharma Wholesale Traders',
+      vendor_gstin: '24SHRMA1234A1Z9',
+      gstin_status: 'ACTIVE',
+      invoice_number: 'INV-4521',
+      invoice_date: '2026-07-15',
+      taxable_amount: 23333.33,
+      cgst_amount: 2100.00,
+      sgst_amount: 2100.00,
+      total_amount: 27533.33,
+      hsn_code: '8471',
+      confidence: 0.98,
+      verdict_status: 'success',
+      verdict_title: '✅ 100% Valid Tax Invoice',
+      verdict_message: 'Vendor GSTIN verified active on GST portal. Tax rates match HSN 8471 schedule. ITC eligible: ₹4,200.'
+    },
+    sample2: {
+      id: 'sample2',
+      title: 'Electronics Distributor (Cancelled Vendor GSTIN Alert)',
+      file: 'SE-89102 · Gupta Distributors',
+      vendor_name: 'Gupta Distributors & Sons',
+      vendor_gstin: '24GUPTA9999K1Z2',
+      gstin_status: 'CANCELLED_ON_PORTAL',
+      invoice_number: 'SE-89102',
+      invoice_date: '2026-07-20',
+      taxable_amount: 50000.00,
+      cgst_amount: 0.00,
+      sgst_amount: 0.00,
+      igst_amount: 9000.00,
+      total_amount: 59000.00,
+      hsn_code: '8528',
+      confidence: 0.97,
+      verdict_status: 'danger',
+      verdict_title: '🚨 CRITICAL COMPLIANCE FRAUD ALERT',
+      verdict_message: 'Supplier GSTIN is CANCELLED on the government GST registry! If filed, client faces Section 16(2) ITC rejection notice of ₹9,000 + 18% penalty.'
+    },
+    sample3: {
+      id: 'sample3',
+      title: 'Hardware Supplies (Tax Rate Slab Mismatch)',
+      file: 'INV-4519 · Shrma Traders',
+      vendor_name: 'Shrma Hardware & Traders',
+      vendor_gstin: '24SHRMA1234A1Z9',
+      gstin_status: 'ACTIVE',
+      invoice_number: 'INV-4519',
+      invoice_date: '2026-07-12',
+      taxable_amount: 15000.00,
+      cgst_amount: 1350.00,
+      sgst_amount: 1350.00,
+      total_amount: 17700.00,
+      hsn_code: '8471',
+      confidence: 0.85,
+      verdict_status: 'warning',
+      verdict_title: '⚠️ Tax Slab Rate Mismatch Detected',
+      verdict_message: 'Invoice charged 18% GST (9% CGST + 9% SGST), but HSN 8471 expects 12% standard rate. Review before filing.'
+    }
+  };
+
+  const handleLoadDemoData = () => {
+    setIsDemoMode(true);
+    setBusinesses(localFallbackData.businesses);
+    setFlags(localFallbackData.flags.filter(f => !f.resolved));
+    setInvoices(localFallbackData.invoices);
+    setIsEmptyState(false);
+    showToast('Demo Practice Workspace loaded! Explore safely without entering client data.', 'success');
+  };
+
+  const handleClearToLiveWorkspace = () => {
+    setIsDemoMode(false);
+    if (backendConnected) {
+      loadData();
+    } else {
+      setBusinesses([]);
+      setFlags([]);
+      setIsEmptyState(true);
+    }
+    showToast('Switched to Clean Live Workspace.', 'info');
+  };
+
+  const handleQuickFillDemoClient = () => {
+    setNewClientName('Ramesh Kirana & General Store');
+    setNewClientGstin('24ABCDE1234F1Z5');
+    setNewClientPhone('9876543210');
+    setSkipGstin(false);
+    setSendWhatsAppInvite(false);
+    showToast('Auto-filled demo client details.', 'info');
+  };
+
+  const handleRunScanner = (sampleKey) => {
+    setScannerSampleId(sampleKey);
+    setScannerScanning(true);
+    setScannerResult(null);
+    setTimeout(() => {
+      setScannerScanning(false);
+      setScannerResult(SAMPLE_BILLS[sampleKey] || SAMPLE_BILLS.sample1);
+    }, 1100);
+  };
+
   const recalculateLocalStats = () => {
-    // Only show mock items if user is Rajesh Shah (id: 1) or mock token CA Rajesh
+    // Show mock items if user is in Demo Mode or activeCaId is default
     const activeCaId = caUser ? caUser.id : 1;
-    if (activeCaId !== 1) {
+    if (activeCaId !== 1 && !isDemoMode) {
       setBusinesses([]);
       setFlags([]);
       setIsEmptyState(true);
@@ -409,6 +527,9 @@ export default function App() {
         setRegEmail('');
         setRegPhone('');
         setRegPassword('');
+        setShowWelcomeTour(true);
+        setWelcomeTourStep(0);
+        setIsEmptyState(true);
       } else {
         setAuthError(data.error || 'Registration failed');
       }
@@ -425,6 +546,9 @@ export default function App() {
       setRegEmail('');
       setRegPhone('');
       setRegPassword('');
+      setShowWelcomeTour(true);
+      setWelcomeTourStep(0);
+      setIsEmptyState(true);
     }
   };
 
@@ -523,38 +647,53 @@ export default function App() {
     e.preventDefault();
     setOnboardMessage({ text: '', type: '' });
 
-    if (!newClientName || !newClientGstin || !newClientPhone) {
-      setOnboardMessage({ text: 'All fields are mandatory', type: 'error' });
+    if (!newClientName.trim() || !newClientPhone.trim()) {
+      setOnboardMessage({ text: 'Business Name and Contact Number are required.', type: 'error' });
       return;
     }
+
+    // Determine GSTIN to submit
+    let gstinToSubmit = newClientGstin.trim().toUpperCase();
+    if (skipGstin || !gstinToSubmit) {
+      const randPart = Math.random().toString(36).substring(2, 7).toUpperCase().padEnd(5, '0');
+      gstinToSubmit = `24PROV${randPart}1Z5`;
+    }
+
+    const successMsg = sendWhatsAppInvite 
+      ? 'Client workspace created! Automated WhatsApp invitation dispatched.'
+      : 'Client workspace created in Private Mode. (No WhatsApp message sent to client).';
 
     try {
       if (backendConnected) {
         const res = await authFetch(`${API_BASE_URL}/businesses`, {
           method: 'POST',
           body: JSON.stringify({
-            name: newClientName,
-            gstin: newClientGstin,
-            whatsapp_number: newClientPhone
+            name: newClientName.trim(),
+            gstin: gstinToSubmit,
+            whatsapp_number: newClientPhone.trim(),
+            send_whatsapp_invite: sendWhatsAppInvite
           })
         });
         const data = await res.json();
         if (res.ok) {
-          setOnboardMessage({ text: 'Client invited! WhatsApp opt-in greeting dispatched.', type: 'success' });
+          setOnboardMessage({ text: successMsg, type: 'success' });
+          showToast(successMsg, 'success');
           loadData();
           setNewClientName('');
           setNewClientGstin('');
           setNewClientPhone('');
+          setSkipGstin(false);
+          setSendWhatsAppInvite(false);
         } else {
           setOnboardMessage({ text: data.error || 'Failed to onboard', type: 'error' });
         }
       } else {
         const newBiz = {
           id: businesses.length + 1,
-          name: newClientName,
-          gstin: newClientGstin,
-          whatsapp_number: newClientPhone,
-          onboarding_status: 'invited',
+          name: newClientName.trim(),
+          gstin: gstinToSubmit,
+          whatsapp_number: newClientPhone.trim(),
+          onboarding_status: sendWhatsAppInvite ? 'invited' : 'active',
           total_invoices: 0,
           filed_invoices: 0,
           high_flags: 0,
@@ -562,10 +701,14 @@ export default function App() {
           at_risk_amount: 0.00
         };
         setBusinesses(prev => [...prev, newBiz]);
-        setOnboardMessage({ text: 'Client invited! WhatsApp opt-in greeting dispatched.', type: 'success' });
+        setIsEmptyState(false);
+        setOnboardMessage({ text: successMsg, type: 'success' });
+        showToast(successMsg, 'success');
         setNewClientName('');
         setNewClientGstin('');
         setNewClientPhone('');
+        setSkipGstin(false);
+        setSendWhatsAppInvite(false);
       }
     } catch (err) {
       setOnboardMessage({ text: 'Failed to connect to backend API', type: 'error' });
@@ -1047,10 +1190,28 @@ ${vouchersXml}
             {/* PRIMARY ACTION CTA: ELEVATED TO TOP */}
             <button 
               onClick={() => { setCurrentView('onboard'); setSelectedBusiness(null); }}
-              className="w-full bg-teal-600 hover:bg-teal-600/90 text-white font-bold py-sm px-md rounded-lg mb-md transition-all text-body-sm shadow-sm active:scale-95 flex items-center justify-center gap-xs"
+              className="w-full bg-teal-600 hover:bg-teal-600/90 text-white font-bold py-sm px-md rounded-lg mb-xs transition-all text-body-sm shadow-sm active:scale-95 flex items-center justify-center gap-xs"
             >
               <span className="material-symbols-outlined text-[18px]">person_add</span>
               <span>＋ Add Client Business</span>
+            </button>
+
+            {/* GUIDED ONBOARDING & PURPOSE TOUR CTA */}
+            <button 
+              onClick={() => { setShowWelcomeTour(true); setWelcomeTourStep(0); }}
+              className="w-full bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 font-bold py-xs px-sm rounded-lg mb-xs transition-all text-xs flex items-center justify-center gap-xs"
+            >
+              <span className="material-symbols-outlined text-[16px] text-teal-600">lightbulb</span>
+              <span>💡 Product Tour & Purpose</span>
+            </button>
+
+            {/* TEST SCANNER SANDBOX CTA */}
+            <button 
+              onClick={() => setShowBillScannerModal(true)}
+              className="w-full bg-paper-50 hover:bg-slate-100 text-ink-900 border border-slate-200 font-bold py-xs px-sm rounded-lg mb-md transition-all text-xs flex items-center justify-center gap-xs"
+            >
+              <span className="material-symbols-outlined text-[16px] text-teal-600">document_scanner</span>
+              <span>🔍 Test AI Bill Scanner</span>
             </button>
             
             <nav className="flex-1 space-y-unit">
@@ -1134,6 +1295,48 @@ ${vouchersXml}
                 </div>
               )}
               
+              {/* GUIDED TOUR & PURPOSE BUTTON */}
+              <button 
+                onClick={() => { setShowWelcomeTour(true); setWelcomeTourStep(0); }}
+                className="flex items-center gap-xs px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded-full text-xs font-bold font-label-caps transition-all shadow-sm"
+                title="Understand BillGuru AI purpose and workflow"
+              >
+                <span className="material-symbols-outlined text-[15px] text-teal-600">lightbulb</span>
+                <span className="hidden sm:inline">How It Works & Tour</span>
+                <span className="sm:hidden">Tour</span>
+              </button>
+
+              {/* TEST AI BILL SCANNER BUTTON */}
+              <button 
+                onClick={() => setShowBillScannerModal(true)}
+                className="hidden md:flex items-center gap-xs px-2.5 py-1 bg-white hover:bg-slate-50 text-ink-900 border border-slate-200 rounded-full text-xs font-bold font-label-caps transition-all shadow-sm"
+                title="Test AI OCR and vendor GSTIN validation on sample bills"
+              >
+                <span className="material-symbols-outlined text-[15px] text-teal-600">document_scanner</span>
+                <span>Test Bill Scanner</span>
+              </button>
+
+              {/* DEMO / LIVE MODE TOGGLE */}
+              {isDemoMode ? (
+                <button 
+                  onClick={handleClearToLiveWorkspace}
+                  className="flex items-center gap-xs px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 border border-amber-300 rounded-full text-xs font-bold font-label-caps transition-all"
+                  title="Currently in Demo Practice Mode. Click to exit to your clean workspace."
+                >
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                  <span>Demo Mode (Exit)</span>
+                </button>
+              ) : (
+                <button 
+                  onClick={handleLoadDemoData}
+                  className="hidden lg:flex items-center gap-xs px-2.5 py-1 bg-paper-50 hover:bg-slate-100 text-on-surface-variant hover:text-ink-900 border border-slate-200 rounded-full text-xs font-bold font-label-caps transition-all"
+                  title="Explore with 3 sample businesses safely without entering real data"
+                >
+                  <span className="material-symbols-outlined text-[15px] text-amber-500">science</span>
+                  <span>⚡ Load Demo Data</span>
+                </button>
+              )}
+
               {!isMobileScreen && (
                 <button 
                   onClick={() => {
@@ -1211,69 +1414,138 @@ ${vouchersXml}
                   </div>
                 )}
 
-                {/* CONDITION: EMPTY STATE ACTIVE */}
+                {/* CONDITION: EMPTY STATE ACTIVE (ONBOARDING LAUNCHPAD) */}
                 {isEmptyState ? (
-                  <div className="grid grid-cols-12 gap-gutter max-w-7xl mx-auto w-full">
-                    <div className={`col-span-12 ${isMobileLayout ? 'col-span-12' : 'lg:col-span-8'} bg-white border border-slate-200 p-lg md:p-xl relative overflow-hidden flex flex-col justify-center min-h-[380px] rounded-sm shadow-sm`}>
-                      <div className="relative z-10">
-                        <div className="mb-md inline-flex items-center justify-center w-12 h-12 bg-surface-container text-teal-600 rounded">
-                          <span className="material-symbols-outlined text-3xl">folder_off</span>
+                  <div className="space-y-lg max-w-7xl mx-auto w-full">
+                    {/* WELCOME BANNER & PURPOSE EXPLANATION */}
+                    <div className="bg-gradient-to-r from-teal-900 to-slate-900 text-white p-lg md:p-xl rounded-lg shadow-md border border-teal-800/40 relative overflow-hidden">
+                      <div className="relative z-10 max-w-3xl">
+                        <div className="inline-flex items-center gap-xs px-2.5 py-1 bg-teal-500/20 text-teal-300 rounded-full text-xs font-bold font-label-caps uppercase tracking-wider mb-sm border border-teal-400/30">
+                          <span className="material-symbols-outlined text-[14px]">verified</span>
+                          <span>CA Compliance Copilot</span>
                         </div>
-                        <h3 className="font-headline-md text-headline-sm md:text-headline-md text-ink-900 mb-xs">Your Ledger is Quiet</h3>
-                        <p className="font-body-md text-on-surface-variant mb-lg leading-relaxed">
-                          No client businesses connected to this CA account yet. Forward invoices to start auto-processing.
+                        <h2 className="font-headline-md text-headline-sm md:text-headline-md font-bold mb-xs">
+                          Welcome, CA {caUser?.name || 'Partner'}!
+                        </h2>
+                        <p className="text-slate-200 text-body-md leading-relaxed mb-md">
+                          BillGuru AI automates monthly GST reconciliation and saves 20+ hours by replacing crumpled paper bill chasing with WhatsApp & AI OCR.
                         </p>
-                        
-                        {/* Guided Checklist Section */}
-                        <div className="mb-lg bg-surface-container-low border border-slate-200 rounded p-md space-y-md">
-                          <h4 className="font-label-caps text-label-caps text-on-surface-variant mb-xs flex items-center gap-xs font-bold">
-                            <span className="material-symbols-outlined text-[16px]">checklist</span>
-                            Quick Start Checklist
-                          </h4>
-                          
-                          <div className="space-y-sm">
-                            <div className="flex items-start gap-md group">
-                              <div className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-600 text-white flex items-center justify-center text-[10px] font-bold">1</div>
-                              <div>
-                                <p className="font-body-sm font-bold text-ink-900 leading-tight">CA Account Created</p>
-                                <p className="text-[11px] text-on-surface-variant leading-normal">Your firm is set up on the {caUser?.plan_tier} tier.</p>
-                              </div>
-                              <span className="material-symbols-outlined text-moss-500 ml-auto text-[18px]">check_circle</span>
-                            </div>
-                            
-                            <div className="flex items-start gap-md group">
-                              <div className="flex-shrink-0 w-5 h-5 rounded-full bg-surface-container-highest text-on-surface-variant flex items-center justify-center text-[10px] font-bold">2</div>
-                              <div>
-                                <p className="font-body-sm font-bold text-on-surface-variant leading-tight">Add Your First Client Business</p>
-                                <p className="text-[11px] text-on-surface-variant leading-normal">Enter their business name, phone number, and GSTIN code.</p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
 
-                        <div className="flex gap-sm">
-                          <button 
-                            onClick={() => setCurrentView('onboard')}
-                            className="px-md py-sm bg-teal-600 hover:bg-teal-600/90 text-white font-bold text-body-sm rounded-sm flex items-center gap-xs shadow active:scale-95"
-                          >
-                            <span className="material-symbols-outlined text-[18px]">person_add</span>
-                            Add First Client
-                          </button>
+                        {/* 3-STEP WORKFLOW SUMMARY */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-sm pt-xs border-t border-teal-700/50">
+                          <div className="flex items-start gap-xs text-xs text-slate-300">
+                            <span className="w-5 h-5 rounded-full bg-teal-500 text-slate-950 font-bold flex items-center justify-center shrink-0 text-[11px]">1</span>
+                            <span><strong>Client WhatsApps Bill:</strong> Shop owners snap photos; no accounting app needed.</span>
+                          </div>
+                          <div className="flex items-start gap-xs text-xs text-slate-300">
+                            <span className="w-5 h-5 rounded-full bg-teal-500 text-slate-950 font-bold flex items-center justify-center shrink-0 text-[11px]">2</span>
+                            <span><strong>AI Fraud & Slab Check:</strong> Catches cancelled vendor GSTINs to protect Input Tax Credit.</span>
+                          </div>
+                          <div className="flex items-start gap-xs text-xs text-slate-300">
+                            <span className="w-5 h-5 rounded-full bg-teal-500 text-slate-950 font-bold flex items-center justify-center shrink-0 text-[11px]">3</span>
+                            <span><strong>1-Click CA Export:</strong> Export reconciled vouchers directly to Tally Prime XML & GSTR-2B.</span>
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    {!isMobileLayout && (
-                      <div className="col-span-12 lg:col-span-4 flex flex-col gap-gutter">
-                        <div className="bg-white border border-slate-200 p-lg rounded-sm shadow-sm">
-                          <p className="font-label-caps text-label-caps text-teal-600 mb-xs uppercase font-bold">Commercial Integration</p>
-                          <h4 className="font-headline-sm text-headline-sm text-ink-900 mb-xs">CA Multi-Tenancy</h4>
-                          <p className="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
-                            You are logged in under a secure account. Your dashboard acts independently from other firms.
+                    {/* 3 ACTION CARDS */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-md">
+                      {/* CARD 1: DEMO PRACTICE MODE */}
+                      <div className="bg-white border-2 border-teal-600/40 hover:border-teal-600 rounded-lg p-lg shadow-sm flex flex-col justify-between transition-all group">
+                        <div>
+                          <div className="w-10 h-10 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center mb-sm group-hover:scale-105 transition-transform">
+                            <span className="material-symbols-outlined text-[24px]">science</span>
+                          </div>
+                          <span className="inline-block px-2 py-0.5 bg-teal-100 text-teal-800 text-[10px] font-bold font-label-caps uppercase rounded mb-xs">
+                            Recommended for First-Time CAs
+                          </span>
+                          <h3 className="font-headline-sm text-body-md font-bold text-ink-900 mb-xs">
+                            Explore with Practice Demo Data
+                          </h3>
+                          <p className="text-on-surface-variant text-body-sm leading-relaxed mb-md">
+                            Fear of entering client GST? Test everything safely! Loads 3 simulated businesses (Kirana, Electronics, Textiles) with pre-flagged GST issues to test resolving flags & Tally export.
                           </p>
                         </div>
+                        <button
+                          onClick={handleLoadDemoData}
+                          className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-sm px-md rounded text-body-sm transition-all shadow-sm flex items-center justify-center gap-xs active:scale-95"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">play_circle</span>
+                          <span>Load Practice Demo Data</span>
+                        </button>
                       </div>
-                    )}
+
+                      {/* CARD 2: INSTANT BILL SCANNER */}
+                      <div className="bg-white border border-slate-200 hover:border-teal-600/40 rounded-lg p-lg shadow-sm flex flex-col justify-between transition-all group">
+                        <div>
+                          <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center mb-sm group-hover:scale-105 transition-transform">
+                            <span className="material-symbols-outlined text-[24px]">document_scanner</span>
+                          </div>
+                          <span className="inline-block px-2 py-0.5 bg-indigo-100 text-indigo-800 text-[10px] font-bold font-label-caps uppercase rounded mb-xs">
+                            Instant OCR Test
+                          </span>
+                          <h3 className="font-headline-sm text-body-md font-bold text-ink-900 mb-xs">
+                            Test AI Bill Scanner Sandbox
+                          </h3>
+                          <p className="text-on-surface-variant text-body-sm leading-relaxed mb-md">
+                            See how our AI reads crumpled bills, detects supplier GSTIN fraud, and checks HSN tax slabs in 2 seconds — without creating any business account.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setShowBillScannerModal(true)}
+                          className="w-full bg-paper-50 hover:bg-slate-100 text-ink-900 border border-slate-300 font-bold py-sm px-md rounded text-body-sm transition-all flex items-center justify-center gap-xs active:scale-95"
+                        >
+                          <span className="material-symbols-outlined text-[18px] text-teal-600">visibility</span>
+                          <span>Try Bill Scanner</span>
+                        </button>
+                      </div>
+
+                      {/* CARD 3: ADD CLIENT PRIVATELY */}
+                      <div className="bg-white border border-slate-200 hover:border-teal-600/40 rounded-lg p-lg shadow-sm flex flex-col justify-between transition-all group">
+                        <div>
+                          <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center mb-sm group-hover:scale-105 transition-transform">
+                            <span className="material-symbols-outlined text-[24px]">person_add</span>
+                          </div>
+                          <span className="inline-block px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold font-label-caps uppercase rounded mb-xs">
+                            Privacy-First Setup
+                          </span>
+                          <h3 className="font-headline-sm text-body-md font-bold text-ink-900 mb-xs">
+                            Add Client (GST is Optional)
+                          </h3>
+                          <p className="text-on-surface-variant text-body-sm leading-relaxed mb-md">
+                            Ready to onboard? GSTIN is completely optional for trial testing. WhatsApp greeting messages can be turned off so your client is never contacted without your consent.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setCurrentView('onboard')}
+                          className="w-full bg-white hover:bg-slate-50 text-teal-700 border border-teal-600 font-bold py-sm px-md rounded text-body-sm transition-all flex items-center justify-center gap-xs active:scale-95"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">add</span>
+                          <span>Add Client Privately</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* PRIVACY & SECURITY COMMITMENT BANNER */}
+                    <div className="bg-paper-50 border border-slate-200 rounded-lg p-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-md">
+                      <div className="flex items-center gap-md">
+                        <div className="w-10 h-10 rounded-full bg-moss-500/10 text-moss-600 flex items-center justify-center shrink-0">
+                          <span className="material-symbols-outlined text-[22px]">shield</span>
+                        </div>
+                        <div>
+                          <p className="font-body-sm font-bold text-ink-900">100% Chartered Accountant Data Confidentiality Guarantee</p>
+                          <p className="text-xs text-on-surface-variant">Bank-grade AES-256 encryption • DPDP Act 2023 compliant • Client data is strictly segregated and never shared with 3rd parties.</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => { setShowWelcomeTour(true); setWelcomeTourStep(0); }}
+                        className="px-md py-xs bg-white text-teal-700 border border-slate-200 hover:border-teal-600 rounded text-xs font-bold font-label-caps shrink-0 transition-all flex items-center gap-xs"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">help_outline</span>
+                        <span>Product Tour & FAQ</span>
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   
@@ -2365,6 +2637,413 @@ ${vouchersXml}
               </div>
             )}
 
+            {/* MODAL: GUIDED WELCOME & PURPOSE ONBOARDING TOUR */}
+            {showWelcomeTour && (
+              <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-md animate-in fade-in duration-200">
+                <div className="bg-white border border-slate-200 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                  {/* Modal Header */}
+                  <div className="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 text-white p-lg flex justify-between items-start">
+                    <div>
+                      <div className="flex items-center gap-xs mb-xs">
+                        <span className="px-2 py-0.5 bg-teal-500/25 text-teal-300 border border-teal-400/30 rounded-full text-[10px] font-bold font-label-caps uppercase tracking-wider">
+                          Step {welcomeTourStep + 1} of 3
+                        </span>
+                        <span className="text-xs text-slate-300 font-label-caps">
+                          {welcomeTourStep === 0 && 'The Core Purpose'}
+                          {welcomeTourStep === 1 && '100% Client Privacy'}
+                          {welcomeTourStep === 2 && 'How To Get Started'}
+                        </span>
+                      </div>
+                      <h2 className="font-headline-sm font-bold text-white text-xl">
+                        {welcomeTourStep === 0 && 'What is BillGuru AI & Why do CAs use it?'}
+                        {welcomeTourStep === 1 && '100% Client Privacy Guarantee (Zero Fear)'}
+                        {welcomeTourStep === 2 && 'Ready to Explore? Pick Your Starting Point'}
+                      </h2>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        setShowWelcomeTour(false);
+                        localStorage.setItem('bg_tour_seen', 'true');
+                      }}
+                      className="text-slate-300 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
+                      title="Close Tour"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">close</span>
+                    </button>
+                  </div>
+
+                  {/* Modal Body with 3 steps */}
+                  <div className="p-lg overflow-y-auto custom-scrollbar space-y-md flex-1">
+                    {welcomeTourStep === 0 && (
+                      <div className="space-y-md">
+                        <div className="p-md bg-teal-50 border border-teal-200 rounded-lg text-teal-950 text-body-sm leading-relaxed">
+                          <strong>The Problem:</strong> Chartered Accountants waste <strong>20+ hours every month</strong> chasing retail and shop clients for crumpled paper bills and manually entering data into Tally.
+                        </div>
+
+                        <h4 className="font-label-caps text-xs text-on-surface-variant font-bold uppercase tracking-wider">How BillGuru AI Solves It in 3 Steps:</h4>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-sm">
+                          <div className="p-md bg-paper-50 border border-slate-200 rounded-lg space-y-xs">
+                            <div className="w-8 h-8 rounded-full bg-teal-600 text-white flex items-center justify-center font-bold text-xs">1</div>
+                            <h5 className="font-bold text-ink-900 text-body-sm">Client Sends WhatsApp Photo</h5>
+                            <p className="text-xs text-on-surface-variant leading-relaxed">
+                              Kirana and shop owners don't need accounting software. They just take photos of purchase bills and forward them to your firm's WhatsApp.
+                            </p>
+                          </div>
+
+                          <div className="p-md bg-paper-50 border border-slate-200 rounded-lg space-y-xs">
+                            <div className="w-8 h-8 rounded-full bg-teal-600 text-white flex items-center justify-center font-bold text-xs">2</div>
+                            <h5 className="font-bold text-ink-900 text-body-sm">AI Real-Time Fraud & Slab Check</h5>
+                            <p className="text-xs text-on-surface-variant leading-relaxed">
+                              Extracts vendor, items, and tax amounts. Instantly checks the vendor's GSTIN on the government portal to catch fake or cancelled GSTINs.
+                            </p>
+                          </div>
+
+                          <div className="p-md bg-paper-50 border border-slate-200 rounded-lg space-y-xs">
+                            <div className="w-8 h-8 rounded-full bg-teal-600 text-white flex items-center justify-center font-bold text-xs">3</div>
+                            <h5 className="font-bold text-ink-900 text-body-sm">1-Click Tally & GSTR Export</h5>
+                            <p className="text-xs text-on-surface-variant leading-relaxed">
+                              CA reviews low-confidence items in seconds and exports pre-reconciled XML directly to Tally Prime or GSTR-2B/3B JSON.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {welcomeTourStep === 1 && (
+                      <div className="space-y-md">
+                        <div className="p-md bg-moss-500/10 border border-moss-500/30 rounded-lg flex items-start gap-sm">
+                          <span className="material-symbols-outlined text-moss-600 text-[24px] shrink-0 mt-0.5">verified_user</span>
+                          <div className="text-xs text-ink-900 leading-relaxed">
+                            <p className="font-bold text-moss-700 text-body-sm mb-0.5">Client Confidentiality is Absolute</p>
+                            As a Chartered Accountant, you protect your clients' sensitive tax data. We designed BillGuru so you never have to risk client data to test or use our platform.
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-sm">
+                          <div className="p-sm bg-white border border-slate-200 rounded-lg space-y-1">
+                            <div className="flex items-center gap-xs font-bold text-ink-900 text-xs">
+                              <span className="material-symbols-outlined text-teal-600 text-[18px]">visibility_off</span>
+                              <span>No Real GSTIN Required</span>
+                            </div>
+                            <p className="text-[11px] text-on-surface-variant leading-normal">
+                              You can explore everything using our <strong>Sandbox Practice Mode</strong> or add test clients with provisional IDs. Real GSTIN is never forced.
+                            </p>
+                          </div>
+
+                          <div className="p-sm bg-white border border-slate-200 rounded-lg space-y-1">
+                            <div className="flex items-center gap-xs font-bold text-ink-900 text-xs">
+                              <span className="material-symbols-outlined text-rust-600 text-[18px]">phonelink_erase</span>
+                              <span>Zero Automated Client Messages</span>
+                            </div>
+                            <p className="text-[11px] text-on-surface-variant leading-normal">
+                              We will never text, WhatsApp, or contact your clients without your explicit toggle. You can upload and test bills internally first.
+                            </p>
+                          </div>
+
+                          <div className="p-sm bg-white border border-slate-200 rounded-lg space-y-1">
+                            <div className="flex items-center gap-xs font-bold text-ink-900 text-xs">
+                              <span className="material-symbols-outlined text-teal-600 text-[18px]">lock</span>
+                              <span>Bank-Grade Encryption</span>
+                            </div>
+                            <p className="text-[11px] text-on-surface-variant leading-normal">
+                              Encrypted with AES-256 at rest and TLS 1.3 in transit. Full compliance with India's DPDP Act 2023.
+                            </p>
+                          </div>
+
+                          <div className="p-sm bg-white border border-slate-200 rounded-lg space-y-1">
+                            <div className="flex items-center gap-xs font-bold text-ink-900 text-xs">
+                              <span className="material-symbols-outlined text-teal-600 text-[18px]">download</span>
+                              <span>Zero Vendor Lock-In</span>
+                            </div>
+                            <p className="text-[11px] text-on-surface-variant leading-normal">
+                              All extracted ledgers can be exported directly to standard Tally Prime XML and official GST JSON at any time.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {welcomeTourStep === 2 && (
+                      <div className="space-y-md">
+                        <p className="text-body-sm text-on-surface-variant">
+                          Choose the easiest way to experience BillGuru AI right now:
+                        </p>
+
+                        <div className="space-y-sm">
+                          <div 
+                            onClick={() => {
+                              setShowWelcomeTour(false);
+                              localStorage.setItem('bg_tour_seen', 'true');
+                              handleLoadDemoData();
+                            }}
+                            className="p-md bg-teal-50/70 hover:bg-teal-100/70 border-2 border-teal-600/40 hover:border-teal-600 rounded-lg cursor-pointer transition-all flex items-center justify-between group"
+                          >
+                            <div className="flex items-center gap-md">
+                              <div className="w-10 h-10 rounded-full bg-teal-600 text-white flex items-center justify-center font-bold shrink-0">
+                                <span className="material-symbols-outlined text-[20px]">science</span>
+                              </div>
+                              <div>
+                                <span className="inline-block px-1.5 py-0.2 bg-teal-200 text-teal-900 text-[9px] font-bold rounded uppercase mb-0.5">Recommended</span>
+                                <h5 className="font-bold text-ink-900 text-body-sm">Load Practice Demo Data (No Real Data Needed)</h5>
+                                <p className="text-xs text-on-surface-variant">
+                                  Instantly loads 3 shops with sample bills and reconciliation flags. Test resolving errors and exporting to Tally.
+                                </p>
+                              </div>
+                            </div>
+                            <span className="material-symbols-outlined text-teal-700 group-hover:translate-x-1 transition-transform">arrow_forward</span>
+                          </div>
+
+                          <div 
+                            onClick={() => {
+                              setShowWelcomeTour(false);
+                              localStorage.setItem('bg_tour_seen', 'true');
+                              setShowBillScannerModal(true);
+                            }}
+                            className="p-md bg-paper-50 hover:bg-slate-100 border border-slate-200 hover:border-teal-600/40 rounded-lg cursor-pointer transition-all flex items-center justify-between group"
+                          >
+                            <div className="flex items-center gap-md">
+                              <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold shrink-0">
+                                <span className="material-symbols-outlined text-[20px]">document_scanner</span>
+                              </div>
+                              <div>
+                                <h5 className="font-bold text-ink-900 text-body-sm">Test AI Invoice Scanner Sandbox</h5>
+                                <p className="text-xs text-on-surface-variant">
+                                  Upload or select a sample receipt to test OCR extraction accuracy and live vendor GST validation.
+                                </p>
+                              </div>
+                            </div>
+                            <span className="material-symbols-outlined text-indigo-700 group-hover:translate-x-1 transition-transform">arrow_forward</span>
+                          </div>
+
+                          <div 
+                            onClick={() => {
+                              setShowWelcomeTour(false);
+                              localStorage.setItem('bg_tour_seen', 'true');
+                              setCurrentView('onboard');
+                            }}
+                            className="p-md bg-paper-50 hover:bg-slate-100 border border-slate-200 hover:border-teal-600/40 rounded-lg cursor-pointer transition-all flex items-center justify-between group"
+                          >
+                            <div className="flex items-center gap-md">
+                              <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-700 flex items-center justify-center font-bold shrink-0">
+                                <span className="material-symbols-outlined text-[20px]">person_add</span>
+                              </div>
+                              <div>
+                                <h5 className="font-bold text-ink-900 text-body-sm">Add a Client Business (GST is Optional)</h5>
+                                <p className="text-xs text-on-surface-variant">
+                                  Add a client workspace safely. No forced GSTIN and no automated messages to clients.
+                                </p>
+                              </div>
+                            </div>
+                            <span className="material-symbols-outlined text-amber-700 group-hover:translate-x-1 transition-transform">arrow_forward</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Modal Footer Controls */}
+                  <div className="bg-paper-50 border-t border-slate-200 p-md flex justify-between items-center">
+                    <div className="flex items-center gap-1">
+                      {[0, 1, 2].map(step => (
+                        <button
+                          key={step}
+                          onClick={() => setWelcomeTourStep(step)}
+                          className={`w-2.5 h-2.5 rounded-full transition-all ${
+                            welcomeTourStep === step ? 'w-6 bg-teal-600' : 'bg-slate-300 hover:bg-slate-400'
+                          }`}
+                        />
+                      ))}
+                    </div>
+
+                    <div className="flex gap-sm">
+                      {welcomeTourStep > 0 && (
+                        <button
+                          onClick={() => setWelcomeTourStep(prev => prev - 1)}
+                          className="px-md py-sm border border-slate-200 bg-white text-ink-900 rounded font-bold text-xs hover:bg-slate-50"
+                        >
+                          Back
+                        </button>
+                      )}
+
+                      {welcomeTourStep < 2 ? (
+                        <button
+                          onClick={() => setWelcomeTourStep(prev => prev + 1)}
+                          className="px-lg py-sm bg-teal-600 hover:bg-teal-700 text-white rounded font-bold text-xs flex items-center gap-xs shadow-sm"
+                        >
+                          <span>Next</span>
+                          <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setShowWelcomeTour(false);
+                            localStorage.setItem('bg_tour_seen', 'true');
+                          }}
+                          className="px-lg py-sm bg-teal-600 hover:bg-teal-700 text-white rounded font-bold text-xs flex items-center gap-xs shadow-sm"
+                        >
+                          <span>Got It, Let's Start</span>
+                          <span className="material-symbols-outlined text-[16px]">check</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODAL: INSTANT AI BILL SCANNER SANDBOX */}
+            {showBillScannerModal && (
+              <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-md animate-in fade-in duration-200">
+                <div className="bg-white border border-slate-200 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                  {/* Header */}
+                  <div className="bg-slate-900 text-white p-lg flex justify-between items-start">
+                    <div>
+                      <div className="flex items-center gap-xs mb-xs">
+                        <span className="px-2 py-0.5 bg-teal-500/20 text-teal-300 border border-teal-500/30 rounded-full text-[10px] font-bold font-label-caps uppercase">
+                          Interactive Sandbox
+                        </span>
+                      </div>
+                      <h2 className="font-headline-sm font-bold text-white text-xl flex items-center gap-xs">
+                        <span className="material-symbols-outlined text-teal-400">document_scanner</span>
+                        <span>AI Invoice OCR & Fraud Validator Sandbox</span>
+                      </h2>
+                      <p className="text-xs text-slate-300 mt-1">
+                        Test how BillGuru extracts data and catches fake vendor GSTINs without using your client's details.
+                      </p>
+                    </div>
+                    <button 
+                      onClick={() => { setShowBillScannerModal(false); setScannerResult(null); }}
+                      className="text-slate-300 hover:text-white p-1 rounded-full hover:bg-white/10"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">close</span>
+                    </button>
+                  </div>
+
+                  {/* Body */}
+                  <div className="p-lg overflow-y-auto custom-scrollbar space-y-md flex-1">
+                    <div>
+                      <label className="font-label-caps text-xs text-on-surface-variant font-bold uppercase tracking-wider block mb-xs">
+                        Select a Sample Invoice to Test OCR:
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-xs">
+                        {Object.keys(SAMPLE_BILLS).map(key => {
+                          const sample = SAMPLE_BILLS[key];
+                          const isSelected = scannerSampleId === key;
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => handleRunScanner(key)}
+                              className={`p-sm text-left rounded border transition-all ${
+                                isSelected 
+                                  ? 'border-teal-600 bg-teal-50/50 shadow-sm' 
+                                  : 'border-slate-200 hover:border-slate-300 bg-paper-50'
+                              }`}
+                            >
+                              <p className="font-bold text-xs text-ink-900 truncate">{sample.title}</p>
+                              <p className="text-[10px] text-on-surface-variant font-data-mono mt-0.5">{sample.file}</p>
+                              <div className="mt-1">
+                                {sample.verdict_status === 'danger' && (
+                                  <span className="px-1.5 py-0.2 bg-red-100 text-rust-600 rounded text-[9px] font-bold font-label-caps uppercase">Cancelled GST</span>
+                                )}
+                                {sample.verdict_status === 'warning' && (
+                                  <span className="px-1.5 py-0.2 bg-amber-100 text-amber-700 rounded text-[9px] font-bold font-label-caps uppercase">Slab Mismatch</span>
+                                )}
+                                {sample.verdict_status === 'success' && (
+                                  <span className="px-1.5 py-0.2 bg-moss-500/10 text-moss-600 rounded text-[9px] font-bold font-label-caps uppercase">100% Valid</span>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Scanning progress animation */}
+                    {scannerScanning && (
+                      <div className="p-lg bg-paper-50 border border-slate-200 rounded-lg text-center space-y-sm">
+                        <div className="w-10 h-10 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                        <p className="text-body-sm font-bold text-ink-900">AI Neural Engine Scanning Invoice...</p>
+                        <div className="flex justify-center items-center gap-xs text-[11px] text-on-surface-variant">
+                          <span>Extracting line items</span>
+                          <span>•</span>
+                          <span>Verifying GSTIN on Govt Portal</span>
+                          <span>•</span>
+                          <span>Comparing HSN slab</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Scan Result Card */}
+                    {!scannerScanning && (scannerResult || SAMPLE_BILLS[scannerSampleId]) && (() => {
+                      const res = scannerResult || SAMPLE_BILLS[scannerSampleId];
+                      return (
+                        <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm space-y-0">
+                          {/* Verdict Header */}
+                          <div className={`p-md border-b ${
+                            res.verdict_status === 'danger' ? 'bg-red-50 border-red-200 text-rust-600' :
+                            res.verdict_status === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800' :
+                            'bg-moss-500/10 border-moss-500/20 text-moss-700'
+                          }`}>
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-bold text-body-sm flex items-center gap-xs">
+                                <span>{res.verdict_title}</span>
+                              </h4>
+                              <span className="text-[11px] font-data-mono font-bold bg-white/80 px-2 py-0.5 rounded shadow-xs">
+                                Confidence: {(res.confidence * 100).toFixed(0)}%
+                              </span>
+                            </div>
+                            <p className="text-xs mt-1 leading-relaxed">{res.verdict_message}</p>
+                          </div>
+
+                          {/* Extracted Fields */}
+                          <div className="p-md grid grid-cols-2 sm:grid-cols-4 gap-sm text-xs bg-paper-50/50">
+                            <div>
+                              <span className="font-label-caps text-on-surface-variant text-[10px] block">Supplier Legal Name</span>
+                              <span className="font-bold text-ink-900">{res.vendor_name}</span>
+                            </div>
+                            <div>
+                              <span className="font-label-caps text-on-surface-variant text-[10px] block">Supplier GSTIN</span>
+                              <span className="font-data-mono font-bold text-ink-900">{res.vendor_gstin}</span>
+                            </div>
+                            <div>
+                              <span className="font-label-caps text-on-surface-variant text-[10px] block">Invoice No & Date</span>
+                              <span className="font-data-mono text-ink-900">{res.invoice_number} · {res.invoice_date}</span>
+                            </div>
+                            <div>
+                              <span className="font-label-caps text-on-surface-variant text-[10px] block">Total Amount</span>
+                              <span className="font-data-mono font-bold text-teal-700 text-body-sm">₹{res.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="bg-paper-50 border-t border-slate-200 p-md flex justify-between items-center">
+                    <button
+                      onClick={() => { setShowBillScannerModal(false); setScannerResult(null); }}
+                      className="px-md py-sm border border-slate-200 text-ink-900 font-bold text-xs rounded hover:bg-slate-100"
+                    >
+                      Close Sandbox
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowBillScannerModal(false);
+                        handleLoadDemoData();
+                      }}
+                      className="px-lg py-sm bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded shadow-sm flex items-center gap-xs"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">play_circle</span>
+                      <span>Load Full Demo Practice Workspace</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* VIEW: COMPLIANCE ANALYTICS */}
             {currentView === 'analytics' && (() => {
               const totalItcClaimed = invoices
@@ -2809,12 +3488,38 @@ ${vouchersXml}
             );
           })()}
 
-            {/* VIEW: ONBOARD (Invite New Business) */}
+            {/* VIEW: ONBOARD (Add Client Business - Privacy First) */}
             {currentView === 'onboard' && (
-              <div className="max-w-xl mx-auto w-full bg-white border border-slate-200 p-xl shadow-sm rounded-sm space-y-lg">
+              <div className="max-w-xl mx-auto w-full bg-white border border-slate-200 p-lg md:p-xl shadow-sm rounded-sm space-y-lg">
                 <div>
-                  <h3 className="font-headline-md text-headline-sm md:text-headline-md text-ink-900 mb-xs">Onboard New Client Business</h3>
-                  <p className="text-on-surface-variant text-body-md">Establish CA compliance relationship. System triggers automatic WhatsApp opt-in greeting.</p>
+                  <div className="flex justify-between items-start mb-xs">
+                    <div>
+                      <h3 className="font-headline-md text-headline-sm md:text-headline-md text-ink-900">Add Client Business</h3>
+                      <p className="text-on-surface-variant text-body-sm">
+                        Set up client workspace for GST reconciliation. Test safely without exposing client data.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleQuickFillDemoClient}
+                      className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded text-xs font-bold font-label-caps transition-all flex items-center gap-xs shrink-0"
+                      title="Auto-fill with sample Kirana store details to test"
+                    >
+                      <span className="material-symbols-outlined text-[15px] text-teal-600">bolt</span>
+                      <span>Auto-Fill Demo Shop</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 100% PRIVACY REASSURANCE CALLOUT */}
+                <div className="p-md bg-teal-50/70 border border-teal-200 rounded text-xs text-teal-900 space-y-xs">
+                  <div className="flex items-center gap-xs font-bold text-teal-800">
+                    <span className="material-symbols-outlined text-[18px]">verified_user</span>
+                    <span>100% Chartered Accountant Client Confidentiality Guarantee</span>
+                  </div>
+                  <p className="text-slate-600 leading-relaxed">
+                    You do NOT have to enter your client's real GSTIN or send them any WhatsApp messages to test BillGuru. You can check <em>"Skip GSTIN for now"</em> and leave WhatsApp invite unchecked.
+                  </p>
                 </div>
 
                 {onboardMessage.text && (
@@ -2830,12 +3535,12 @@ ${vouchersXml}
 
                 <form onSubmit={handleOnboardClient} className="space-y-md">
                   <div>
-                    <label className="font-label-caps text-on-surface-variant block mb-xs">Business Legal Name</label>
+                    <label className="font-label-caps text-on-surface-variant block mb-xs">Business Legal / Trade Name</label>
                     <input 
                       type="text" 
                       value={newClientName}
                       onChange={(e) => setNewClientName(e.target.value)}
-                      placeholder="e.g. Meena Kirana Store" 
+                      placeholder="e.g. Ramesh Kirana & General Store" 
                       className="w-full bg-white border border-slate-200 p-sm rounded text-body-sm focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20"
                       required
                     />
@@ -2843,8 +3548,10 @@ ${vouchersXml}
 
                   <div>
                     <div className="flex justify-between items-center mb-xs">
-                      <label className="font-label-caps text-on-surface-variant block">GSTIN (15 characters)</label>
-                      {newClientGstin.length > 0 && (
+                      <label className="font-label-caps text-on-surface-variant block">
+                        GSTIN <span className="font-normal text-on-surface-variant/70">(Optional for trial / Add later)</span>
+                      </label>
+                      {!skipGstin && newClientGstin.length > 0 && (
                         <span className={`text-[11px] font-bold flex items-center gap-0.5 ${
                           /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(newClientGstin.trim())
                             ? 'text-moss-500'
@@ -2867,33 +3574,77 @@ ${vouchersXml}
                         </span>
                       )}
                     </div>
+
+                    {/* SKIP GSTIN TOGGLE */}
+                    <div className="mb-xs flex items-center gap-xs">
+                      <input 
+                        type="checkbox"
+                        id="skipGstinToggle"
+                        checked={skipGstin}
+                        onChange={(e) => setSkipGstin(e.target.checked)}
+                        className="rounded border-slate-300 text-teal-600 focus:ring-teal-600"
+                      />
+                      <label htmlFor="skipGstinToggle" className="text-xs text-on-surface-variant cursor-pointer select-none">
+                        Client doesn't have GSTIN yet / Composition dealer / <strong>Skip GSTIN for now</strong>
+                      </label>
+                    </div>
+
                     <input 
                       type="text" 
-                      value={newClientGstin}
+                      value={skipGstin ? '24PROV(TEST_CLIENT)1Z5' : newClientGstin}
+                      disabled={skipGstin}
                       onChange={(e) => setNewClientGstin(e.target.value.toUpperCase())}
-                      placeholder="e.g. 24ABCDE1234F1Z5" 
+                      placeholder="e.g. 24ABCDE1234F1Z5 (or leave blank)" 
                       maxLength={15}
-                      className={`w-full bg-white border p-sm rounded font-data-mono text-body-sm uppercase focus:ring-2 focus:ring-teal-600/20 ${
-                        newClientGstin.length === 15
-                          ? (/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(newClientGstin.trim()) ? 'border-moss-500 focus:border-moss-500' : 'border-rust-600 focus:border-rust-600')
-                          : 'border-slate-200 focus:border-teal-600'
+                      className={`w-full border p-sm rounded font-data-mono text-body-sm uppercase focus:ring-2 focus:ring-teal-600/20 ${
+                        skipGstin
+                          ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed italic'
+                          : newClientGstin.length === 15
+                          ? (/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(newClientGstin.trim()) ? 'bg-white border-moss-500 focus:border-moss-500' : 'bg-white border-rust-600 focus:border-rust-600')
+                          : 'bg-white border-slate-200 focus:border-teal-600'
                       }`}
-                      required
                     />
-                    <span className="text-[10px] text-on-surface-variant mt-xs block">Format: 2-digit state code + 10-char PAN + 1 entity count + Z + checksum.</span>
+                    <span className="text-[10px] text-on-surface-variant mt-xs block">
+                      {skipGstin 
+                        ? 'Provisional identifier assigned. You can update with actual GSTIN before filing GSTR-3B.' 
+                        : 'Format: 2-digit state code + 10-char PAN + 1 entity count + Z + checksum. (Can be added later).'}
+                    </span>
                   </div>
 
                   <div>
-                    <label className="font-label-caps text-on-surface-variant block mb-xs">WhatsApp Registered Number</label>
+                    <label className="font-label-caps text-on-surface-variant block mb-xs">Contact / WhatsApp Phone Number</label>
                     <input 
                       type="text" 
                       value={newClientPhone}
                       onChange={(e) => setNewClientPhone(e.target.value)}
-                      placeholder="e.g. 9123456789" 
+                      placeholder="e.g. 9876543210" 
                       className="w-full bg-white border border-slate-200 p-sm rounded font-data-mono text-body-sm focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20"
                       required
                     />
-                    <span className="text-[11px] text-on-surface-variant mt-xs block">Invoice photographs forwarded from this number are automatically parsed.</span>
+                    <span className="text-[11px] text-on-surface-variant mt-xs block">
+                      Used to associate forwarded invoice photographs with this business ledger.
+                    </span>
+                  </div>
+
+                  {/* AUTOMATED WHATSAPP INVITE CONTROL (DEFAULT OFF) */}
+                  <div className="p-sm bg-slate-50 border border-slate-200 rounded space-y-xs">
+                    <div className="flex items-center gap-xs">
+                      <input 
+                        type="checkbox"
+                        id="sendWhatsAppInviteToggle"
+                        checked={sendWhatsAppInvite}
+                        onChange={(e) => setSendWhatsAppInvite(e.target.checked)}
+                        className="rounded border-slate-300 text-teal-600 focus:ring-teal-600"
+                      />
+                      <label htmlFor="sendWhatsAppInviteToggle" className="text-body-sm font-bold text-ink-900 cursor-pointer select-none">
+                        Send automated WhatsApp welcome invitation to client right now
+                      </label>
+                    </div>
+                    <p className="text-[11px] text-on-surface-variant pl-5">
+                      {sendWhatsAppInvite 
+                        ? '⚠️ The client will receive an immediate WhatsApp message inviting them to send bill photos.'
+                        : '🔒 Kept OFF by default. You can test uploading invoices internally first before introducing BillGuru to your client.'}
+                    </p>
                   </div>
 
                   <div className="pt-sm flex justify-end gap-sm">
@@ -2906,9 +3657,10 @@ ${vouchersXml}
                     </button>
                     <button 
                       type="submit"
-                      className="px-lg py-sm bg-teal-600 hover:bg-teal-600/90 text-white font-bold transition-colors rounded-sm text-body-sm active:scale-95 shadow-sm"
+                      className="px-lg py-sm bg-teal-600 hover:bg-teal-600/90 text-white font-bold transition-colors rounded-sm text-body-sm active:scale-95 shadow-sm flex items-center gap-xs"
                     >
-                      Send Invitation
+                      <span className="material-symbols-outlined text-[18px]">lock</span>
+                      <span>Add Client Safely</span>
                     </button>
                   </div>
                 </form>
@@ -3117,18 +3869,29 @@ ${vouchersXml}
                   {guideTab === 'ca' && (
                     <div className="bg-white border border-slate-200 p-lg md:p-xl rounded-xl shadow-sm space-y-lg">
                       <div className="border-b border-slate-200 pb-md">
-                        <span className="text-teal-700 font-label-caps text-label-caps font-bold text-xs uppercase">CA Firm Manual</span>
-                        <h3 className="text-xl font-bold text-ink-900 mt-1">Managing 30–200+ Clients with Zero Receipt Chasing</h3>
-                        <p className="text-body-sm text-on-surface-variant mt-1">Transform your firm's monthly compliance cycle from reactive firefighting to automated ingest.</p>
+                        <span className="text-teal-700 font-label-caps text-label-caps font-bold text-xs uppercase">CA Practice Playbook</span>
+                        <h3 className="text-xl font-bold text-ink-900 mt-1">Zero-Fear Onboarding & Practice Guide for Chartered Accountants</h3>
+                        <p className="text-body-sm text-on-surface-variant mt-1">
+                          Designed specifically for Indian CAs managing 30–200+ clients. Test every feature completely before introducing your clients.
+                        </p>
+                      </div>
+
+                      {/* PRIVACY GUARANTEE CALLOUT */}
+                      <div className="p-md bg-teal-50 border border-teal-200 rounded-lg flex items-start gap-sm">
+                        <span className="material-symbols-outlined text-teal-700 text-[24px] shrink-0">verified_user</span>
+                        <div className="text-xs text-teal-950 leading-relaxed">
+                          <strong className="block text-teal-900 text-body-sm mb-0.5">100% Client Confidentiality Guarantee</strong>
+                          You do not need to enter your clients' real GSTINs or notify them to evaluate BillGuru AI. Explore the platform using our <strong>Practice Demo Mode</strong>, test our <strong>AI Bill Scanner</strong> on sample receipts, and onboard clients in <strong>Private Mode</strong> with optional GSTINs.
+                        </div>
                       </div>
 
                       <div className="space-y-md">
                         <div className="flex gap-md items-start">
                           <span className="w-8 h-8 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center shrink-0 text-sm">1</span>
                           <div>
-                            <h4 className="font-bold text-ink-900">Onboarding Clients (30 Seconds per Client)</h4>
+                            <h4 className="font-bold text-ink-900">Step 1: Test with Practice Demo Data (Zero Real Data)</h4>
                             <p className="text-body-sm text-on-surface-variant mt-0.5">
-                              Click <strong>"＋ Add Client Business"</strong> in your sidebar. Enter client name, GSTIN, and mobile number. The system dispatches an automatic WhatsApp opt-in message with your firm's name. Your client just replies "YES" and starts snapping photos.
+                              Click <strong>"⚡ Load Demo Data"</strong> in the top header. The system pre-loads 3 realistic businesses (*Meena Kirana, Sharma Electronics, Patel Textiles*) with simulated bills and compliance flags. You can test resolving flags and exporting to Tally Prime XML without touching real client files.
                             </p>
                           </div>
                         </div>
@@ -3136,9 +3899,9 @@ ${vouchersXml}
                         <div className="flex gap-md items-start">
                           <span className="w-8 h-8 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center shrink-0 text-sm">2</span>
                           <div>
-                            <h4 className="font-bold text-ink-900">Inward Triage Queue for Low-Confidence Scans</h4>
+                            <h4 className="font-bold text-ink-900">Step 2: Try the AI Bill Scanner on Desk Invoices</h4>
                             <p className="text-body-sm text-on-surface-variant mt-0.5">
-                              Unlike generic OCR tools that guess and risk filing penalties, anything with confidence &lt; 0.70 enters your <strong>Inward Queue</strong>. You see the cropped image side-by-side with extracted values. Correct any typo in 2 seconds and confirm, or click "Request Clearer Photo".
+                              Click <strong>"Test Bill Scanner"</strong> to test how our OCR engine extracts vendor name, invoice date, amounts, and tax slabs. Crucially, watch it validate the supplier's GSTIN against the government portal to catch <em>cancelled or suspended vendors</em> before you file.
                             </p>
                           </div>
                         </div>
@@ -3146,25 +3909,48 @@ ${vouchersXml}
                         <div className="flex gap-md items-start">
                           <span className="w-8 h-8 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center shrink-0 text-sm">3</span>
                           <div>
-                            <h4 className="font-bold text-ink-900">The Reconciliation Strip</h4>
+                            <h4 className="font-bold text-ink-900">Step 3: Private Client Onboarding (GST is Optional)</h4>
                             <p className="text-body-sm text-on-surface-variant mt-0.5">
-                              On the dashboard, every client has a green/amber reconciliation bar showing total bills captured vs. draft GSTR-3B filings. Spot missing ITC before filing deadline rather than waiting for tax notice.
+                              When ready to add a client, open <strong>"＋ Add Client Business"</strong>. You can check <em>"Skip GSTIN for now"</em> to use a provisional test ID. Furthermore, the <strong>automated WhatsApp invitation is kept OFF by default</strong>, so your client is never messaged without your consent.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-md items-start">
+                          <span className="w-8 h-8 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center shrink-0 text-sm">4</span>
+                          <div>
+                            <h4 className="font-bold text-ink-900">Step 4: Inward Triage Queue (Human-in-the-Loop Verification)</h4>
+                            <p className="text-body-sm text-on-surface-variant mt-0.5">
+                              Unlike black-box AI tools that guess and risk tax penalties, any scan with confidence below 90% enters your <strong>Inward Queue</strong>. You see the cropped receipt image side-by-side with extracted values to approve with 1 click.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-md items-start">
+                          <span className="w-8 h-8 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center shrink-0 text-sm">5</span>
+                          <div>
+                            <h4 className="font-bold text-ink-900">Step 5: 1-Click Tally Prime XML & GSTR-2B Export (Zero Lock-In)</h4>
+                            <p className="text-body-sm text-on-surface-variant mt-0.5">
+                              At any time, click <strong>"Export to Tally XML"</strong> to generate standard Tally Prime import vouchers with proper ledger mapping (`Purchase Account`, `Input CGST`, `Input SGST`). Your firm stays in control of its data.
                             </p>
                           </div>
                         </div>
                       </div>
 
-                      <div className="bg-teal-50 border border-teal-200 p-md rounded-lg flex items-center justify-between">
+                      <div className="bg-paper-50 border border-slate-200 p-md rounded-lg flex flex-wrap gap-sm items-center justify-between">
                         <div className="flex items-center gap-sm">
-                          <span className="material-symbols-outlined text-teal-700">lightbulb</span>
-                          <span className="text-body-sm font-medium text-teal-900">Ready to onboard your first business client?</span>
+                          <span className="material-symbols-outlined text-teal-700">science</span>
+                          <span className="text-body-sm font-medium text-ink-900">Want to test the full workflow right now without entering client data?</span>
                         </div>
-                        <button
-                          onClick={() => setCurrentView('onboard')}
-                          className="bg-teal-600 hover:bg-teal-700 text-white font-bold px-3 py-1.5 rounded text-xs shadow-sm"
-                        >
-                          Open Client Onboarding
-                        </button>
+                        <div className="flex gap-xs">
+                          <button
+                            onClick={handleLoadDemoData}
+                            className="bg-teal-600 hover:bg-teal-700 text-white font-bold px-3 py-1.5 rounded text-xs shadow-sm flex items-center gap-xs"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">play_circle</span>
+                            <span>Load Demo Practice Workspace</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}

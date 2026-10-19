@@ -808,18 +808,28 @@ app.post('/api/invoices/review', authenticateToken, async (req, res) => {
 
 // 8. POST Add New Business
 app.post('/api/businesses', authenticateToken, async (req, res) => {
-  const { name, gstin, whatsapp_number } = req.body;
+  const { name, whatsapp_number, send_whatsapp_invite } = req.body;
   const ca = req.ca.id; // Scoped securely to current logged-in CA
 
-  if (!name || !gstin || !whatsapp_number) {
-    return res.status(400).json({ error: 'Missing name, gstin, or whatsapp_number' });
+  if (!name || !whatsapp_number) {
+    return res.status(400).json({ error: 'Missing business name or contact number' });
   }
+
+  // If GSTIN is not provided (e.g. trial / fear of sharing client GST / composition dealer),
+  // assign a structured provisional identifier that fits standard 15-char format.
+  let gstin = req.body.gstin?.trim()?.toUpperCase();
+  if (!gstin || gstin === 'SKIP' || gstin === 'PENDING') {
+    const randPart = Math.random().toString(36).substring(2, 7).toUpperCase().padEnd(5, '0');
+    gstin = `24PROV${randPart}1Z5`;
+  }
+
+  const initialStatus = send_whatsapp_invite ? 'invited' : 'active';
 
   if (isDbMockMode) {
     const existing = mockDb.businesses.find(b => b.gstin === gstin);
-    if (existing) return res.status(400).json({ error: 'GSTIN already registered' });
+    if (existing) return res.status(400).json({ error: 'GSTIN already registered in firm' });
 
-    const biz = { id: mockDb.businesses.length + 1, name, gstin, ca_id: ca, whatsapp_number, onboarding_status: 'invited' };
+    const biz = { id: mockDb.businesses.length + 1, name, gstin, ca_id: ca, whatsapp_number, onboarding_status: initialStatus };
     mockDb.businesses.push(biz);
     return res.json({ success: true, business: biz });
   }
@@ -830,10 +840,10 @@ app.post('/api/businesses', authenticateToken, async (req, res) => {
 
     const [insertResult] = await dbPool.query(`
       INSERT INTO businesses (name, gstin, ca_id, whatsapp_number, onboarding_status) 
-      VALUES (?, ?, ?, ?, 'invited')
-    `, [name, gstin, ca, whatsapp_number]);
+      VALUES (?, ?, ?, ?, ?)
+    `, [name, gstin, ca, whatsapp_number, initialStatus]);
 
-    res.json({ success: true, id: insertResult.insertId });
+    res.json({ success: true, id: insertResult.insertId, gstin });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
