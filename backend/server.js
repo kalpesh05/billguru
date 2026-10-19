@@ -5,6 +5,7 @@ const rateLimit = require('express-rate-limit');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -16,8 +17,18 @@ app.use(helmet({
   contentSecurityPolicy: false, // allow flexible development and embedded preview
   crossOriginEmbedderPolicy: false
 }));
+app.set('trust proxy', 1);
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+// Public Legal Pages (Meta Compliance)
+app.use(express.static(path.join(__dirname, 'public')));
+app.get('/privacy-policy', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'privacy-policy.html'));
+});
+app.get('/terms-of-service', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'terms-of-service.html'));
+});
 
 // Rate Limiters
 const authLimiter = rateLimit({
@@ -48,7 +59,8 @@ const mockDb = {
     { id: 1, name: 'Meena Kirana Store', gstin: '24ABCDE1234F1Z5', ca_id: 1, whatsapp_number: '9123456789', onboarding_status: 'active' },
     { id: 2, name: 'Sharma Electronics', gstin: '24FGHIJ5678K2Z3', ca_id: 1, whatsapp_number: '9234567890', onboarding_status: 'active' },
     { id: 3, name: 'Patel Textiles', gstin: '24KLMNO9012P3Z1', ca_id: 1, whatsapp_number: '9345678901', onboarding_status: 'active' },
-    { id: 4, name: 'New Gen Traders', gstin: '24QRSTU3456V4Z0', ca_id: 1, whatsapp_number: '9456789012', onboarding_status: 'invited' }
+    { id: 4, name: 'New Gen Traders', gstin: '24QRSTU3456V4Z0', ca_id: 1, whatsapp_number: '9456789012', onboarding_status: 'invited' },
+    { id: 5, name: 'Kalpesh Enterprises', gstin: '24KLPSH1234F1Z8', ca_id: 1, whatsapp_number: '9925556541', onboarding_status: 'active' }
   ],
   invoices: [
     { id: 1, business_id: 1, source_type: 'whatsapp', file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', vendor_name: 'Sharma Wholesale', vendor_gstin: '24SHRMA1234A1Z9', invoice_number: 'INV-4521', invoice_date: '2026-07-15', taxable_amount: 23333.33, cgst_rate: 9.0, cgst_amount: 2100.00, sgst_rate: 9.0, sgst_amount: 2100.00, igst_rate: 0.0, igst_amount: 0.0, total_amount: 27533.33, hsn_sac_code: '8471', extraction_confidence: 0.95, extraction_status: 'extracted' },
@@ -1772,13 +1784,20 @@ app.post('/webhooks/whatsapp', async (req, res) => {
     if (!from) return;
 
     if (isDbMockMode) {
-      const biz = mockDb.businesses.find(b => b.whatsapp_number === from || `91${b.whatsapp_number}` === from || from.includes(b.whatsapp_number));
-      const salariedUser = !biz && mockDb.salaried_users.find(u => u.whatsapp_number === from || `91${u.whatsapp_number}` === from || from.includes(u.whatsapp_number));
+      let biz = mockDb.businesses.find(b => b.whatsapp_number === from || `91${b.whatsapp_number}` === from || from.includes(b.whatsapp_number));
+      let salariedUser = !biz && mockDb.salaried_users.find(u => u.whatsapp_number === from || `91${u.whatsapp_number}` === from || from.includes(u.whatsapp_number));
 
       if (!biz && !salariedUser) {
-        console.warn(`[WhatsApp Webhook] Phone ${from} not registered to any CA business or salaried client.`);
-        await sendWhatsAppMessage(from, `👋 Welcome to BillGuru AI! Your number (${from}) is not yet registered with an active CA. Please contact your accountant for an invite.`);
-        return;
+        console.log(`[WhatsApp Webhook] Auto-registering new trial business for phone ${from}...`);
+        biz = {
+          id: mockDb.businesses.length + 1,
+          name: `Store (${from.slice(-10)})`,
+          gstin: '24KLPSH1234F1Z8',
+          ca_id: 1,
+          whatsapp_number: from.slice(-10),
+          onboarding_status: 'active'
+        };
+        mockDb.businesses.push(biz);
       }
 
       // --- SALARIED TAX LOCKER WORKFLOW ---
@@ -1808,22 +1827,33 @@ app.post('/webhooks/whatsapp', async (req, res) => {
 
       // --- BUSINESS INVOICE WORKFLOW ---
       if (message_type === 'text') {
-        const cleanText = message_text.trim().toUpperCase();
-        if (isValidGstinChecksum(cleanText)) {
+        const cleanText = message_text.trim();
+        const upper = cleanText.toUpperCase();
+        const lower = cleanText.toLowerCase();
+
+        if (lower.includes('hi') || lower.includes('hello') || lower.includes('hey') || lower.includes('namaste')) {
+          await sendWhatsAppMessage(from, `👋 Namaste! Welcome to BillGuru AI Assistant for ${biz.name}.\n\n📸 You can snap and send any purchase or sales bill photo/PDF here.\n⚡ We will extract the vendor GSTIN, date, and amounts, and sync with your CA dashboard!`);
+        } else if (lower.includes('status') || lower.includes('summary') || lower.includes('hisab') || lower.includes('report')) {
+          const bizInvoices = mockDb.invoices.filter(i => i.business_id === biz.id);
+          const totalVal = bizInvoices.reduce((sum, i) => sum + (Number(i.total_amount) || 0), 0);
+          await sendWhatsAppMessage(from, `📊 Summary for ${biz.name}:\n• Invoices on file: ${bizInvoices.length}\n• Total processed: ₹${totalVal.toLocaleString('en-IN')}\n• CA Review: Reconciled & ready for GSTR-3B.`);
+        } else if (lower.includes('help') || lower.includes('guide')) {
+          await sendWhatsAppMessage(from, `💡 How to use BillGuru WhatsApp:\n1. 📸 Snap clear photo of any purchase bill\n2. ⚡ AI instantly extracts GSTIN, amounts & tax\n3. 🛡️ If any cancelled vendor GSTIN is found, you're alerted instantly!`);
+        } else if (isValidGstinChecksum(upper)) {
           // Confirm the last needs_review invoice
           const lastInvoice = mockDb.invoices.slice().reverse().find(i => i.business_id === biz.id && i.extraction_status === 'needs_review');
           if (lastInvoice) {
-            lastInvoice.vendor_gstin = cleanText;
+            lastInvoice.vendor_gstin = upper;
             lastInvoice.extraction_status = 'confirmed';
-            lastInvoice.vendor_name = `Vendor ${cleanText.substring(2, 7)} Pvt Ltd`;
-            await sendWhatsAppMessage(from, `✅ Valid GSTIN (${cleanText}) verified for ${biz.name}. Checksum passed! Invoice confirmed.`);
+            lastInvoice.vendor_name = `Vendor ${upper.substring(2, 7)} Pvt Ltd`;
+            await sendWhatsAppMessage(from, `✅ Valid GSTIN (${upper}) verified for ${biz.name}. Checksum passed! Invoice confirmed.`);
           } else {
-            await sendWhatsAppMessage(from, `ℹ️ Valid GSTIN received (${cleanText}), but no pending invoice requires review. Thank you!`);
+            await sendWhatsAppMessage(from, `ℹ️ Valid GSTIN received (${upper}), but no pending invoice requires review. Thank you!`);
           }
-        } else if (/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(cleanText)) {
+        } else if (/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(upper)) {
           await sendWhatsAppMessage(from, `⚠️ Format recognized, but the 15th checksum character is invalid according to Indian GST algorithms. Please check the GSTIN printed on the bill.`);
         } else {
-          await sendWhatsAppMessage(from, `⚠️ GSTIN unrecognized. Please reply with a valid 15-character GSTIN (e.g. 24ABCDE1234F1Z6).`);
+          await sendWhatsAppMessage(from, `🤖 Received your message for ${biz.name}. You can snap and send any invoice photo, reply with a 15-character vendor GSTIN, or type "status" for a summary.`);
         }
         return;
       }
