@@ -218,6 +218,9 @@ export default function App() {
   const [scannerScanning, setScannerScanning] = useState(false);
   const [scannerResult, setScannerResult] = useState(null);
 
+  // Real Meta WhatsApp Cloud API Setup Modal
+  const [showWhatsAppSetupModal, setShowWhatsAppSetupModal] = useState(false);
+
   // Form States (Review Queue Editing)
   const [editingInvoiceId, setEditingInvoiceId] = useState(null);
   const [editGstin, setEditGstin] = useState('');
@@ -720,7 +723,8 @@ export default function App() {
     if (!whatsappInput.trim()) return;
 
     const userText = whatsappInput.trim();
-    const newMsg = { sender: 'client', text: userText, time: '10:45 AM' };
+    const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const newMsg = { sender: 'client', text: userText, time: nowTime };
     setWhatsappMessages(prev => [...prev, newMsg]);
     setWhatsappInput('');
     setIsBotTyping(true);
@@ -728,25 +732,60 @@ export default function App() {
     setTimeout(() => {
       setIsBotTyping(false);
       let botResponse = '';
+      const lower = userText.toLowerCase();
+
       if (/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}$/i.test(userText)) {
-        botResponse = `✅ Valid GSTIN received for ${whatsappClient}. Extraction completed successfully. ₹3,420 logged.`;
-        if (!backendConnected) {
-          setInvoices(prev => prev.map(i => i.id === 3 ? {
-            ...i,
-            vendor_gstin: userText.toUpperCase(),
-            vendor_name: 'Bharti Gas Ltd',
-            extraction_status: 'confirmed',
-            extraction_confidence: 1.0
-          } : i));
-          setTimeout(() => recalculateLocalStats(), 50);
-        }
-      } else if (userText.toLowerCase().includes('clear') || userText.toLowerCase().includes('photo')) {
-        botResponse = '✅ Got the photo! Processing extraction in queue...';
+        botResponse = `✅ Valid GSTIN received for ${whatsappClient}. Verified against GST portal. Linked to pending invoice & ₹3,420 ITC reconciled.`;
+        setInvoices(prev => prev.map(i => (i.id === 3 || i.extraction_status === 'needs_review') ? {
+          ...i,
+          vendor_gstin: userText.toUpperCase(),
+          vendor_name: 'Bharti Gas Ltd',
+          extraction_status: 'confirmed',
+          extraction_confidence: 1.0
+        } : i));
+        setTimeout(() => recalculateLocalStats(), 50);
+        showToast(`GSTIN ${userText.toUpperCase()} verified and reconciled!`, 'success');
+      } else if (lower.includes('hi') || lower.includes('hello') || lower.includes('hey') || lower.includes('namaste')) {
+        botResponse = `👋 Namaste! I am your BillGuru AI Assistant for ${whatsappClient}.\n\n📸 You can snap and send any bill photo or PDF here.\n🔍 I will verify vendor GST, calculate tax, and reconcile with your CA automatically!`;
+      } else if (lower.includes('status') || lower.includes('summary') || lower.includes('hisab') || lower.includes('report')) {
+        const clientInvoices = invoices.filter(i => {
+          const b = businesses.find(bx => bx.name === whatsappClient);
+          return b ? i.business_id === b.id : true;
+        });
+        const total = clientInvoices.reduce((acc, i) => acc + (parseFloat(i.total_amount) || 0), 0);
+        botResponse = `📊 Current Status for ${whatsappClient}:\n• ${clientInvoices.length} invoices filed\n• Total processed: ₹${total.toLocaleString('en-IN')}\n• CA Review: Reconciled & Ready for GSTR-3B filing.`;
+      } else if (lower.includes('help') || lower.includes('guide')) {
+        botResponse = `💡 How to use BillGuru WhatsApp:\n1. 📸 Snap clear photo of any purchase or sales invoice\n2. ⚡ AI instantly extracts GSTIN, amounts, HSN\n3. 🛡️ If any field is blurred or vendor GST cancelled, I'll alert you right here!`;
+      } else if (lower.includes('clear') || lower.includes('photo') || lower.includes('bill') || lower.includes('invoice') || lower.includes('pic') || lower.includes('snap')) {
+        botResponse = `✅ Photo received! OCR extracted: Invoice #INV-8841 from Reliance Retail. Taxable: ₹12,450, GST (18%): ₹2,241. Reconciled and saved to CA Inward Queue!`;
+        const newInv = {
+          id: Date.now(),
+          business_id: 1,
+          source_type: 'whatsapp',
+          vendor_name: 'Reliance Retail Ltd',
+          vendor_gstin: '24RRETA1234F1Z8',
+          invoice_number: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
+          invoice_date: new Date().toISOString().split('T')[0],
+          taxable_amount: 12450.00,
+          cgst_rate: 9.0,
+          cgst_amount: 1120.50,
+          sgst_rate: 9.0,
+          sgst_amount: 1120.50,
+          igst_rate: 0.0,
+          igst_amount: 0.0,
+          total_amount: 14691.00,
+          hsn_sac_code: '8471',
+          extraction_confidence: 0.98,
+          extraction_status: 'extracted'
+        };
+        setInvoices(prev => [newInv, ...prev]);
+        setTimeout(() => recalculateLocalStats(), 50);
+        showToast('New invoice received via WhatsApp & added to Inward Queue!', 'success');
       } else {
-        botResponse = '⚠️ GSTIN structure unrecognized. Please verify structure (e.g. 24ABCDE1234F1Z5).';
+        botResponse = `🤖 Received your message for ${whatsappClient}. You can send a bill photo, reply with a 15-character GSTIN (e.g. 24SHRMA1234A1Z9), or type "status" for a summary.`;
       }
-      setWhatsappMessages(prev => [...prev, { sender: 'bot', text: botResponse, time: '10:46 AM' }]);
-    }, 2000);
+      setWhatsappMessages(prev => [...prev, { sender: 'bot', text: botResponse, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);
+    }, 1200);
   };
 
   const filteredBusinesses = businesses.filter(b => 
@@ -3044,6 +3083,148 @@ ${vouchersXml}
               </div>
             )}
 
+            {/* MODAL: META WHATSAPP CLOUD API SETUP GUIDE */}
+            {showWhatsAppSetupModal && (
+              <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-md animate-in fade-in duration-200">
+                <div className="bg-white border border-slate-200 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                  {/* Header */}
+                  <div className="bg-gradient-to-r from-teal-900 to-slate-900 text-white p-lg flex justify-between items-start">
+                    <div>
+                      <div className="flex items-center gap-xs mb-xs">
+                        <span className="px-2 py-0.5 bg-teal-500/20 text-teal-300 border border-teal-500/30 rounded-full text-[10px] font-bold font-label-caps uppercase">
+                          Developer & CA Guide
+                        </span>
+                        <span className="text-xs text-slate-300">Live Phone vs Local Simulator</span>
+                      </div>
+                      <h2 className="font-headline-sm font-bold text-white text-xl flex items-center gap-xs">
+                        <span className="material-symbols-outlined text-teal-400">chat</span>
+                        <span>Why Real WhatsApp Needs Meta Cloud API</span>
+                      </h2>
+                      <p className="text-xs text-slate-300 mt-1">
+                        How WhatsApp ingestion works, why physical smartphones need Meta credentials, and how to go live.
+                      </p>
+                    </div>
+                    <button 
+                      onClick={() => setShowWhatsAppSetupModal(false)}
+                      className="text-slate-300 hover:text-white p-1 rounded-full hover:bg-white/10"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">close</span>
+                    </button>
+                  </div>
+
+                  {/* Body */}
+                  <div className="p-lg overflow-y-auto custom-scrollbar space-y-md flex-1 text-xs text-ink-900">
+                    {/* Status Comparison Card */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-sm">
+                      <div className="p-sm bg-teal-50 border border-teal-200 rounded-lg">
+                        <div className="flex items-center gap-xs text-teal-800 font-bold mb-1">
+                          <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                          <span>In-App Simulator (ACTIVE)</span>
+                        </div>
+                        <p className="text-[11px] text-teal-900 leading-relaxed">
+                          Works 100% out-of-the-box inside BillGuru! Test bill OCR, cancelled GSTIN alerts, and HRA proofs with 1-click test buttons.
+                        </p>
+                      </div>
+
+                      <div className="p-sm bg-amber-50 border border-amber-200 rounded-lg">
+                        <div className="flex items-center gap-xs text-amber-800 font-bold mb-1">
+                          <span className="material-symbols-outlined text-[16px]">info</span>
+                          <span>Real Smartphone Bot (Requires Meta)</span>
+                        </div>
+                        <p className="text-[11px] text-amber-900 leading-relaxed">
+                          Requires a Meta WhatsApp Business Cloud API account + a public HTTPS webhook (ngrok or cloud domain) so Meta can reach your server.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Step by Step Guide */}
+                    <div className="space-y-sm">
+                      <h4 className="font-bold text-ink-900 text-sm flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[18px] text-teal-600">tune</span>
+                        <span>3-Step Quick Setup to Connect Real WhatsApp</span>
+                      </h4>
+
+                      {/* Step 1 */}
+                      <div className="p-sm bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                        <div className="font-bold text-teal-800 flex items-center gap-1">
+                          <span className="h-5 w-5 rounded-full bg-teal-600 text-white flex items-center justify-center text-[10px]">1</span>
+                          <span>Get Free Meta Cloud API Credentials</span>
+                        </div>
+                        <p className="text-on-surface-variant text-[11px]">
+                          Go to <a href="https://developers.facebook.com" target="_blank" rel="noreferrer" className="text-teal-600 underline font-bold">developers.facebook.com</a> &gt; Create App &gt; Select <strong>Business</strong> &gt; Add <strong>WhatsApp</strong>. Copy your <strong>Phone Number ID</strong> and <strong>Temporary/Permanent Access Token</strong> from the API Setup panel.
+                        </p>
+                      </div>
+
+                      {/* Step 2 */}
+                      <div className="p-sm bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                        <div className="font-bold text-teal-800 flex items-center gap-1">
+                          <span className="h-5 w-5 rounded-full bg-teal-600 text-white flex items-center justify-center text-[10px]">2</span>
+                          <span>Add to your backend .env file</span>
+                        </div>
+                        <p className="text-on-surface-variant text-[11px]">
+                          Paste your credentials into <code className="bg-slate-200 px-1 py-0.5 rounded font-mono text-[10px]">backend/.env</code>:
+                        </p>
+                        <div className="bg-slate-900 text-slate-100 p-2 rounded font-mono text-[10px] space-y-0.5 overflow-x-auto">
+                          <div>META_ACCESS_TOKEN=EAAGxxxxxxxxxxxxxxxxxxxx</div>
+                          <div>META_PHONE_NUMBER_ID=109283746592019</div>
+                          <div>WHATSAPP_VERIFY_TOKEN=billguru_verify_token</div>
+                        </div>
+                      </div>
+
+                      {/* Step 3 */}
+                      <div className="p-sm bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                        <div className="font-bold text-teal-800 flex items-center gap-1">
+                          <span className="h-5 w-5 rounded-full bg-teal-600 text-white flex items-center justify-center text-[10px]">3</span>
+                          <span>Expose Webhook to Meta (for local dev)</span>
+                        </div>
+                        <p className="text-on-surface-variant text-[11px]">
+                          Because your local server runs on <code className="bg-slate-200 px-1 py-0.5 rounded font-mono text-[10px]">localhost:5001</code>, Meta needs a public HTTPS tunnel. Run:
+                        </p>
+                        <div className="bg-slate-900 text-slate-100 p-2 rounded font-mono text-[10px]">
+                          npx ngrok http 5001
+                        </div>
+                        <p className="text-on-surface-variant text-[11px]">
+                          In Meta App Dashboard &gt; WhatsApp &gt; Configuration:
+                        </p>
+                        <ul className="list-disc pl-4 text-[11px] text-on-surface-variant space-y-0.5">
+                          <li><strong>Callback URL:</strong> <code className="bg-slate-200 px-1 rounded font-mono text-[10px]">https://&lt;your-ngrok-subdomain&gt;.ngrok-free.app/webhooks/whatsapp</code></li>
+                          <li><strong>Verify Token:</strong> <code className="bg-slate-200 px-1 rounded font-mono text-[10px]">billguru_verify_token</code></li>
+                          <li>Click <strong>Verify &amp; Save</strong>, then click <strong>Subscribe</strong> next to <code className="bg-slate-200 px-1 rounded font-mono text-[10px]">messages</code>.</li>
+                        </ul>
+                      </div>
+                    </div>
+
+                    <div className="p-sm bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-900 text-[11px] flex items-center gap-2">
+                      <span className="material-symbols-outlined text-emerald-600 text-[20px]">verified</span>
+                      <span>
+                        Once subscribed, sending any bill photo from your real phone to the Meta test number triggers BillGuru's Gemini OCR and instantly records the bill in your CA dashboard!
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="bg-paper-50 border-t border-slate-200 p-md flex justify-between items-center">
+                    <button
+                      onClick={() => setShowWhatsAppSetupModal(false)}
+                      className="px-md py-sm border border-slate-200 text-ink-900 font-bold text-xs rounded hover:bg-slate-100"
+                    >
+                      Close Guide
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowWhatsAppSetupModal(false);
+                        setCurrentView('whatsapp');
+                      }}
+                      className="px-lg py-sm bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded shadow-sm flex items-center gap-xs"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">play_arrow</span>
+                      <span>Try WhatsApp Simulator Now</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* VIEW: COMPLIANCE ANALYTICS */}
             {currentView === 'analytics' && (() => {
               const totalItcClaimed = invoices
@@ -3233,9 +3414,31 @@ ${vouchersXml}
 
               return (
                 <div className="space-y-lg max-w-7xl mx-auto w-full">
-                  <div>
-                    <h3 className="font-headline-md text-headline-sm md:text-headline-md text-ink-900 mb-xs">WhatsApp Bot Triage Simulator</h3>
-                    <p className="text-on-surface-variant text-body-md">Simulate and preview what business clients see on WhatsApp during verification cycles.</p>
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-md bg-gradient-to-r from-teal-50 via-emerald-50 to-cyan-50 border border-teal-200 p-md rounded-xl shadow-sm">
+                    <div className="flex items-center gap-md">
+                      <div className="h-11 w-11 rounded-xl bg-teal-600 text-white flex items-center justify-center shrink-0 shadow">
+                        <span className="material-symbols-outlined text-[26px]">chat</span>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-xs flex-wrap">
+                          <h3 className="font-headline-sm font-bold text-ink-900 text-lg">WhatsApp Bot Triage Simulator</h3>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-600/10 text-teal-800 border border-teal-600/20 uppercase tracking-wider">
+                            Interactive Sandbox
+                          </span>
+                        </div>
+                        <p className="text-on-surface-variant text-xs mt-0.5">
+                          Simulate how clients snap receipts or forward bills via WhatsApp. 100% functional locally with zero setup.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowWhatsAppSetupModal(true)}
+                      className="px-3 py-2 bg-white border border-teal-600 text-teal-700 hover:bg-teal-50 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all shrink-0 self-start md:self-auto"
+                    >
+                      <span className="material-symbols-outlined text-[16px] text-teal-600">settings_phone</span>
+                      <span>Real WhatsApp Setup Guide</span>
+                    </button>
                   </div>
 
                   <div className="flex flex-col lg:flex-row bg-white border border-slate-200 rounded shadow-sm overflow-hidden h-[540px]">
@@ -3425,6 +3628,116 @@ ${vouchersXml}
                           className="w-full py-1.5 bg-white border border-teal-600 text-teal-600 font-bold text-xs rounded hover:bg-teal-600/5 active:scale-95 transition-all text-center"
                         >
                           🔑 Submit Valid GSTIN: 24SHRMA1234A1Z9
+                        </button>
+                      </div>
+                    )}
+
+                    {/* QUICK ACTION SIMULATION BUTTONS FOR BUSINESS */}
+                    {whatsappMode === 'business' && (
+                      <div className="p-xs bg-slate-100 border-t border-slate-300 flex flex-wrap gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                            setWhatsappMessages(prev => [
+                              ...prev,
+                              { sender: 'client', text: '📸 [Photo] Wholesale Purchase Bill from Rajesh Traders (INV-8842)', time: timeStr },
+                              { sender: 'bot', text: '✅ Valid Bill Extracted!\n• Vendor: Rajesh Traders (24RTRAD9912F1Z4)\n• Taxable: ₹38,305 | CGST+SGST (18%): ₹6,895\n• Total: ₹45,200\n🔒 Vendor Active on GSTN. ₹6,895 ITC recorded for GSTR-3B!', time: timeStr }
+                            ]);
+                            const newInv = {
+                              id: Date.now(),
+                              business_id: 1,
+                              source_type: 'whatsapp',
+                              file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500',
+                              vendor_name: 'Rajesh Traders',
+                              vendor_gstin: '24RTRAD9912F1Z4',
+                              invoice_number: 'INV-8842',
+                              invoice_date: new Date().toISOString().split('T')[0],
+                              taxable_amount: 38305.00,
+                              cgst_rate: 9.0,
+                              cgst_amount: 3447.50,
+                              sgst_rate: 9.0,
+                              sgst_amount: 3447.50,
+                              igst_rate: 0.0,
+                              igst_amount: 0.0,
+                              total_amount: 45200.00,
+                              hsn_sac_code: '8471',
+                              extraction_confidence: 0.98,
+                              extraction_status: 'extracted'
+                            };
+                            setInvoices(prev => [newInv, ...prev]);
+                            setTimeout(() => recalculateLocalStats(), 50);
+                            showToast('Bill INV-8842 parsed & added to Inward Queue!', 'success');
+                          }}
+                          className="text-[10px] bg-white border border-teal-600 text-teal-700 px-2 py-1 rounded font-bold hover:bg-teal-50 active:scale-95 transition-all shadow-xs"
+                        >
+                          📸 Snap Wholesale Bill (₹45.2k)
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                            setWhatsappMessages(prev => [
+                              ...prev,
+                              { sender: 'client', text: '📸 [Photo] Raw Material Invoice from Fake Supplies Ltd (INV-9021)', time: timeStr },
+                              { sender: 'bot', text: '🚨 FRAUD / COMPLIANCE RISK!\n• Vendor GSTIN 24FAKE0000X1Z9 is CANCELLED retroactively on GST Portal.\n• Claiming ₹8,100 ITC on this invoice will trigger an automated GST DRC-01B audit notice.\n• CA notified immediately. Inward ITC blocked.', time: timeStr }
+                            ]);
+                            const flagInv = {
+                              id: Date.now(),
+                              business_id: 1,
+                              source_type: 'whatsapp',
+                              file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500',
+                              vendor_name: 'Fake Supplies Ltd',
+                              vendor_gstin: '24FAKE0000X1Z9',
+                              invoice_number: 'INV-9021',
+                              invoice_date: new Date().toISOString().split('T')[0],
+                              taxable_amount: 45000.00,
+                              cgst_rate: 9.0,
+                              cgst_amount: 4050.00,
+                              sgst_rate: 9.0,
+                              sgst_amount: 4050.00,
+                              igst_rate: 0.0,
+                              igst_amount: 0.0,
+                              total_amount: 53100.00,
+                              hsn_sac_code: '8471',
+                              extraction_confidence: 0.94,
+                              extraction_status: 'flagged'
+                            };
+                            setInvoices(prev => [flagInv, ...prev]);
+                            setFlags(prev => [
+                              {
+                                id: Date.now(),
+                                business_id: 1,
+                                severity: 'high',
+                                message: 'Vendor GSTIN 24FAKE0000X1Z9 was CANCELLED retroactively. Ineligible ITC of ₹8,100.',
+                                resolved: false,
+                                created_at: new Date().toISOString()
+                              },
+                              ...prev
+                            ]);
+                            setTimeout(() => recalculateLocalStats(), 50);
+                            showToast('High-risk bill flagged: Vendor GSTIN cancelled!', 'error');
+                          }}
+                          className="text-[10px] bg-white border border-rose-600 text-rose-700 px-2 py-1 rounded font-bold hover:bg-rose-50 active:scale-95 transition-all shadow-xs"
+                        >
+                          🚨 Send Bill with Cancelled GST
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                            setWhatsappMessages(prev => [
+                              ...prev,
+                              { sender: 'client', text: '📸 [Photo] Crumpled cash register slip for ₹3,420 fuel/gas expense.', time: timeStr },
+                              { sender: 'bot', text: '⚠️ Couldn\'t clearly read the vendor GSTIN on this invoice due to smudge. Can you reply with the 15-digit GSTIN directly?', time: timeStr, type: 'low-confidence' }
+                            ]);
+                            showToast('Low-confidence bill simulated: prompt sent to client!', 'info');
+                          }}
+                          className="text-[10px] bg-white border border-amber-600 text-amber-700 px-2 py-1 rounded font-bold hover:bg-amber-50 active:scale-95 transition-all shadow-xs"
+                        >
+                          🔍 Send Smudged Bill
                         </button>
                       </div>
                     )}
