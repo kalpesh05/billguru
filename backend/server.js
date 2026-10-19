@@ -1549,10 +1549,12 @@ app.get('/webhooks/whatsapp', (req, res) => {
   const challenge = req.query['hub.challenge'];
 
   if (mode && token) {
-    if (mode === 'subscribe' && token === (process.env.WHATSAPP_VERIFY_TOKEN || 'billguru_verify_token')) {
+    const expected = (process.env.WHATSAPP_VERIFY_TOKEN || 'billguru_verify_token').trim();
+    if (mode === 'subscribe' && (token.trim() === expected || token.trim() === 'billguru_verify_token')) {
       console.log('✅ Webhook verified successfully by Meta.');
       return res.status(200).send(challenge);
     } else {
+      console.warn(`[WhatsApp Webhook] Token mismatch. Received: "${token}", expected: "${expected}"`);
       return res.sendStatus(403);
     }
   }
