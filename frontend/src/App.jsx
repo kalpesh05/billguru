@@ -1187,31 +1187,13 @@ ${vouchersXml}
               <p className="font-label-caps text-label-caps text-on-surface-variant opacity-70">GST Compliance Copilot</p>
             </div>
 
-            {/* PRIMARY ACTION CTA: ELEVATED TO TOP */}
+            {/* PRIMARY ACTION CTA: SINGLE CLEAN PROMINENT BUTTON */}
             <button 
               onClick={() => { setCurrentView('onboard'); setSelectedBusiness(null); }}
-              className="w-full bg-teal-600 hover:bg-teal-600/90 text-white font-bold py-sm px-md rounded-lg mb-xs transition-all text-body-sm shadow-sm active:scale-95 flex items-center justify-center gap-xs"
+              className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 px-md rounded-lg mb-md transition-all text-body-sm shadow-sm active:scale-95 flex items-center justify-center gap-xs"
             >
               <span className="material-symbols-outlined text-[18px]">person_add</span>
               <span>＋ Add Client Business</span>
-            </button>
-
-            {/* GUIDED ONBOARDING & PURPOSE TOUR CTA */}
-            <button 
-              onClick={() => { setShowWelcomeTour(true); setWelcomeTourStep(0); }}
-              className="w-full bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 font-bold py-xs px-sm rounded-lg mb-xs transition-all text-xs flex items-center justify-center gap-xs"
-            >
-              <span className="material-symbols-outlined text-[16px] text-teal-600">lightbulb</span>
-              <span>💡 Product Tour & Purpose</span>
-            </button>
-
-            {/* TEST SCANNER SANDBOX CTA */}
-            <button 
-              onClick={() => setShowBillScannerModal(true)}
-              className="w-full bg-paper-50 hover:bg-slate-100 text-ink-900 border border-slate-200 font-bold py-xs px-sm rounded-lg mb-md transition-all text-xs flex items-center justify-center gap-xs"
-            >
-              <span className="material-symbols-outlined text-[16px] text-teal-600">document_scanner</span>
-              <span>🔍 Test AI Bill Scanner</span>
             </button>
             
             <nav className="flex-1 space-y-unit">
@@ -1231,7 +1213,25 @@ ${vouchersXml}
               ))}
             </nav>
             
-            <div className="mt-auto pt-md space-y-unit border-t border-slate-200">
+            <div className="mt-auto pt-sm space-y-unit border-t border-slate-200">
+              {/* COMPACT UTILITY ACCESS (TOUR & SANDBOX) */}
+              <div className="p-xs bg-slate-100/70 border border-slate-200/80 rounded-lg mb-xs space-y-0.5">
+                <button 
+                  onClick={() => { setShowWelcomeTour(true); setWelcomeTourStep(0); }}
+                  className="w-full flex items-center gap-sm px-2 py-1.5 text-xs font-bold text-teal-800 hover:bg-white rounded transition-colors text-left"
+                >
+                  <span className="material-symbols-outlined text-[16px] text-teal-600">lightbulb</span>
+                  <span>Product Tour & Guide</span>
+                </button>
+                <button 
+                  onClick={() => setShowBillScannerModal(true)}
+                  className="w-full flex items-center gap-sm px-2 py-1.5 text-xs font-bold text-slate-700 hover:bg-white rounded transition-colors text-left"
+                >
+                  <span className="material-symbols-outlined text-[16px] text-indigo-600">document_scanner</span>
+                  <span>AI Bill Scanner Sandbox</span>
+                </button>
+              </div>
+
               <button 
                 onClick={() => setCurrentView('settings')}
                 className={`w-full flex items-center gap-md p-sm font-label-caps text-label-caps rounded-lg transition-all ${
@@ -1250,9 +1250,9 @@ ${vouchersXml}
                 <span>Log Out ({caUser?.name?.split(' ')[0] || 'CA'})</span>
               </button>
 
-              <div className="pt-sm flex items-center gap-sm">
-                <span className={`w-2.5 h-2.5 rounded-full ${backendConnected ? 'bg-moss-500' : 'bg-amber-500 animate-pulse'}`}></span>
-                <span className="text-[11px] font-label-caps text-on-surface-variant tracking-wider uppercase">
+              <div className="pt-xs flex items-center gap-sm">
+                <span className={`w-2 h-2 rounded-full ${backendConnected ? 'bg-moss-500' : 'bg-amber-500 animate-pulse'}`}></span>
+                <span className="text-[10px] font-label-caps text-on-surface-variant tracking-wider uppercase">
                   {backendConnected ? 'API Connected' : 'Local Fallback'}
                 </span>
               </div>
