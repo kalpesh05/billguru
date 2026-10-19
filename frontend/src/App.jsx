@@ -1175,6 +1175,90 @@ ${vouchersXml}
     );
   }
 
+  // --- RENDER DEDICATED LEGAL PAGES FOR META & NETLIFY DEPLOYMENT ---
+  if (typeof window !== 'undefined' && (window.location.pathname === '/privacy-policy' || window.location.pathname.startsWith('/privacy-policy'))) {
+    return (
+      <div className="min-h-screen bg-slate-50 py-12 px-4 flex justify-center text-ink-900">
+        <div className="max-w-3xl w-full bg-white p-8 md:p-12 rounded-xl shadow-md border border-slate-200">
+          <div className="flex justify-between items-center mb-6">
+            <span className="px-3 py-1 bg-teal-100 text-teal-800 rounded-full font-bold text-xs uppercase tracking-wider">Official Legal Document</span>
+            <a href="/" className="text-xs font-bold text-teal-600 hover:underline flex items-center gap-1">
+              ← Back to BillGuru AI
+            </a>
+          </div>
+          <h1 className="text-2xl md:text-3xl font-bold text-teal-800 mb-2">Privacy Policy for BillGuru AI</h1>
+          <p className="text-xs text-slate-500 mb-6">Last updated: October 19, 2026</p>
+          <div className="prose prose-slate text-sm space-y-4 text-slate-700 leading-relaxed">
+            <p>Welcome to <strong>BillGuru AI</strong>. BillGuru AI is an intelligent GST Compliance, Invoice Extraction, and Tax Reconciliation Platform designed for Chartered Accountants (CAs), small businesses, and taxpayers.</p>
+            <p>This Privacy Policy explains how we collect, use, store, and protect your information when you interact with our web application and our WhatsApp Business chatbot integration.</p>
+            
+            <h3 className="font-bold text-base text-slate-900 mt-6 pt-4 border-t border-slate-200">1. Information We Collect</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><strong>Business Information:</strong> Shop/Business name, GSTIN (Goods and Services Tax Identification Number), and registered phone number.</li>
+              <li><strong>Invoice & Receipt Media:</strong> Photos, PDF documents, and transaction slips that you forward to our WhatsApp chatbot or upload via our web portal.</li>
+              <li><strong>Extracted Accounting Data:</strong> Vendor names, invoice numbers, dates, taxable values, CGST, SGST, IGST amounts, and HSN codes derived through AI optical character recognition (OCR).</li>
+              <li><strong>Communication Metadata:</strong> Sender phone numbers, timestamps, and message statuses delivered via the Meta WhatsApp Cloud API.</li>
+            </ul>
+
+            <h3 className="font-bold text-base text-slate-900 mt-6 pt-4 border-t border-slate-200">2. How We Use Your Information</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>To extract and digitize purchase invoices and expense slips automatically.</li>
+              <li>To cross-reference vendor GSTINs against official tax databases to prevent invalid Input Tax Credit (ITC) claims.</li>
+              <li>To prepare monthly GSTR-3B and GSTR-1 summaries for your Chartered Accountant.</li>
+              <li>To respond to your queries on WhatsApp regarding account reconciliation status.</li>
+            </ul>
+
+            <h3 className="font-bold text-base text-slate-900 mt-6 pt-4 border-t border-slate-200">3. Data Protection and Zero-Sell Guarantee</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><strong>We never sell your data:</strong> Your financial records, client names, and invoices are never sold, rented, or shared with third-party advertisers.</li>
+              <li><strong>Encryption:</strong> All media and messages transmitted via WhatsApp and web APIs are secured using TLS/HTTPS encryption in transit and AES-256 encryption at rest.</li>
+              <li><strong>Access Control:</strong> Only authorized Chartered Accountants linked to your business profile can view your invoices.</li>
+            </ul>
+
+            <h3 className="font-bold text-base text-slate-900 mt-6 pt-4 border-t border-slate-200">4. Third-Party Services (Meta WhatsApp Cloud API)</h3>
+            <p>When interacting with our WhatsApp bot, messages and media pass through Meta Platforms, Inc. under their WhatsApp Business Terms of Service. Meta provides end-to-end transport between your WhatsApp client and our secure webhook listener.</p>
+
+            <h3 className="font-bold text-base text-slate-900 mt-6 pt-4 border-t border-slate-200">5. User Data Deletion Instructions</h3>
+            <p>If you wish to delete your business records, invoices, or phone number associations, send an email to <strong>support@billguru.ai</strong> with the subject line <em>"Data Deletion Request"</em> accompanied by your registered WhatsApp phone number and GSTIN. We will permanently delete your records within 48 business hours.</p>
+
+            <h3 className="font-bold text-base text-slate-900 mt-6 pt-4 border-t border-slate-200">6. Contact Us</h3>
+            <p>
+              <strong>BillGuru AI Compliance & Data Governance Team</strong><br/>
+              Email: support@billguru.ai<br/>
+              Website: https://billguruapp.netlify.app
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (typeof window !== 'undefined' && (window.location.pathname === '/terms-of-service' || window.location.pathname.startsWith('/terms-of-service'))) {
+    return (
+      <div className="min-h-screen bg-slate-50 py-12 px-4 flex justify-center text-ink-900">
+        <div className="max-w-3xl w-full bg-white p-8 md:p-12 rounded-xl shadow-md border border-slate-200">
+          <div className="flex justify-between items-center mb-6">
+            <span className="px-3 py-1 bg-teal-100 text-teal-800 rounded-full font-bold text-xs uppercase tracking-wider">Terms of Service</span>
+            <a href="/" className="text-xs font-bold text-teal-600 hover:underline flex items-center gap-1">
+              ← Back to BillGuru AI
+            </a>
+          </div>
+          <h1 className="text-2xl md:text-3xl font-bold text-teal-800 mb-2">Terms of Service for BillGuru AI</h1>
+          <p className="text-xs text-slate-500 mb-6">Last updated: October 19, 2026</p>
+          <div className="prose prose-slate text-sm space-y-4 text-slate-700 leading-relaxed">
+            <p>By accessing or using <strong>BillGuru AI</strong> services, including our web dashboard and WhatsApp automation chatbot, you agree to be bound by these Terms of Service.</p>
+            <h3 className="font-bold text-base text-slate-900 mt-6 pt-4 border-t border-slate-200">1. Service Description</h3>
+            <p>BillGuru AI provides automated invoice data extraction, GST compliance checks, and reconciliation tools for businesses and tax professionals.</p>
+            <h3 className="font-bold text-base text-slate-900 mt-6 pt-4 border-t border-slate-200">2. User Responsibilities</h3>
+            <p>Users must submit authentic purchase invoices and tax deduction documents. BillGuru AI is an assistance tool; final filing and verification responsibility remains with the taxpayer and authorized tax consultant.</p>
+            <h3 className="font-bold text-base text-slate-900 mt-6 pt-4 border-t border-slate-200">3. Contact</h3>
+            <p>Email: support@billguru.ai</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // --- RENDER CA DASHBOARD WORKSPACE (Authenticated) ---
   return (
     <div className="min-h-screen flex selection:bg-teal-600/10 bg-slate-900 justify-center items-center p-0 md:p-6 transition-all duration-300">
