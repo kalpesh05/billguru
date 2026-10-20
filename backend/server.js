@@ -1782,7 +1782,7 @@ async function sendWhatsAppMessage(to, text) {
 
   if (!token || !phoneId) {
     console.log(`[WhatsApp Mock Outbound] To: ${to} | Text: "${text}"`);
-    return;
+    return { ok: false, reason: 'missing_env', tokenSet: !!token, phoneIdSet: !!phoneId };
   }
 
   try {
@@ -1804,14 +1804,30 @@ async function sendWhatsAppMessage(to, text) {
 
     const resData = await response.json();
     if (!response.ok) {
-      console.error('[WhatsApp Live Outbound Error] Meta API response:', resData);
+      console.error('[WhatsApp Live Outbound Error] Meta API response:', JSON.stringify(resData));
+      return { ok: false, status: response.status, data: resData };
     } else {
       console.log(`[WhatsApp Live Outbound Success] Message sent to ${to}. Message ID:`, resData.messages?.[0]?.id);
+      return { ok: true, status: response.status, data: resData };
     }
   } catch (err) {
     console.error('[WhatsApp Live Outbound Error] Failed to send request:', err.message);
+    return { ok: false, error: err.message };
   }
 }
+
+app.get('/api/debug/test-whatsapp', async (req, res) => {
+  const to = req.query.to || '919925556541';
+  const text = req.query.text || '🧪 BillGuru Live WhatsApp Test';
+  const result = await sendWhatsAppMessage(to, text);
+  return res.json({
+    tokenSet: !!process.env.META_ACCESS_TOKEN,
+    tokenPrefix: process.env.META_ACCESS_TOKEN ? process.env.META_ACCESS_TOKEN.substring(0, 10) + '...' : null,
+    phoneId: process.env.META_PHONE_NUMBER_ID,
+    recipient: to,
+    result
+  });
+});
 
 // Helper to detect mime type from buffer signature magic bytes
 function detectBufferMimeType(buffer) {
@@ -1992,12 +2008,16 @@ app.post('/webhooks/whatsapp', async (req, res) => {
     }
   }
 
-  // Respond immediately to prevent timeouts
+  // Respond immediately to prevent timeouts from Meta
   res.status(200).send('OK');
 
-  // Process message asynchronously
-  setTimeout(async () => {
-    if (!from) return;
+  // Process message asynchronously without delay
+  setImmediate(async () => {
+    if (!from) {
+      console.log('[WhatsApp Webhook] No sender phone identified in payload.');
+      return;
+    }
+    console.log(`[WhatsApp Webhook] Processing incoming message from ${from}: type=${message_type}, text="${message_text}"`);
 
     if (isDbMockMode) {
       let biz = mockDb.businesses.find(b => b.whatsapp_number === from || `91${b.whatsapp_number}` === from || from.includes(b.whatsapp_number));
