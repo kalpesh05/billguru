@@ -104,30 +104,35 @@ let isDbMockMode = true;
 
 // --- DATABASE INITIALIZATION & MIGRATIONS ---
 async function initializeDatabase() {
+  const isTiDB = (process.env.DB_HOST || '').includes('tidbcloud.com');
+  const targetDbName = process.env.DB_NAME || (isTiDB ? 'test' : 'billguru_ai');
+
   const dbConfig = {
     host: process.env.DB_HOST || '127.0.0.1',
-    port: parseInt(process.env.DB_PORT) || 3306,
+    port: parseInt(process.env.DB_PORT) || (isTiDB ? 4000 : 3306),
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
-    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined
+    ssl: (process.env.DB_SSL === 'true' || isTiDB) ? { minVersion: 'TLSv1.2', rejectUnauthorized: true } : undefined
   };
 
   try {
-    console.log('🔌 Connecting to MySQL server at:', `${dbConfig.host}:${dbConfig.port}`);
+    console.log('🔌 Connecting to database server at:', `${dbConfig.host}:${dbConfig.port}`);
     
-    // Attempt database creation, catch & ignore privilege errors common on managed cloud DBs
-    try {
-      const tempConnection = await mysql.createConnection(dbConfig);
-      await tempConnection.query(`CREATE DATABASE IF NOT EXISTS \`${process.env.DB_NAME || 'billguru_ai'}\`;`);
-      await tempConnection.end();
-    } catch (dbErr) {
-      console.log('ℹ️ Database creation step skipped or unauthorized (using pre-created database).');
+    // Attempt database creation, skip on TiDB Serverless where 'test' is pre-created
+    if (!isTiDB) {
+      try {
+        const tempConnection = await mysql.createConnection(dbConfig);
+        await tempConnection.query(`CREATE DATABASE IF NOT EXISTS \`${targetDbName}\`;`);
+        await tempConnection.end();
+      } catch (dbErr) {
+        console.log('ℹ️ Database creation step skipped or unauthorized (using pre-created database).');
+      }
     }
 
     // Recreate connection pool with database selected
     dbPool = mysql.createPool({
       ...dbConfig,
-      database: process.env.DB_NAME || 'billguru_ai',
+      database: targetDbName,
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0
@@ -673,6 +678,46 @@ app.get('/api/ca/:caId/flags', authenticateToken, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// CA Full Data Backup Snapshot Export
+app.get('/api/ca/backup/export', async (req, res) => {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const backupData = {
+    backup_version: '1.0',
+    export_timestamp: new Date().toISOString(),
+    firm_name: 'Shah & Associates (CA)',
+    summary: {
+      total_clients: isDbMockMode ? mockDb.businesses.length : 0,
+      total_invoices: isDbMockMode ? mockDb.invoices.length : 0,
+      storage_engine: isDbMockMode ? 'in-memory-mock' : 'tidb-serverless'
+    },
+    clients: isDbMockMode ? mockDb.businesses : [],
+    invoices: isDbMockMode ? mockDb.invoices : [],
+    reconciliation_flags: isDbMockMode ? mockDb.flags : [],
+    tax_deductions_locker: isDbMockMode ? mockDb.tax_deductions_locker : []
+  };
+
+  if (!isDbMockMode) {
+    try {
+      const [biz] = await dbPool.query('SELECT * FROM businesses');
+      const [inv] = await dbPool.query('SELECT * FROM invoices');
+      const [flags] = await dbPool.query('SELECT * FROM reconciliation_flags');
+      const [salaried] = await dbPool.query('SELECT * FROM salaried_users');
+      backupData.clients = biz;
+      backupData.invoices = inv;
+      backupData.reconciliation_flags = flags;
+      backupData.salaried_clients = salaried;
+      backupData.summary.total_clients = biz.length;
+      backupData.summary.total_invoices = inv.length;
+    } catch (e) {
+      console.warn('Backup fetch error from DB, returning in-memory:', e.message);
+    }
+  }
+
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', `attachment; filename="BillGuru_CA_Backup_${timestamp}.json"`);
+  res.json(backupData);
 });
 
 // 5. POST Resolve Flag

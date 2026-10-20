@@ -807,6 +807,43 @@ export default function App() {
   ];
 
 
+  const handleDownloadBackup = () => {
+    try {
+      showToast('Preparing complete CA client data backup...', 'info');
+      const timestamp = new Date().toISOString().split('T')[0];
+      const backupData = {
+        backup_version: '1.0',
+        export_timestamp: new Date().toISOString(),
+        firm_name: caUser?.firm_name || 'Shah & Associates (Chartered Accountants)',
+        ca_name: caUser?.name || 'Rajesh Shah',
+        ca_email: caUser?.email || 'rajesh@shah.com',
+        summary: {
+          total_clients: businesses.length,
+          total_invoices: invoices.length,
+          total_flags: flags.length,
+          salaried_clients: salariedClients.length
+        },
+        clients: businesses,
+        invoices: invoices,
+        reconciliation_flags: flags,
+        salaried_clients: salariedClients,
+        tax_locker_proofs: salariedProofs
+      };
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `BillGuru_CA_Backup_${timestamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('✅ Full CA backup downloaded successfully!', 'success');
+    } catch (e) {
+      showToast('Failed to generate backup file', 'error');
+    }
+  };
+
   const downloadItrJson = () => {
     const activeRules = TAX_RULES_BY_FY[selectedFinancialYear] || TAX_RULES_BY_FY['2026-2027'];
     const grossSalary = salariedUser.annual_ctc;
@@ -1337,7 +1374,7 @@ ${vouchersXml}
             </nav>
             
             <div className="mt-auto pt-sm space-y-unit border-t border-slate-200">
-              {/* COMPACT UTILITY ACCESS (TOUR & SANDBOX) */}
+              {/* COMPACT UTILITY ACCESS (TOUR, SANDBOX & CA BACKUP) */}
               <div className="p-xs bg-slate-100/70 border border-slate-200/80 rounded-lg mb-xs space-y-0.5">
                 <button 
                   onClick={() => { setShowWelcomeTour(true); setWelcomeTourStep(0); }}
@@ -1352,6 +1389,14 @@ ${vouchersXml}
                 >
                   <span className="material-symbols-outlined text-[16px] text-indigo-600">document_scanner</span>
                   <span>AI Bill Scanner Sandbox</span>
+                </button>
+                <button 
+                  onClick={handleDownloadBackup}
+                  className="w-full flex items-center gap-sm px-2 py-1.5 text-xs font-bold text-emerald-800 hover:bg-white rounded transition-colors text-left"
+                  title="Export complete client database & audit records"
+                >
+                  <span className="material-symbols-outlined text-[16px] text-emerald-600">download_for_offline</span>
+                  <span>Download CA Backup (JSON)</span>
                 </button>
               </div>
 
