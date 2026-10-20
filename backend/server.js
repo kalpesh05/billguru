@@ -1756,6 +1756,21 @@ app.get('/api/salaried/user/:id/itr-json', authenticateToken, async (req, res) =
   res.json(itr1Payload);
 });
 
+// Rolling in-memory WhatsApp Event Log for real-time diagnostics
+const whatsappLogs = [];
+function addWhatsAppLog(level, event, details) {
+  const entry = {
+    timestamp: new Date().toISOString(),
+    timeLocal: new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }),
+    level, // 'INFO', 'WARN', 'ERROR', 'SUCCESS'
+    event,
+    details
+  };
+  whatsappLogs.unshift(entry);
+  if (whatsappLogs.length > 100) whatsappLogs.pop();
+  console.log(`[WhatsApp ${level}] ${event}:`, typeof details === 'string' ? details : JSON.stringify(details));
+}
+
 // 9. GET WhatsApp Webhook verification for Meta API Setup
 app.get('/webhooks/whatsapp', (req, res) => {
   const mode = req.query['hub.mode'];
@@ -1765,13 +1780,14 @@ app.get('/webhooks/whatsapp', (req, res) => {
   if (mode && token) {
     const expected = (process.env.WHATSAPP_VERIFY_TOKEN || 'billguru_verify_token').trim();
     if (mode === 'subscribe' && (token.trim() === expected || token.trim() === 'billguru_verify_token')) {
-      console.log('✅ Webhook verified successfully by Meta.');
+      addWhatsAppLog('SUCCESS', 'Meta Webhook Challenge Verified Successfully', { mode, token, challenge });
       return res.status(200).send(challenge);
     } else {
-      console.warn(`[WhatsApp Webhook] Token mismatch. Received: "${token}", expected: "${expected}"`);
+      addWhatsAppLog('WARN', 'Meta Webhook Challenge Token Mismatch', { receivedToken: token, expectedToken: expected });
       return res.sendStatus(403);
     }
   }
+  addWhatsAppLog('WARN', 'Meta Webhook Verification Bad Request', req.query);
   res.sendStatus(400);
 });
 
@@ -1781,12 +1797,12 @@ async function sendWhatsAppMessage(to, text) {
   const phoneId = process.env.META_PHONE_NUMBER_ID;
 
   if (!token || !phoneId) {
-    console.log(`[WhatsApp Mock Outbound] To: ${to} | Text: "${text}"`);
+    addWhatsAppLog('WARN', 'Outbound Skipped - Missing Credentials', { to, text, tokenSet: !!token, phoneIdSet: !!phoneId });
     return { ok: false, reason: 'missing_env', tokenSet: !!token, phoneIdSet: !!phoneId };
   }
 
   try {
-    console.log(`[WhatsApp Live Outbound] Sending message to ${to}...`);
+    addWhatsAppLog('INFO', 'Dispatching Outbound WhatsApp Request to Meta', { to, phoneId, textPreview: text.substring(0, 100) });
     const response = await fetch(`https://graph.facebook.com/v20.0/${phoneId}/messages`, {
       method: 'POST',
       headers: {
@@ -1804,17 +1820,82 @@ async function sendWhatsAppMessage(to, text) {
 
     const resData = await response.json();
     if (!response.ok) {
-      console.error('[WhatsApp Live Outbound Error] Meta API response:', JSON.stringify(resData));
+      addWhatsAppLog('ERROR', 'Meta Graph API Outbound Error', { to, httpStatus: response.status, response: resData });
       return { ok: false, status: response.status, data: resData };
     } else {
-      console.log(`[WhatsApp Live Outbound Success] Message sent to ${to}. Message ID:`, resData.messages?.[0]?.id);
+      const msgId = resData.messages?.[0]?.id;
+      addWhatsAppLog('SUCCESS', 'Outbound WhatsApp Delivered to Meta Graph API', { to, messageId: msgId });
       return { ok: true, status: response.status, data: resData };
     }
   } catch (err) {
-    console.error('[WhatsApp Live Outbound Error] Failed to send request:', err.message);
+    addWhatsAppLog('ERROR', 'Failed to Contact Meta Graph API', { to, error: err.message });
     return { ok: false, error: err.message };
   }
 }
+
+// Real-time Live WhatsApp Diagnostics Dashboard
+app.get('/api/debug/logs', (req, res) => {
+  if (req.query.clear === 'true') {
+    whatsappLogs.length = 0;
+    return res.redirect('/api/debug/logs');
+  }
+
+  if (req.query.format === 'json') {
+    return res.json({ count: whatsappLogs.length, logs: whatsappLogs });
+  }
+
+  const rows = whatsappLogs.map(l => {
+    const badgeColor = l.level === 'SUCCESS' ? '#10b981' : l.level === 'ERROR' ? '#ef4444' : l.level === 'WARN' ? '#f59e0b' : '#3b82f6';
+    const detailStr = typeof l.details === 'object' ? JSON.stringify(l.details, null, 2) : String(l.details);
+    return `
+      <div style="border-left: 4px solid ${badgeColor}; background: #1e293b; padding: 12px 16px; margin-bottom: 12px; border-radius: 6px; font-family: monospace;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <span style="background: ${badgeColor}; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 11px;">${l.level}</span>
+          <span style="color: #94a3b8; font-size: 12px;">${l.timeLocal} IST (${l.timestamp})</span>
+        </div>
+        <div style="color: #f8fafc; font-weight: 600; font-size: 14px; margin-bottom: 6px;">${l.event}</div>
+        <pre style="background: #0f172a; color: #cbd5e1; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px; margin: 0; line-height: 1.4;">${detailStr}</pre>
+      </div>
+    `;
+  }).join('');
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>BillGuru AI - Real-time WhatsApp Monitor</title>
+        <meta http-equiv="refresh" content="3">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body { background: #0f172a; color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px; max-width: 1100px; margin: 0 auto; }
+          .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #334155; padding-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+          .btn { background: #2563eb; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; font-size: 13px; }
+          .btn-clear { background: #475569; }
+          .btn:hover { opacity: 0.9; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <h1 style="margin: 0 0 4px 0; font-size: 22px;">📱 BillGuru AI WhatsApp Diagnostic Monitor</h1>
+            <p style="margin: 0; color: #94a3b8; font-size: 13px;">Auto-refreshes every 3s • Token: ${process.env.META_ACCESS_TOKEN ? '✅ Active' : '❌ Missing'} • Phone ID: <code>${process.env.META_PHONE_NUMBER_ID || 'Not set'}</code></p>
+          </div>
+          <div>
+            <a href="/api/debug/test-whatsapp" target="_blank" class="btn">🧪 Send Test Ping</a>
+            <a href="/api/debug/logs?clear=true" class="btn btn-clear">🧹 Clear Logs</a>
+          </div>
+        </div>
+        <div style="margin-bottom: 16px; color: #94a3b8; font-size: 13px;">
+          Showing <b>${whatsappLogs.length}</b> most recent events (Auto-updating in real-time):
+        </div>
+        <div>
+          ${rows || '<div style="color: #64748b; text-align: center; padding: 60px; background: #1e293b; border-radius: 8px;">No WhatsApp events logged yet. Send a message to +1 (555) 201-1009 or click "Send Test Ping" above!</div>'}
+        </div>
+      </body>
+    </html>
+  `;
+  res.send(html);
+});
 
 app.get('/api/debug/test-whatsapp', async (req, res) => {
   const to = req.query.to || '919925556541';
@@ -2020,7 +2101,13 @@ async function extractInvoiceWithGemini(mediaUrl) {
 
 // 10. POST WhatsApp Webhook (Accepts both Meta webhook payloads and mock frontend payloads)
 app.post('/webhooks/whatsapp', async (req, res) => {
-  console.log('[WhatsApp Webhook Received Payload]:', JSON.stringify(req.body));
+  addWhatsAppLog('INFO', 'Incoming Webhook Request Received', {
+    method: 'POST',
+    object: req.body?.object,
+    entryCount: req.body?.entry?.length || 0,
+    hasBody: !!req.body
+  });
+
   let from = req.body.from;
   let media_url = req.body.media_url || '';
   let message_type = req.body.message_type || 'image';
@@ -2034,6 +2121,18 @@ app.post('/webhooks/whatsapp', async (req, res) => {
       const val = change?.value;
       const msg = val?.messages?.[0];
 
+      // Handle delivery status notifications (sent, delivered, read, failed)
+      if (val?.statuses?.length) {
+        const st = val.statuses[0];
+        addWhatsAppLog('INFO', `Meta Status Callback: ${st.status}`, {
+          recipientId: st.recipient_id,
+          messageId: st.id,
+          status: st.status,
+          errors: st.errors || null
+        });
+        return res.status(200).send('OK');
+      }
+
       if (msg) {
         from = msg.from;
         message_type = msg.type;
@@ -2046,12 +2145,18 @@ app.post('/webhooks/whatsapp', async (req, res) => {
           const mediaId = msg.document?.id;
           media_url = `meta-media-id:${mediaId}`;
         }
+        addWhatsAppLog('SUCCESS', `User Message Received (${message_type})`, {
+          from,
+          messageType: message_type,
+          text: message_text,
+          mediaId: (msg.image?.id || msg.document?.id) || null
+        });
       } else {
-        // Safe return for status messages
+        addWhatsAppLog('INFO', 'Meta Event Without Messages/Statuses', val);
         return res.status(200).send('OK');
       }
     } catch (e) {
-      console.warn('Error parsing Meta webhook payload structure:', e.message);
+      addWhatsAppLog('ERROR', 'Error parsing Meta webhook payload', { error: e.message, body: req.body });
     }
   }
 
@@ -2061,10 +2166,10 @@ app.post('/webhooks/whatsapp', async (req, res) => {
   // Process message asynchronously without delay
   setImmediate(async () => {
     if (!from) {
-      console.log('[WhatsApp Webhook] No sender phone identified in payload.');
+      addWhatsAppLog('WARN', 'Webhook Processing Skipped - No Sender Phone', req.body);
       return;
     }
-    console.log(`[WhatsApp Webhook] Processing incoming message from ${from}: type=${message_type}, text="${message_text}"`);
+    addWhatsAppLog('INFO', 'Initiating Message Handler Flow', { from, message_type, message_text });
 
     if (isDbMockMode) {
       let biz = mockDb.businesses.find(b => b.whatsapp_number === from || `91${b.whatsapp_number}` === from || from.includes(b.whatsapp_number));
@@ -2265,11 +2370,14 @@ app.post('/webhooks/whatsapp', async (req, res) => {
 
       const businessId = bizList[0].id;
       const businessName = bizList[0].name;
+      addWhatsAppLog('INFO', 'Client Matched in Database', { businessId, businessName, senderPhone: from });
 
       if (message_type === 'text') {
         const cleanText = message_text.trim();
         const upper = cleanText.toUpperCase();
         const lower = cleanText.toLowerCase();
+
+        addWhatsAppLog('INFO', 'Processing User Text Command', { text: cleanText, matchedBusiness: businessName });
 
         if (lower.includes('hi') || lower.includes('hello') || lower.includes('hey') || lower.includes('namaste')) {
           await sendWhatsAppMessage(from, `👋 Namaste! Welcome to BillGuru AI Assistant for ${businessName}.\n\n📸 You can snap and send any purchase or sales bill photo/PDF here.\n⚡ We will extract the vendor GSTIN, date, and amounts, and sync with your CA dashboard!`);
