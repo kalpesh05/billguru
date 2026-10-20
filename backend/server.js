@@ -1829,6 +1829,53 @@ app.get('/api/debug/test-whatsapp', async (req, res) => {
   });
 });
 
+app.get('/api/debug/subscribe-waba', async (req, res) => {
+  const token = process.env.META_ACCESS_TOKEN;
+  const phoneId = process.env.META_PHONE_NUMBER_ID;
+
+  if (!token || !phoneId) {
+    return res.status(400).json({ error: 'Missing META_ACCESS_TOKEN or META_PHONE_NUMBER_ID' });
+  }
+
+  try {
+    // 1. Get WABA ID
+    const phoneInfoRes = await fetch(`https://graph.facebook.com/v20.0/${phoneId}?fields=whatsapp_business_account`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const phoneInfo = await phoneInfoRes.json();
+    const wabaId = phoneInfo.whatsapp_business_account?.id;
+
+    if (!wabaId) {
+      return res.status(400).json({ error: 'Could not find WABA ID from phone info', phoneInfo });
+    }
+
+    // 2. Post subscribed_apps to WABA
+    const subRes = await fetch(`https://graph.facebook.com/v20.0/${wabaId}/subscribed_apps`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    const subData = await subRes.json();
+
+    // 3. Verify subscribed apps
+    const listRes = await fetch(`https://graph.facebook.com/v20.0/${wabaId}/subscribed_apps`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const listData = await listRes.json();
+
+    return res.json({
+      phoneId,
+      wabaId,
+      subscribeResult: subData,
+      subscribedApps: listData
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // Helper to detect mime type from buffer signature magic bytes
 function detectBufferMimeType(buffer) {
   if (!buffer || buffer.length < 4) return 'image/jpeg';
@@ -1974,6 +2021,7 @@ async function extractInvoiceWithGemini(mediaUrl) {
 
 // 10. POST WhatsApp Webhook (Accepts both Meta webhook payloads and mock frontend payloads)
 app.post('/webhooks/whatsapp', async (req, res) => {
+  console.log('[WhatsApp Webhook Received Payload]:', JSON.stringify(req.body));
   let from = req.body.from;
   let media_url = req.body.media_url || '';
   let message_type = req.body.message_type || 'image';
