@@ -1839,14 +1839,13 @@ app.get('/api/debug/subscribe-waba', async (req, res) => {
 
   try {
     // 1. Get WABA ID
-    const phoneInfoRes = await fetch(`https://graph.facebook.com/v20.0/${phoneId}?fields=whatsapp_business_account`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const phoneInfo = await phoneInfoRes.json();
-    const wabaId = phoneInfo.whatsapp_business_account?.id;
-
+    let wabaId = req.query.wabaId || '611230498425353';
     if (!wabaId) {
-      return res.status(400).json({ error: 'Could not find WABA ID from phone info', phoneInfo });
+      const phoneInfoRes = await fetch(`https://graph.facebook.com/v20.0/${phoneId}?fields=whatsapp_business_account`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const phoneInfo = await phoneInfoRes.json();
+      wabaId = phoneInfo.whatsapp_business_account?.id;
     }
 
     // 2. Post subscribed_apps to WABA
