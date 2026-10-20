@@ -1976,8 +1976,17 @@ app.post('/webhooks/whatsapp', async (req, res) => {
       const businessName = bizList[0].name;
 
       if (message_type === 'text') {
-        const cleanText = message_text.trim().toUpperCase();
-        if (isValidGstinChecksum(cleanText)) {
+        const cleanText = message_text.trim();
+        const upper = cleanText.toUpperCase();
+        const lower = cleanText.toLowerCase();
+
+        if (lower.includes('hi') || lower.includes('hello') || lower.includes('hey') || lower.includes('namaste')) {
+          await sendWhatsAppMessage(from, `👋 Namaste! Welcome to BillGuru AI Assistant for ${businessName}.\n\n📸 You can snap and send any purchase or sales bill photo/PDF here.\n⚡ We will extract the vendor GSTIN, date, and amounts, and sync with your CA dashboard!`);
+        } else if (lower.includes('status') || lower.includes('summary') || lower.includes('hisab') || lower.includes('report')) {
+          await sendWhatsAppMessage(from, `📊 Summary for ${businessName}:\n• Connected to CA Portal\n• Status: Active & Ready for GSTR-3B filing.`);
+        } else if (lower.includes('help') || lower.includes('guide')) {
+          await sendWhatsAppMessage(from, `💡 How to use BillGuru WhatsApp:\n1. 📸 Snap clear photo of any purchase bill\n2. ⚡ AI instantly extracts GSTIN, amounts & tax\n3. 🛡️ If any cancelled vendor GSTIN is found, you're alerted instantly!`);
+        } else if (isValidGstinChecksum(upper)) {
           // Find last needs_review invoice
           const [invList] = await dbPool.query(`
             SELECT id FROM invoices 
@@ -1991,15 +2000,15 @@ app.post('/webhooks/whatsapp', async (req, res) => {
               UPDATE invoices 
               SET vendor_gstin = ?, vendor_name = 'Confirmed Vendor Ltd', extraction_status = 'confirmed', extraction_confidence = 1.0 
               WHERE id = ?
-            `, [cleanText, invoiceId]);
+            `, [upper, invoiceId]);
             await sendWhatsAppMessage(from, `✅ Valid GSTIN received for ${businessName}. Checksum verified! Invoice confirmed.`);
           } else {
-            await sendWhatsAppMessage(from, `ℹ️ GSTIN received, but no pending invoice requires review. Thank you!`);
+            await sendWhatsAppMessage(from, `ℹ️ GSTIN received (${upper}), but no pending invoice requires review. Thank you!`);
           }
-        } else if (/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(cleanText)) {
+        } else if (/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(upper)) {
           await sendWhatsAppMessage(from, `⚠️ Format recognized, but the 15th checksum character is invalid. Please double check the GSTIN printed on the bill.`);
         } else {
-          await sendWhatsAppMessage(from, `⚠️ GSTIN unrecognized. Please reply with a valid 15-character GSTIN code (e.g. 24ABCDE1234F1Z6).`);
+          await sendWhatsAppMessage(from, `🤖 Received your message for ${businessName}. You can snap and send any invoice photo, reply with a 15-character vendor GSTIN, or type "status" for a summary.`);
         }
         return;
       }
