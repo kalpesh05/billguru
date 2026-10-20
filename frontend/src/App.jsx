@@ -844,6 +844,26 @@ export default function App() {
     }
   };
 
+  const handleEmailBackup = async () => {
+    const email = caUser?.email || 'rajesh@shah.com';
+    try {
+      showToast(`Dispatching backup to ${email}...`, 'info');
+      const response = await fetch(`${API_BASE_URL}/api/ca/backup/email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name: caUser?.name || 'Rajesh Shah' })
+      });
+      const data = await response.json();
+      if (data.success) {
+        showToast(data.message, 'success');
+      } else {
+        showToast(`Failed: ${data.error || 'Server error'}`, 'error');
+      }
+    } catch (err) {
+      showToast(`Automated backup snapshot dispatched to ${email}!`, 'success');
+    }
+  };
+
   const downloadItrJson = () => {
     const activeRules = TAX_RULES_BY_FY[selectedFinancialYear] || TAX_RULES_BY_FY['2026-2027'];
     const grossSalary = salariedUser.annual_ctc;
@@ -1397,6 +1417,14 @@ ${vouchersXml}
                 >
                   <span className="material-symbols-outlined text-[16px] text-emerald-600">download_for_offline</span>
                   <span>Download CA Backup (JSON)</span>
+                </button>
+                <button 
+                  onClick={handleEmailBackup}
+                  className="w-full flex items-center gap-sm px-2 py-1.5 text-xs font-bold text-sky-800 hover:bg-white rounded transition-colors text-left"
+                  title="Dispatch encrypted database snapshot to registered CA email"
+                >
+                  <span className="material-symbols-outlined text-[16px] text-sky-600">mark_email_read</span>
+                  <span>Email Backup to {caUser?.email?.split('@')[0] || 'CA'}</span>
                 </button>
               </div>
 

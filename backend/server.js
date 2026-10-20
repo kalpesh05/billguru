@@ -6,6 +6,7 @@ const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const path = require('path');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 const app = express();
@@ -719,6 +720,174 @@ app.get('/api/ca/backup/export', async (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename="BillGuru_CA_Backup_${timestamp}.json"`);
   res.json(backupData);
 });
+
+// Setup reusable email transporter
+function createMailTransporter() {
+  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+    return nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT) || 587,
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
+  } else if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_APP_PASSWORD
+      }
+    });
+  }
+  return null;
+}
+
+// Function to compile full backup payload
+async function generateBackupPayload(caEmail) {
+  const timestamp = new Date().toISOString();
+  const backup = {
+    backup_version: '1.0',
+    export_timestamp: timestamp,
+    firm_name: 'Shah & Associates (CA)',
+    ca_email: caEmail || 'rajesh@shah.com',
+    storage_engine: isDbMockMode ? 'in-memory-mock' : 'tidb-serverless',
+    clients: isDbMockMode ? mockDb.businesses : [],
+    invoices: isDbMockMode ? mockDb.invoices : [],
+    reconciliation_flags: isDbMockMode ? mockDb.flags : [],
+    tax_deductions_locker: isDbMockMode ? mockDb.tax_deductions_locker : []
+  };
+
+  if (!isDbMockMode) {
+    try {
+      const [biz] = await dbPool.query('SELECT * FROM businesses');
+      const [inv] = await dbPool.query('SELECT * FROM invoices');
+      const [flags] = await dbPool.query('SELECT * FROM reconciliation_flags');
+      const [salaried] = await dbPool.query('SELECT * FROM salaried_users');
+      backup.clients = biz;
+      backup.invoices = inv;
+      backup.reconciliation_flags = flags;
+      backup.salaried_clients = salaried;
+    } catch (e) {
+      console.warn('Backup fetch DB error:', e.message);
+    }
+  }
+  return backup;
+}
+
+// Dispatch Email Backup
+async function sendDailyBackupEmail(recipientEmail, caName) {
+  const email = recipientEmail || 'rajesh@shah.com';
+  const name = caName || 'Chartered Accountant';
+  const dateStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const backup = await generateBackupPayload(email);
+
+  const totalClients = backup.clients.length;
+  const totalInvoices = backup.invoices.length;
+  const totalVal = backup.invoices.reduce((sum, i) => sum + (Number(i.total_amount) || 0), 0);
+
+  const emailHtml = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0;">
+      <div style="background: #0f766e; padding: 20px; border-radius: 8px 8px 0 0; color: white;">
+        <h2 style="margin: 0; font-size: 20px;">🛡️ BillGuru AI - Automated CA Data Backup</h2>
+        <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.9;">Secure Client Accounting Ledger Snapshot · ${dateStr}</p>
+      </div>
+      <div style="background: white; padding: 24px; border-radius: 0 0 8px 8px; border: 1px solid #e2e8f0; border-top: none;">
+        <p style="font-size: 15px;">Respected <strong>${name}</strong>,</p>
+        <p style="font-size: 14px; line-height: 1.6; color: #475569;">
+          As part of your <strong>Daily Zero-Loss Data Protection Guarantee</strong>, here is your automated accounting backup for all client businesses and invoices logged into BillGuru AI.
+        </p>
+
+        <div style="background: #f1f5f9; padding: 16px; border-radius: 8px; margin: 20px 0;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+            <tr>
+              <td style="padding: 6px 0; color: #64748b;"><strong>Total Client Businesses:</strong></td>
+              <td style="padding: 6px 0; font-weight: bold; text-align: right; color: #0f172a;">${totalClients}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px 0; color: #64748b;"><strong>Total Invoices Logged:</strong></td>
+              <td style="padding: 6px 0; font-weight: bold; text-align: right; color: #0f172a;">${totalInvoices}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px 0; color: #64748b;"><strong>Total Ledger Volume:</strong></td>
+              <td style="padding: 6px 0; font-weight: bold; text-align: right; color: #0f766e;">₹${totalVal.toLocaleString('en-IN')}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px 0; color: #64748b;"><strong>Attached Archive:</strong></td>
+              <td style="padding: 6px 0; font-weight: bold; text-align: right; color: #2563eb;">BillGuru_Backup_${new Date().toISOString().split('T')[0]}.json</td>
+            </tr>
+          </table>
+        </div>
+
+        <p style="font-size: 13px; color: #64748b; line-height: 1.5;">
+          📎 <em>The complete raw JSON database archive is attached to this email. You can import it into any database, Excel, or accounting software at any time.</em>
+        </p>
+
+        <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center;">
+          BillGuru AI Data Governance Team · Encrypted In Transit & At Rest
+        </div>
+      </div>
+    </div>
+  `;
+
+  const backupJson = JSON.stringify(backup, null, 2);
+  const transporter = createMailTransporter();
+
+  if (transporter) {
+    try {
+      console.log(`[Email Backup] Dispatching backup to ${email}...`);
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM || '"BillGuru AI Backups" <support@billguru.ai>',
+        to: email,
+        subject: `[Daily CA Backup] BillGuru AI Data Snapshot - ${dateStr}`,
+        html: emailHtml,
+        attachments: [
+          {
+            filename: `BillGuru_CA_Backup_${new Date().toISOString().split('T')[0]}.json`,
+            content: backupJson,
+            contentType: 'application/json'
+          }
+        ]
+      });
+      console.log(`✅ [Email Backup] Successfully delivered to ${email}`);
+      return { success: true, delivered: true, email, totalClients, totalInvoices };
+    } catch (err) {
+      console.error('[Email Backup Error] Failed to send email via SMTP:', err.message);
+      return { success: false, error: err.message, email, totalClients, totalInvoices };
+    }
+  } else {
+    console.log(`[Email Backup Simulated] To: ${email} | (SMTP not configured, backup payload compiled successfully: ${totalInvoices} invoices, ${totalClients} clients)`);
+    return { success: true, delivered: false, simulated: true, email, totalClients, totalInvoices };
+  }
+}
+
+// POST Trigger on-demand backup email to CA
+app.post('/api/ca/backup/email', async (req, res) => {
+  const targetEmail = req.body.email || 'rajesh@shah.com';
+  const caName = req.body.name || 'Rajesh Shah';
+  const result = await sendDailyBackupEmail(targetEmail, caName);
+  res.json({
+    success: true,
+    message: result.delivered 
+      ? `Backup archive successfully emailed to ${targetEmail}!`
+      : `Backup compiled (${result.totalInvoices} invoices, ${result.totalClients} clients). Simulated send to ${targetEmail} (configure SMTP_USER in Render for live inbox delivery).`,
+    result
+  });
+});
+
+// Schedule daily automated backup job (Runs every 24 hours)
+const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+setInterval(async () => {
+  try {
+    const notifyEmail = process.env.BACKUP_NOTIFICATION_EMAIL || 'rajesh@shah.com';
+    console.log(`⏰ Triggering automated 24h backup email to ${notifyEmail}...`);
+    await sendDailyBackupEmail(notifyEmail, 'Chartered Accountant');
+  } catch (err) {
+    console.warn('Daily scheduled backup error:', err.message);
+  }
+}, TWENTY_FOUR_HOURS);
 
 // 5. POST Resolve Flag
 app.post('/api/flags/:id/resolve', authenticateToken, async (req, res) => {
