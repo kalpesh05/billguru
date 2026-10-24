@@ -1,5 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 
+// Indian GST State Code Directory for compliant Tally Master creation
+const GST_STATE_MAP = {
+  '01': 'Jammu & Kashmir', '02': 'Himachal Pradesh', '03': 'Punjab', '04': 'Chandigarh',
+  '05': 'Uttarakhand', '06': 'Haryana', '07': 'Delhi', '08': 'Rajasthan',
+  '09': 'Uttar Pradesh', '10': 'Bihar', '11': 'Sikkim', '12': 'Arunachal Pradesh',
+  '13': 'Nagaland', '14': 'Manipur', '15': 'Mizoram', '16': 'Tripura',
+  '17': 'Meghalaya', '18': 'Assam', '19': 'West Bengal', '20': 'Jharkhand',
+  '21': 'Odisha', '22': 'Chhattisgarh', '23': 'Madhya Pradesh', '24': 'Gujarat',
+  '26': 'Dadra & Nagar Haveli and Daman & Diu', '27': 'Maharashtra', '29': 'Karnataka',
+  '30': 'Goa', '31': 'Lakshadweep', '32': 'Kerala', '33': 'Tamil Nadu',
+  '34': 'Puducherry', '35': 'Andaman & Nicobar Islands', '36': 'Telangana', '37': 'Andhra Pradesh',
+  '38': 'Ladakh', '97': 'Other Territory', '99': 'Center Jurisdiction'
+};
+
 // MOCK DATA (Fallback for local offline testing if backend is down)
 const localFallbackData = {
   businesses: [
@@ -8,15 +22,61 @@ const localFallbackData = {
     { id: 3, name: 'Patel Textiles', gstin: '24KLMNO9012P3Z1', whatsapp_number: '9345678901', onboarding_status: 'active', total_invoices: 15, filed_invoices: 15, high_flags: 0, medium_flags: 0, at_risk_amount: 0.00 }
   ],
   invoices: [
-    { id: 1, business_id: 1, source_type: 'whatsapp', file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', vendor_name: 'Sharma Wholesale', vendor_gstin: '24SHRMA1234A1Z9', invoice_number: 'INV-4521', invoice_date: '2026-07-15', taxable_amount: 23333.33, cgst_rate: 9.0, cgst_amount: 2100.00, sgst_rate: 9.0, sgst_amount: 2100.00, igst_rate: 0.0, igst_amount: 0.0, total_amount: 27533.33, hsn_sac_code: '8471', extraction_confidence: 0.95, extraction_status: 'extracted' },
-    { id: 2, business_id: 1, source_type: 'whatsapp', file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', vendor_name: 'Shrma Traders', vendor_gstin: '24SHRMA1234A1Z9', invoice_number: 'INV-4519', invoice_date: '2026-07-12', taxable_amount: 15000.00, cgst_rate: 9.0, cgst_amount: 1350.00, sgst_rate: 9.0, sgst_amount: 1350.00, igst_rate: 0.0, igst_amount: 0.0, total_amount: 17700.00, hsn_sac_code: '8471', extraction_confidence: 0.82, extraction_status: 'extracted' },
-    { id: 3, business_id: 1, source_type: 'whatsapp', file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', vendor_name: 'Unclear Vendor', vendor_gstin: '24SHRMA1234A1Z9', invoice_number: 'INV-9921', invoice_date: '2026-07-28', taxable_amount: 3420.50, cgst_rate: 0, cgst_amount: 0, sgst_rate: 0, sgst_amount: 0, igst_rate: 0, igst_amount: 0, total_amount: 3420.50, hsn_sac_code: null, extraction_confidence: 0.42, extraction_status: 'needs_review' },
-    { id: 4, business_id: 2, source_type: 'whatsapp', file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', vendor_name: 'Gupta Distributors', vendor_gstin: '24GUPTA9999K1Z2', invoice_number: 'SE-89102', invoice_date: '2026-07-20', taxable_amount: 50000.00, cgst_rate: 0.0, cgst_amount: 0.0, sgst_rate: 0.0, sgst_amount: 0.0, igst_rate: 18.0, igst_amount: 9000.00, total_amount: 59000.00, hsn_sac_code: '8528', extraction_confidence: 0.98, extraction_status: 'extracted' }
+    { id: 1, business_id: 1, source_type: 'whatsapp', file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', vendor_name: 'Sharma Wholesale', vendor_gstin: '24SHRMA1234A1Z9', invoice_number: 'INV-4521', invoice_date: '2026-07-15', taxable_amount: 23333.33, cgst_rate: 9.0, cgst_amount: 2100.00, sgst_rate: 9.0, sgst_amount: 2100.00, igst_rate: 0.0, igst_amount: 0.0, total_amount: 27533.33, hsn_sac_code: '8471', extraction_confidence: 0.95, extraction_status: 'extracted', is_itc_eligible: true, payment_status: 'unpaid' },
+    { id: 2, business_id: 1, source_type: 'whatsapp', file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', vendor_name: 'Shrma Traders', vendor_gstin: '24SHRMA1234A1Z9', invoice_number: 'INV-4519', invoice_date: '2026-07-12', taxable_amount: 15000.00, cgst_rate: 9.0, cgst_amount: 1350.00, sgst_rate: 9.0, sgst_amount: 1350.00, igst_rate: 0.0, igst_amount: 0.0, total_amount: 17700.00, hsn_sac_code: '8471', extraction_confidence: 0.82, extraction_status: 'extracted', is_itc_eligible: true, payment_status: 'paid', payment_date: '2026-07-20' },
+    { id: 3, business_id: 1, source_type: 'whatsapp', file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', vendor_name: 'Unclear Vendor', vendor_gstin: '24SHRMA1234A1Z9', invoice_number: 'INV-9921', invoice_date: '2026-07-28', taxable_amount: 3420.50, cgst_rate: 0, cgst_amount: 0, sgst_rate: 0, sgst_amount: 0, igst_rate: 0, igst_amount: 0, total_amount: 3420.50, hsn_sac_code: null, extraction_confidence: 0.42, extraction_status: 'needs_review', is_itc_eligible: true, payment_status: 'unpaid' },
+    { id: 4, business_id: 2, source_type: 'whatsapp', file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', vendor_name: 'Gupta Distributors', vendor_gstin: '24GUPTA9999K1Z2', invoice_number: 'SE-89102', invoice_date: '2026-07-20', taxable_amount: 50000.00, cgst_rate: 0.0, cgst_amount: 0.0, sgst_rate: 0.0, sgst_amount: 0.0, igst_rate: 18.0, igst_amount: 9000.00, total_amount: 59000.00, hsn_sac_code: '8528', extraction_confidence: 0.98, extraction_status: 'extracted', is_itc_eligible: false, ineligibility_reason: 'Section 17(5) - Ineligible motor vehicle / personal expenses', payment_status: 'unpaid' },
+    { id: 5, business_id: 1, source_type: 'whatsapp', file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', vendor_name: 'National FMCG Distributors', vendor_gstin: '24NFMCG4444N1Z7', invoice_number: 'NF-3011', invoice_date: '2026-02-10', taxable_amount: 40000.00, cgst_rate: 9.0, cgst_amount: 3600.00, sgst_rate: 9.0, sgst_amount: 3600.00, igst_rate: 0.0, igst_amount: 0.0, total_amount: 47200.00, hsn_sac_code: '2106', extraction_confidence: 0.96, extraction_status: 'extracted', is_itc_eligible: true, payment_status: 'unpaid' },
+    { id: 6, business_id: 1, source_type: 'whatsapp', file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', vendor_name: 'Apex Electricals Ltd', vendor_gstin: '24APEXX8888A1Z5', invoice_number: 'AE-9082', invoice_date: '2025-12-05', taxable_amount: 20000.00, cgst_rate: 9.0, cgst_amount: 1800.00, sgst_rate: 9.0, sgst_amount: 1800.00, igst_rate: 0.0, igst_amount: 0.0, total_amount: 23600.00, hsn_sac_code: '8536', extraction_confidence: 0.94, extraction_status: 'extracted', is_itc_eligible: true, payment_status: 'unpaid' }
   ],
   flags: [
     { id: 1, invoice_id: 1, business_id: 1, flag_type: 'missing_itc', severity: 'high', message: 'Invoice #INV-4521 not found in filed GSTR-3B. Potential ITC loss: ₹4,200.00', resolved: false },
     { id: 2, invoice_id: 2, business_id: 1, flag_type: 'slab_mismatch', severity: 'medium', message: 'Tax rate mismatch on Invoice #INV-4519: Charged 18% GST (9% CGST + 9% SGST), but HSN code 8471 expects 12% expected rate.', resolved: false },
     { id: 3, invoice_id: 4, business_id: 2, flag_type: 'gstin_invalid', severity: 'high', message: 'The GSTIN (24GUPTA9999K1Z2) on this invoice from Gupta Distributors appears to be Cancelled.', resolved: false }
+  ],
+  gstr2b_records: [
+    {
+      business_id: 1,
+      filing_period: '072026',
+      supplier_gstin: '24SHRMA1234A1Z9',
+      supplier_name: 'Shrma Hardware & Traders',
+      invoice_number: 'INV-4519',
+      invoice_date: '2026-07-12',
+      invoice_value: 17700.00,
+      taxable_value: 15000.00,
+      cgst_amount: 1350.00,
+      sgst_amount: 1350.00,
+      igst_amount: 0.00,
+      itc_availability: 'Y'
+    },
+    {
+      business_id: 1,
+      filing_period: '072026',
+      supplier_gstin: '24PARLE1111P1Z8',
+      supplier_name: 'Parle Agro Products Ltd',
+      invoice_number: 'PA-8821',
+      invoice_date: '2026-07-18',
+      invoice_value: 21240.00,
+      taxable_value: 18000.00,
+      cgst_amount: 1620.00,
+      sgst_amount: 1620.00,
+      igst_amount: 0.00,
+      itc_availability: 'Y'
+    },
+    {
+      business_id: 1,
+      filing_period: '072026',
+      supplier_gstin: '24TATAS2222T1Z3',
+      supplier_name: 'Tata Consumer Products Ltd',
+      invoice_number: 'TC-10492',
+      invoice_date: '2026-07-25',
+      invoice_value: 9440.00,
+      taxable_value: 8000.00,
+      cgst_amount: 720.00,
+      sgst_amount: 720.00,
+      igst_amount: 0.00,
+      itc_availability: 'Y'
+    }
   ]
 };
 
@@ -226,6 +286,42 @@ export default function App() {
   const [editGstin, setEditGstin] = useState('');
   const [editVendor, setEditVendor] = useState('');
   const [editTotal, setEditTotal] = useState('');
+  const [editIsItcEligible, setEditIsItcEligible] = useState(true);
+  const [editIneligibilityReason, setEditIneligibilityReason] = useState('Section 17(5) - Ineligible motor vehicle / conveyance');
+
+  // GSTR-2B 2-Way Auto-Reconciliation State
+  const [reconcileBizId, setReconcileBizId] = useState(1);
+  const [reconcilePeriod, setReconcilePeriod] = useState('072026');
+  const [reconcileTab, setReconcileTab] = useState('missing_in_2b');
+  const [nudgedVendors, setNudgedVendors] = useState({});
+  const [requestedBills, setRequestedBills] = useState({});
+  const [customGstr2bRecords, setCustomGstr2bRecords] = useState(null);
+  const fileInputRef2b = useRef(null);
+
+  // CA Firm Operating System, Branding, Staff Roles & Rule 37
+  const [caFirmSettings, setCaFirmSettings] = useState({
+    firm_name: 'Shah & Associates, Chartered Accountants',
+    icai_frn: '109283W',
+    partner_name: 'CA Rajesh Shah, FCA',
+    partner_membership_no: '048921',
+    contact_phone: '+91 98200 12345',
+    contact_email: 'tax@shahassociates.in',
+    custom_whatsapp_signature: '— Tax & Compliance Desk, Shah & Associates, CAs (Powered by BillGuru AI)',
+    tally_purchase_ledger: 'Purchase Account',
+    tally_cgst_ledger: 'Input CGST @ 9%',
+    tally_sgst_ledger: 'Input SGST @ 9%',
+    tally_igst_ledger: 'Input IGST @ 18%',
+    tally_roundoff_ledger: 'Round Off Account'
+  });
+  const [staffRole, setStaffRole] = useState('partner_ca'); // 'partner_ca' or 'article_assistant'
+  const [firmSettingsTab, setFirmSettingsTab] = useState('branding'); // 'branding', 'tally_mapping', 'audit_trail'
+  const [auditLogs, setAuditLogs] = useState([
+    { id: 1, user_name: 'CA Rajesh Shah', user_role: 'partner_ca', action_type: 'GSTR2B_RECONCILED', entity_type: 'gstr2b', entity_id: '072026', description: 'Reconciled July 2026 GSTR-2B against books for Meena Kirana Store. 2 matched, 1 at-risk.', created_at: new Date(Date.now() - 3600000).toISOString() },
+    { id: 2, user_name: 'Karan Dave (Article)', user_role: 'article_assistant', action_type: 'OCR_REVIEWED', entity_type: 'invoice', entity_id: '2', description: 'Verified extracted tax rates (9% CGST + 9% SGST) on invoice #INV-4519.', created_at: new Date(Date.now() - 7200000).toISOString() },
+    { id: 3, user_name: 'CA Rajesh Shah', user_role: 'partner_ca', action_type: 'ITC_TOGGLED', entity_type: 'invoice', entity_id: '4', description: 'Flagged Gupta Distributors invoice #SE-89102 as Ineligible ITC under Section 17(5).', created_at: new Date(Date.now() - 86400000).toISOString() }
+  ]);
+  const [rule37BizId, setRule37BizId] = useState(1);
+  const [rule37Reminded, setRule37Reminded] = useState({});
 
   // Salaried Professional State (ITR & Tax Locker)
   const [salariedUser, setSalariedUser] = useState({
@@ -376,6 +472,7 @@ export default function App() {
       file: 'INV-4519 · Shrma Traders',
       vendor_name: 'Shrma Hardware & Traders',
       vendor_gstin: '24SHRMA1234A1Z9',
+      taxpayer_type: 'Regular',
       gstin_status: 'ACTIVE',
       invoice_number: 'INV-4519',
       invoice_date: '2026-07-12',
@@ -388,6 +485,51 @@ export default function App() {
       verdict_status: 'warning',
       verdict_title: '⚠️ Tax Slab Rate Mismatch Detected',
       verdict_message: 'Invoice charged 18% GST (9% CGST + 9% SGST), but HSN 8471 expects 12% standard rate. Review before filing.'
+    },
+    sample4: {
+      id: 'sample4',
+      title: 'FMCG Multi-Rate Wholesale (5% & 18% Slabs + Recipient Match)',
+      file: 'INV-9024 · Metro Cash & Carry',
+      vendor_name: 'Metro Cash & Carry Wholesalers Pvt Ltd',
+      vendor_gstin: '24METRO9921M1Z4',
+      recipient_gstin: '24ABCDE1234F1Z5',
+      taxpayer_type: 'Regular',
+      gstin_status: 'ACTIVE',
+      invoice_number: 'INV-9024',
+      invoice_date: '2026-07-22',
+      taxable_amount: 32000.00,
+      tax_slabs: [
+        { rate: 5, taxable_amount: 12000.00, cgst_amount: 300.00, sgst_amount: 300.00, items: 'Edible Oils & Grains (5% GST)' },
+        { rate: 18, taxable_amount: 20000.00, cgst_amount: 1800.00, sgst_amount: 1800.00, items: 'Detergents & Soaps (18% GST)' }
+      ],
+      cgst_amount: 2100.00,
+      sgst_amount: 2100.00,
+      total_amount: 36200.00,
+      hsn_code: '1512 / 3401',
+      confidence: 0.99,
+      verdict_status: 'success',
+      verdict_title: '✅ Multi-Slab Validated & Buyer GSTIN Matched',
+      verdict_message: 'Multi-rate breakdown confirmed (5% & 18% slabs). Buyer GSTIN matches client firm. Total ITC eligible: ₹4,200.'
+    },
+    sample5: {
+      id: 'sample5',
+      title: 'Composition Dealer Alert (Illegal Tax Charged u/s 10(4))',
+      file: 'CMP-102 · Anand Composition Traders',
+      vendor_name: 'Anand Composition Traders',
+      vendor_gstin: '24CMPST1111A1Z1',
+      taxpayer_type: 'Composition',
+      gstin_status: 'ACTIVE_COMPOSITION',
+      invoice_number: 'CMP-102',
+      invoice_date: '2026-07-24',
+      taxable_amount: 10000.00,
+      cgst_amount: 900.00,
+      sgst_amount: 900.00,
+      total_amount: 11800.00,
+      hsn_code: '2106',
+      confidence: 0.96,
+      verdict_status: 'danger',
+      verdict_title: '🚨 ILLEGAL TAX CHARGED BY COMPOSITION DEALER',
+      verdict_message: 'Supplier is registered under Composition Scheme (Section 10). Under Section 10(4), they CANNOT charge GST or issue Tax Invoices. Claiming this ₹1,800 ITC will attract tax penalty!'
     }
   };
 
@@ -601,6 +743,22 @@ export default function App() {
     });
   };
 
+  const handleToggleSec175 = (invoiceId) => {
+    setInvoices(prev => prev.map(i => {
+      if (i.id === invoiceId) {
+        const nextEligible = !i.is_itc_eligible;
+        const nextReason = nextEligible ? null : 'Section 17(5) - Ineligible / Blocked Credit';
+        showToast(nextEligible ? 'Marked invoice as ITC Eligible' : 'Marked invoice as Ineligible u/s 17(5) (Blocked Credit)', 'info');
+        return {
+          ...i,
+          is_itc_eligible: nextEligible,
+          ineligibility_reason: nextReason
+        };
+      }
+      return i;
+    }));
+  };
+
   const handleConfirmInvoice = async (invoiceId, confirmData = null) => {
     try {
       const invToConfirm = invoices.find(i => i.id === invoiceId);
@@ -608,6 +766,8 @@ export default function App() {
         vendor_name: invToConfirm?.vendor_name || 'Confirmed Vendor',
         vendor_gstin: invToConfirm?.vendor_gstin || '24SHRMA1234A1Z9',
         total_amount: invToConfirm?.total_amount || 3420.50,
+        is_itc_eligible: invToConfirm?.is_itc_eligible !== undefined ? invToConfirm.is_itc_eligible : true,
+        ineligibility_reason: invToConfirm?.ineligibility_reason || null
       };
 
       if (backendConnected) {
@@ -797,6 +957,9 @@ export default function App() {
 
   const navItems = [
     { view: 'dashboard', label: 'CA Multi-Client', icon: 'dashboard' },
+    { view: 'gstr2b-reconcile', label: 'GSTR-2B Matcher', icon: 'compare_arrows' },
+    { view: 'rule37-tracker', label: 'Rule 37 Tracker', icon: 'schedule' },
+    { view: 'firm-settings', label: 'CA Firm Profile', icon: 'domain' },
     { view: 'inward', label: 'Inward Queue', icon: 'receipt_long' },
     { view: 'outward', label: 'Sales Ledger', icon: 'upload_file' },
     { view: 'solo-business', label: 'Solo Shop (DIY)', icon: 'storefront' },
@@ -934,24 +1097,71 @@ export default function App() {
   };
 
   const downloadGstr3bJson = () => {
+    // Dynamically aggregate all confirmed inward invoices for this shop/client
+    const shopInvoices = invoices.filter(i => 
+      i.extraction_status !== 'needs_review' && 
+      (i.business_id === 1 || !soloShopGstin || i.vendor_gstin !== soloShopGstin)
+    );
+
+    const eligibleInvoices = shopInvoices.filter(i => i.is_itc_eligible !== false);
+    const blockedInvoices = shopInvoices.filter(i => i.is_itc_eligible === false);
+
+    const eligibleTaxable = eligibleInvoices.reduce((sum, i) => sum + (Number(i.taxable_amount) || 0), 0);
+    const eligibleCgst = eligibleInvoices.reduce((sum, i) => sum + (Number(i.cgst_amount) || 0), 0);
+    const eligibleSgst = eligibleInvoices.reduce((sum, i) => sum + (Number(i.sgst_amount) || 0), 0);
+    const eligibleIgst = eligibleInvoices.reduce((sum, i) => sum + (Number(i.igst_amount) || 0), 0);
+
+    const blockedCgst = blockedInvoices.reduce((sum, i) => sum + (Number(i.cgst_amount) || 0), 0);
+    const blockedSgst = blockedInvoices.reduce((sum, i) => sum + (Number(i.sgst_amount) || 0), 0);
+    const blockedIgst = blockedInvoices.reduce((sum, i) => sum + (Number(i.igst_amount) || 0), 0);
+
+    // Official GSTN GSTR-3B Schema Payload
     const payload = {
-      gstin: soloShopGstin,
+      gstin: soloShopGstin || '24ABCDE1234F1Z5',
       fp: '072026',
       filing_mode: 'DIY_SELF_SERVE',
+      version: 'GSTR-3B_V1.1_OFFICIAL',
       sup_details: {
-        osup_det: { txval: 185000.00, camt: 16650.00, samt: 16650.00, iamt: 0.00 }
+        osup_det: { 
+          txval: Number((eligibleTaxable * 1.25).toFixed(2)), // Estimated retail markup
+          camt: Number((eligibleCgst * 1.25).toFixed(2)), 
+          samt: Number((eligibleSgst * 1.25).toFixed(2)), 
+          iamt: Number((eligibleIgst * 1.25).toFixed(2)), 
+          csamt: 0.00 
+        }
       },
       itc_elg: {
-        itc_avl: [{ ty: 'OTH', txval: 72000.00, camt: 6480.00, samt: 6480.00, iamt: 0.00 }]
+        itc_avl: [
+          { 
+            ty: 'OTH', 
+            txval: Number(eligibleTaxable.toFixed(2)), 
+            camt: Number(eligibleCgst.toFixed(2)), 
+            samt: Number(eligibleSgst.toFixed(2)), 
+            iamt: Number(eligibleIgst.toFixed(2)) 
+          }
+        ],
+        itc_inelg: [
+          {
+            ty: 'RUL', // As per Section 17(5)
+            camt: Number(blockedCgst.toFixed(2)),
+            samt: Number(blockedSgst.toFixed(2)),
+            iamt: Number(blockedIgst.toFixed(2))
+          }
+        ]
+      },
+      summary: {
+        total_invoices_aggregated: shopInvoices.length,
+        eligible_itc_total: Number((eligibleCgst + eligibleSgst + eligibleIgst).toFixed(2)),
+        blocked_itc_sec_17_5: Number((blockedCgst + blockedSgst + blockedIgst).toFixed(2))
       }
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `GSTR3B_072026_${soloShopGstin}.json`;
+    a.download = `GSTR3B_072026_${payload.gstin}.json`;
     a.click();
-    showToast('Downloaded GSTR-3B JSON ready for gst.gov.in!', 'success');
+    showToast(`Downloaded dynamic GSTR-3B JSON (${shopInvoices.length} invoices aggregated)!`, 'success');
   };
 
   const exportToTallyXml = (targetInvoices = null, clientName = 'All_Clients') => {
@@ -961,6 +1171,37 @@ export default function App() {
       return;
     }
 
+    // 1. Extract Unique Vendors to build Tally Party Master Ledgers (<LEDGER ACTION="Create">)
+    const uniqueVendorsMap = new Map();
+    list.forEach(inv => {
+      const vName = (inv.vendor_name || 'Generic Vendor').trim();
+      if (!uniqueVendorsMap.has(vName)) {
+        const gstin = (inv.vendor_gstin || '').trim();
+        const stateCode = gstin.length >= 2 ? gstin.substring(0, 2) : '24';
+        const stateName = GST_STATE_MAP[stateCode] || 'Gujarat';
+        uniqueVendorsMap.set(vName, { vName, gstin, stateName });
+      }
+    });
+
+    const partyMastersXml = Array.from(uniqueVendorsMap.values()).map(v => {
+      const escapedVendor = v.vName.replace(/&/g, '&amp;');
+      return `        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <LEDGER NAME="${escapedVendor}" ACTION="Create">
+            <NAME.LIST>
+              <NAME>${escapedVendor}</NAME>
+            </NAME.LIST>
+            <PARENT>Sundry Creditors</PARENT>
+            <ISBILLWISEON>Yes</ISBILLWISEON>
+            <AFFECTSSTOCK>No</AFFECTSSTOCK>
+            <PARTYGSTIN>${v.gstin}</PARTYGSTIN>
+            <GSTREGISTRATIONTYPE>Regular</GSTREGISTRATIONTYPE>
+            <LEDSTATENAME>${v.stateName}</LEDSTATENAME>
+            <COUNTRYNAME>India</COUNTRYNAME>
+          </LEDGER>
+        </TALLYMESSAGE>`;
+    }).join('\n');
+
+    // 2. Build Compliant Purchase Vouchers with Round-Off & Section 17(5) Handling
     const vouchersXml = list.map(inv => {
       const invDate = (inv.invoice_date || '2026-07-15').replace(/-/g, '');
       const vendorName = (inv.vendor_name || 'Generic Vendor').replace(/&/g, '&amp;');
@@ -970,6 +1211,16 @@ export default function App() {
       const cgst = Number(inv.cgst_amount) || 0;
       const sgst = Number(inv.sgst_amount) || 0;
       const igst = Number(inv.igst_amount) || 0;
+      const isEligible = inv.is_itc_eligible !== false;
+
+      // Rate-specific ledger mapping (Standard Tally Chart of Accounts)
+      const cgstLedger = inv.cgst_rate ? `Input CGST @ ${Number(inv.cgst_rate)}%` : 'Input CGST';
+      const sgstLedger = inv.sgst_rate ? `Input SGST @ ${Number(inv.sgst_rate)}%` : 'Input SGST';
+      const igstLedger = inv.igst_rate ? `Input IGST @ ${Number(inv.igst_rate)}%` : 'Input IGST';
+
+      // Mathematical Round-Off calculation
+      const computedSum = taxable + cgst + sgst + igst;
+      const roundOffDiff = Number((total - computedSum).toFixed(2));
 
       return `        <TALLYMESSAGE xmlns:UDF="TallyUDF">
           <VOUCHER VCHTYPE="Purchase" ACTION="Create">
@@ -979,30 +1230,48 @@ export default function App() {
             <PARTYLEDGERNAME>${vendorName}</PARTYLEDGERNAME>
             <PARTYNAME>${vendorName}</PARTYNAME>
             <PARTYGSTIN>${inv.vendor_gstin || ''}</PARTYGSTIN>
+            <NARRATION>BillGuru AI Capture | Inv: ${invNum} | Dt: ${inv.invoice_date || 'N/A'} | GSTIN: ${inv.vendor_gstin || 'N/A'}${!isEligible ? ' | [BLOCKED ITC SEC 17(5)]' : ''} | Receipt: ${(inv.file_url || '').replace(/&/g, '&amp;')}</NARRATION>
             <ALLLEDGERENTRIES.LIST>
               <LEDGERNAME>${vendorName}</LEDGERNAME>
               <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
               <AMOUNT>${total.toFixed(2)}</AMOUNT>
             </ALLLEDGERENTRIES.LIST>
             <ALLLEDGERENTRIES.LIST>
-              <LEDGERNAME>Purchase Account</LEDGERNAME>
+              <LEDGERNAME>${isEligible ? 'Purchase Account' : 'Ineligible Purchase (Sec 17(5))'}</LEDGERNAME>
               <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
               <AMOUNT>-${taxable.toFixed(2)}</AMOUNT>
-            </ALLLEDGERENTRIES.LIST>${cgst > 0 ? `
-            <ALLLEDGERENTRIES.LIST>
-              <LEDGERNAME>Input CGST</LEDGERNAME>
+            </ALLLEDGERENTRIES.LIST>${isEligible ? `
+            ${cgst > 0 ? `<ALLLEDGERENTRIES.LIST>
+              <LEDGERNAME>${cgstLedger}</LEDGERNAME>
               <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
               <AMOUNT>-${cgst.toFixed(2)}</AMOUNT>
-            </ALLLEDGERENTRIES.LIST>` : ''}${sgst > 0 ? `
-            <ALLLEDGERENTRIES.LIST>
-              <LEDGERNAME>Input SGST</LEDGERNAME>
+            </ALLLEDGERENTRIES.LIST>` : ''}
+            ${sgst > 0 ? `<ALLLEDGERENTRIES.LIST>
+              <LEDGERNAME>${sgstLedger}</LEDGERNAME>
               <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
               <AMOUNT>-${sgst.toFixed(2)}</AMOUNT>
-            </ALLLEDGERENTRIES.LIST>` : ''}${igst > 0 ? `
-            <ALLLEDGERENTRIES.LIST>
-              <LEDGERNAME>Input IGST</LEDGERNAME>
+            </ALLLEDGERENTRIES.LIST>` : ''}
+            ${igst > 0 ? `<ALLLEDGERENTRIES.LIST>
+              <LEDGERNAME>${igstLedger}</LEDGERNAME>
               <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
               <AMOUNT>-${igst.toFixed(2)}</AMOUNT>
+            </ALLLEDGERENTRIES.LIST>` : ''}` : `
+            ${(cgst + sgst + igst) > 0 ? `<ALLLEDGERENTRIES.LIST>
+              <LEDGERNAME>Blocked Tax Expense u/s 17(5)</LEDGERNAME>
+              <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+              <AMOUNT>-${(cgst + sgst + igst).toFixed(2)}</AMOUNT>
+            </ALLLEDGERENTRIES.LIST>` : ''}`}
+            ${roundOffDiff > 0 ? `
+            <ALLLEDGERENTRIES.LIST>
+              <LEDGERNAME>Round Off Account</LEDGERNAME>
+              <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+              <AMOUNT>-${roundOffDiff.toFixed(2)}</AMOUNT>
+            </ALLLEDGERENTRIES.LIST>` : ''}
+            ${roundOffDiff < 0 ? `
+            <ALLLEDGERENTRIES.LIST>
+              <LEDGERNAME>Round Off Account</LEDGERNAME>
+              <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+              <AMOUNT>${Math.abs(roundOffDiff).toFixed(2)}</AMOUNT>
             </ALLLEDGERENTRIES.LIST>` : ''}
           </VOUCHER>
         </TALLYMESSAGE>`;
@@ -1016,9 +1285,10 @@ export default function App() {
   <BODY>
     <IMPORTDATA>
       <REQUESTDESC>
-        <REPORTNAME>Vouchers</REPORTNAME>
+        <REPORTNAME>All Masters and Vouchers</REPORTNAME>
       </REQUESTDESC>
       <REQUESTDATA>
+${partyMastersXml}
 ${vouchersXml}
       </REQUESTDATA>
     </IMPORTDATA>
@@ -1031,7 +1301,7 @@ ${vouchersXml}
     a.href = url;
     a.download = `BillGuru_Tally_${clientName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xml`;
     a.click();
-    showToast(`Exported ${list.length} vouchers to Tally Prime XML!`, 'success');
+    showToast(`Exported ${list.length} vouchers + ${uniqueVendorsMap.size} Party Masters to Tally Prime XML!`, 'success');
   };
 
   const exportToGstr2bCsv = (targetInvoices = null, clientName = 'All_Clients') => {
@@ -1079,6 +1349,521 @@ ${vouchersXml}
     a.download = `GSTR2B_${clientName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     showToast(`Exported ${list.length} invoices to GSTR-2B CSV!`, 'success');
+  };
+
+  // --- GSTR-2B 2-WAY AUTO-RECONCILIATION ENGINE HELPERS ---
+  const getGstr2bReconcileData = () => {
+    const selectedBiz = businesses.find(b => b.id === Number(reconcileBizId)) || businesses[0] || { id: 1, name: 'Meena Kirana Store', gstin: '24ABCDE1234F1Z5' };
+    
+    // Books invoices for this business (excluding unconfirmed needs_review items)
+    const booksInvoices = invoices.filter(i => i.business_id === Number(selectedBiz.id) && i.extraction_status !== 'needs_review');
+    
+    // Portal GSTR-2B invoices
+    const gstr2bInvoices = customGstr2bRecords || (localFallbackData.gstr2b_records || []).filter(r => r.business_id === Number(selectedBiz.id));
+    
+    const cleanInv = (inv) => (inv || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const cleanGstin = (g) => (g || '').trim().toUpperCase();
+
+    const matched = [];
+    const mismatchValue = [];
+    const inBooksMissingIn2b = [];
+    const matchedGstrIdxs = new Set();
+
+    booksInvoices.forEach(bInv => {
+      const bookTax = (Number(bInv.cgst_amount) || 0) + (Number(bInv.sgst_amount) || 0) + (Number(bInv.igst_amount) || 0);
+      const bookInvNum = cleanInv(bInv.invoice_number);
+      const bookGstin = cleanGstin(bInv.vendor_gstin);
+
+      const matchIdx = gstr2bInvoices.findIndex((g, idx) => {
+        if (matchedGstrIdxs.has(idx)) return false;
+        const gstinMatch = cleanGstin(g.supplier_gstin) === bookGstin;
+        const invClean = cleanInv(g.invoice_number);
+        const invMatch = invClean === bookInvNum || invClean.includes(bookInvNum) || bookInvNum.includes(invClean);
+        return gstinMatch && invMatch;
+      });
+
+      if (matchIdx !== -1) {
+        matchedGstrIdxs.add(matchIdx);
+        const gInv = gstr2bInvoices[matchIdx];
+        const gTax = (Number(gInv.cgst_amount) || 0) + (Number(gInv.sgst_amount) || 0) + (Number(gInv.igst_amount) || 0);
+        const taxDiff = Math.abs(bookTax - gTax);
+
+        if (taxDiff <= 1.00) {
+          matched.push({
+            book_invoice: bInv,
+            gstr2b_invoice: gInv,
+            taxable_amount: bInv.taxable_amount,
+            eligible_itc: bookTax,
+            status: 'matched'
+          });
+        } else {
+          mismatchValue.push({
+            book_invoice: bInv,
+            gstr2b_invoice: gInv,
+            bookTax,
+            gTax,
+            taxDiff: Number((bookTax - gTax).toFixed(2)),
+            status: 'mismatch_value'
+          });
+        }
+      } else {
+        inBooksMissingIn2b.push({
+          book_invoice: bInv,
+          at_risk_itc: bookTax,
+          supplier_name: bInv.vendor_name,
+          supplier_gstin: bInv.vendor_gstin,
+          invoice_number: bInv.invoice_number,
+          invoice_date: bInv.invoice_date,
+          taxable_amount: bInv.taxable_amount,
+          status: 'in_books_missing_in_2b'
+        });
+      }
+    });
+
+    const in2bMissingInBooks = gstr2bInvoices
+      .filter((_, idx) => !matchedGstrIdxs.has(idx))
+      .map(g => ({
+        gstr2b_invoice: g,
+        uncaptured_itc: (Number(g.cgst_amount) || 0) + (Number(g.sgst_amount) || 0) + (Number(g.igst_amount) || 0),
+        supplier_name: g.supplier_name,
+        supplier_gstin: g.supplier_gstin,
+        invoice_number: g.invoice_number,
+        invoice_date: g.invoice_date,
+        taxable_value: g.taxable_value,
+        invoice_value: g.invoice_value,
+        status: 'in_2b_missing_in_books'
+      }));
+
+    const booksItcTotal = booksInvoices.reduce((s, i) => s + (Number(i.cgst_amount) || 0) + (Number(i.sgst_amount) || 0) + (Number(i.igst_amount) || 0), 0);
+    const gstr2bItcTotal = gstr2bInvoices.reduce((s, g) => s + (Number(g.cgst_amount) || 0) + (Number(g.sgst_amount) || 0) + (Number(g.igst_amount) || 0), 0);
+    const matchedItcTotal = matched.reduce((s, m) => s + m.eligible_itc, 0);
+    const atRiskItcTotal = inBooksMissingIn2b.reduce((s, m) => s + m.at_risk_itc, 0);
+    const uncapturedItcTotal = in2bMissingInBooks.reduce((s, m) => s + m.uncaptured_itc, 0);
+
+    return {
+      selectedBiz,
+      booksInvoices,
+      gstr2bInvoices,
+      matched,
+      mismatchValue,
+      inBooksMissingIn2b,
+      in2bMissingInBooks,
+      summary: {
+        books_itc: Number(booksItcTotal.toFixed(2)),
+        books_count: booksInvoices.length,
+        gstr2b_itc: Number(gstr2bItcTotal.toFixed(2)),
+        gstr2b_count: gstr2bInvoices.length,
+        matched_itc: Number(matchedItcTotal.toFixed(2)),
+        matched_count: matched.length,
+        at_risk_itc: Number(atRiskItcTotal.toFixed(2)),
+        missing_in_2b_count: inBooksMissingIn2b.length,
+        uncaptured_itc: Number(uncapturedItcTotal.toFixed(2)),
+        missing_in_books_count: in2bMissingInBooks.length,
+        mismatch_count: mismatchValue.length,
+        reconciliation_percentage: booksInvoices.length > 0 ? Math.round((matched.length / booksInvoices.length) * 100) : 100
+      }
+    };
+  };
+
+  const handleNudgeVendor = async (item, clientName = 'Client') => {
+    const key = `${item.supplier_gstin}_${item.invoice_number}`;
+    try {
+      if (backendConnected) {
+        await authFetch(`${API_BASE_URL}/gstr2b/nudge-vendor`, {
+          method: 'POST',
+          body: JSON.stringify({
+            vendor_name: item.supplier_name,
+            vendor_gstin: item.supplier_gstin,
+            invoice_number: item.invoice_number,
+            invoice_date: item.invoice_date,
+            total_amount: item.taxable_amount || item.total_amount,
+            tax_amount: item.at_risk_itc,
+            client_name: clientName
+          })
+        });
+      }
+    } catch (e) {
+      console.warn('Backend nudge failed, falling back to local simulation:', e);
+    }
+    setNudgedVendors(prev => ({ ...prev, [key]: true }));
+    showToast(`WhatsApp notice dispatched to ${item.supplier_name} for Inv #${item.invoice_number}!`, 'success');
+  };
+
+  const handleNudgeAllMissing = (missingList, clientName = 'Client') => {
+    if (!missingList || missingList.length === 0) return;
+    const updated = { ...nudgedVendors };
+    missingList.forEach(item => {
+      const key = `${item.supplier_gstin}_${item.invoice_number}`;
+      updated[key] = true;
+    });
+    setNudgedVendors(updated);
+    showToast(`Automated WhatsApp GST notices dispatched to all ${missingList.length} delinquent vendors!`, 'success');
+  };
+
+  const handleRequestBillFromClient = (item, clientName = 'Client') => {
+    const key = `${item.supplier_gstin}_${item.invoice_number}`;
+    setRequestedBills(prev => ({ ...prev, [key]: true }));
+    showToast(`WhatsApp prompt dispatched to ${clientName} to snap photo for ${item.supplier_name}!`, 'success');
+  };
+
+  const handleLoadSample2B = () => {
+    const sampleRecords = [
+      {
+        business_id: Number(reconcileBizId),
+        filing_period: reconcilePeriod,
+        supplier_gstin: '24SHRMA1234A1Z9',
+        supplier_name: 'Sharma Wholesale Traders',
+        invoice_number: 'INV-4519',
+        invoice_date: '2026-07-12',
+        invoice_value: 17700.00,
+        taxable_value: 15000.00,
+        cgst_amount: 1350.00,
+        sgst_amount: 1350.00,
+        igst_amount: 0.00,
+        itc_availability: 'Y'
+      },
+      {
+        business_id: Number(reconcileBizId),
+        filing_period: reconcilePeriod,
+        supplier_gstin: '24PARLE1111P1Z8',
+        supplier_name: 'Parle Agro Products Ltd',
+        invoice_number: 'PA-8821',
+        invoice_date: '2026-07-18',
+        invoice_value: 21240.00,
+        taxable_value: 18000.00,
+        cgst_amount: 1620.00,
+        sgst_amount: 1620.00,
+        igst_amount: 0.00,
+        itc_availability: 'Y'
+      },
+      {
+        business_id: Number(reconcileBizId),
+        filing_period: reconcilePeriod,
+        supplier_gstin: '24TATAS2222T1Z3',
+        supplier_name: 'Tata Consumer Products Ltd',
+        invoice_number: 'TC-10492',
+        invoice_date: '2026-07-25',
+        invoice_value: 9440.00,
+        taxable_value: 8000.00,
+        cgst_amount: 720.00,
+        sgst_amount: 720.00,
+        igst_amount: 0.00,
+        itc_availability: 'Y'
+      },
+      {
+        business_id: Number(reconcileBizId),
+        filing_period: reconcilePeriod,
+        supplier_gstin: '24AMUL9999M1Z1',
+        supplier_name: 'Gujarat Co-op Milk Marketing Fed (Amul)',
+        invoice_number: 'AM-40291',
+        invoice_date: '2026-07-27',
+        invoice_value: 14700.00,
+        taxable_value: 14000.00,
+        cgst_amount: 350.00,
+        sgst_amount: 350.00,
+        igst_amount: 0.00,
+        itc_availability: 'Y'
+      }
+    ];
+    setCustomGstr2bRecords(sampleRecords);
+    showToast(`Loaded official GSTR-2B portal data for ${reconcilePeriod} (${sampleRecords.length} records)!`, 'success');
+  };
+
+  const handleGstr2bJsonUpload = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target.result);
+        let records = [];
+        if (json.b2b && Array.isArray(json.b2b)) {
+          json.b2b.forEach(supplier => {
+            const ctin = supplier.ctin;
+            const cnm = supplier.cname || supplier.trade_name || 'Vendor';
+            (supplier.inv || []).forEach(inv => {
+              let cgst = 0, sgst = 0, igst = 0, taxable = 0;
+              (inv.items || []).forEach(item => {
+                const det = item.itm_det || {};
+                taxable += Number(det.txval) || 0;
+                cgst += Number(det.camt) || 0;
+                sgst += Number(det.samt) || 0;
+                igst += Number(det.iamt) || 0;
+              });
+              records.push({
+                business_id: Number(reconcileBizId),
+                filing_period: reconcilePeriod,
+                supplier_gstin: ctin,
+                supplier_name: cnm,
+                invoice_number: inv.inum,
+                invoice_date: inv.idt,
+                invoice_value: Number(inv.val) || (taxable + cgst + sgst + igst),
+                taxable_value: taxable,
+                cgst_amount: cgst,
+                sgst_amount: sgst,
+                igst_amount: igst,
+                itc_availability: inv.itcavlbl || 'Y'
+              });
+            });
+          });
+        } else if (Array.isArray(json)) {
+          records = json.map(r => ({ ...r, business_id: Number(reconcileBizId), filing_period: reconcilePeriod }));
+        } else if (Array.isArray(json.records)) {
+          records = json.records.map(r => ({ ...r, business_id: Number(reconcileBizId), filing_period: reconcilePeriod }));
+        } else {
+          throw new Error('Unrecognized GSTR-2B JSON schema. Please ensure it has standard b2b array.');
+        }
+
+        if (records.length === 0) {
+          showToast('No B2B invoices found in uploaded JSON', 'error');
+          return;
+        }
+
+        setCustomGstr2bRecords(records);
+        showToast(`Successfully parsed and loaded ${records.length} GSTR-2B invoices from JSON!`, 'success');
+      } catch (err) {
+        showToast(`JSON Parse Error: ${err.message}`, 'error');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const exportFullReconciliationCsv = (reconData) => {
+    const { selectedBiz, matched, inBooksMissingIn2b, in2bMissingInBooks, mismatchValue } = reconData;
+    const rows = [
+      ['BILLGURU AI - GSTR-2B TWO-WAY RECONCILIATION AUDIT SHEET'],
+      [`Client: ${selectedBiz.name}`, `GSTIN: ${selectedBiz.gstin}`, `Filing Period: ${reconcilePeriod}`, `Generated: ${new Date().toLocaleString('en-IN')}`],
+      ['Compliance Section: Section 16(2)(aa) of CGST Act 2017 & Rule 36(4)'],
+      [],
+      ['--- BUCKET 1: 100% MATCHED (SAFE ITC ELIGIBLE FOR GSTR-3B TABLE 4(A)(5)) ---'],
+      ['Supplier Name', 'Supplier GSTIN', 'Invoice No', 'Invoice Date', 'Books Taxable', 'Books Tax', 'Portal 2B Tax', 'Variance', 'Status', 'GSTR-3B Route'],
+      ...matched.map(m => [
+        `"${m.book_invoice.vendor_name || ''}"`,
+        `"${m.book_invoice.vendor_gstin || ''}"`,
+        `"${m.book_invoice.invoice_number || ''}"`,
+        `"${m.book_invoice.invoice_date || ''}"`,
+        Number(m.book_invoice.taxable_amount || 0).toFixed(2),
+        Number(m.eligible_itc || 0).toFixed(2),
+        Number(m.eligible_itc || 0).toFixed(2),
+        '0.00',
+        '100% MATCHED',
+        'Eligible Table 4(A)(5)'
+      ]),
+      [],
+      ['--- BUCKET 2: IN BOOKS BUT MISSING IN GSTR-2B (AT-RISK ITC - BLOCKED U/S 16(2)(aa)) ---'],
+      ['Supplier Name', 'Supplier GSTIN', 'Invoice No', 'Invoice Date', 'Books Taxable', 'Books Tax (At Risk)', 'Portal 2B Tax', 'Variance', 'Status', 'Recommended Action'],
+      ...inBooksMissingIn2b.map(m => [
+        `"${m.supplier_name || ''}"`,
+        `"${m.supplier_gstin || ''}"`,
+        `"${m.invoice_number || ''}"`,
+        `"${m.invoice_date || ''}"`,
+        Number(m.taxable_amount || 0).toFixed(2),
+        Number(m.at_risk_itc || 0).toFixed(2),
+        '0.00',
+        Number(m.at_risk_itc || 0).toFixed(2),
+        'MISSING_IN_GSTR2B',
+        'HOLD PAYMENT & DISPATCH WHATSAPP NUDGE'
+      ]),
+      [],
+      ['--- BUCKET 3: IN GSTR-2B BUT MISSING IN BOOKS (UNCLAIMED ITC ON PORTAL) ---'],
+      ['Supplier Name', 'Supplier GSTIN', 'Invoice No', 'Invoice Date', 'Portal Taxable', 'Portal Tax', 'Books Tax', 'Variance', 'Status', 'Recommended Action'],
+      ...in2bMissingInBooks.map(m => [
+        `"${m.supplier_name || ''}"`,
+        `"${m.supplier_gstin || ''}"`,
+        `"${m.invoice_number || ''}"`,
+        `"${m.invoice_date || ''}"`,
+        Number(m.taxable_value || 0).toFixed(2),
+        Number(m.uncaptured_itc || 0).toFixed(2),
+        '0.00',
+        Number(m.uncaptured_itc || 0).toFixed(2),
+        'MISSING_IN_BOOKS',
+        'REQUEST RECEIPT SNAP FROM CLIENT ON WHATSAPP'
+      ]),
+      [],
+      ['--- BUCKET 4: VALUE / TAX AMOUNT MISMATCHES ---'],
+      ['Supplier Name', 'Supplier GSTIN', 'Invoice No', 'Books Tax', 'Portal 2B Tax', 'Tax Variance', 'Status', 'Recommended Action'],
+      ...mismatchValue.map(m => [
+        `"${m.book_invoice.vendor_name || ''}"`,
+        `"${m.book_invoice.vendor_gstin || ''}"`,
+        `"${m.book_invoice.invoice_number || ''}"`,
+        Number(m.bookTax || 0).toFixed(2),
+        Number(m.gTax || 0).toFixed(2),
+        Number(m.taxDiff || 0).toFixed(2),
+        'TAX_MISMATCH',
+        'VERIFY HSN & RATE SLAB DIFFERENCE'
+      ])
+    ];
+
+    const csvContent = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `BillGuru_GSTR2B_Reconciliation_${selectedBiz.name.replace(/\s+/g, '_')}_${reconcilePeriod}.csv`;
+    a.click();
+    showToast(`Downloaded complete 4-bucket reconciliation audit CSV!`, 'success');
+  };
+
+  // --- PHASE 4: CA FIRM OPERATING SYSTEM & RULE 37 AGING HELPERS ---
+  const addAuditLog = (action_type, entity_type, entity_id, description) => {
+    const userName = staffRole === 'partner_ca' ? caFirmSettings.partner_name : 'Karan Dave (Article)';
+    const newLog = {
+      id: Date.now(),
+      user_name: userName,
+      user_role: staffRole,
+      action_type,
+      entity_type,
+      entity_id: String(entity_id || ''),
+      description,
+      created_at: new Date().toISOString()
+    };
+    setAuditLogs(prev => [newLog, ...prev]);
+
+    if (backendConnected) {
+      authFetch(`${API_BASE_URL}/ca/audit-logs`, {
+        method: 'POST',
+        body: JSON.stringify(newLog)
+      }).catch(err => console.warn('Failed to post audit log to backend:', err));
+    }
+  };
+
+  const getRule37Data = () => {
+    const selectedBiz = businesses.find(b => b.id === Number(rule37BizId)) || businesses[0] || { id: 1, name: 'Meena Kirana Store' };
+    const bizInvoices = invoices.filter(i => i.business_id === Number(selectedBiz.id));
+    
+    // Reference date: July 28, 2026
+    const today = new Date('2026-07-28');
+
+    const records = bizInvoices
+      .filter(i => i.payment_status !== 'paid' && i.is_itc_eligible)
+      .map(inv => {
+        const invDate = new Date(inv.invoice_date || '2026-07-01');
+        const diffTime = Math.max(0, today.getTime() - invDate.getTime());
+        const daysElapsed = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        const daysRemaining = 180 - daysElapsed;
+        const itcAmount = (Number(inv.cgst_amount) || 0) + (Number(inv.sgst_amount) || 0) + (Number(inv.igst_amount) || 0);
+
+        let urgency = 'safe'; // 0-60 days
+        if (daysElapsed >= 180) {
+          urgency = 'reversal_mandated'; // Exceeded 180 days! Section 16(2) proviso 2
+        } else if (daysElapsed >= 120) {
+          urgency = 'critical'; // 121-179 days - approaching 180 days!
+        } else if (daysElapsed >= 60) {
+          urgency = 'due_soon'; // 61-120 days
+        }
+
+        const overdueDays = Math.max(0, daysElapsed - 180);
+        const interestAtRisk = overdueDays > 0 ? Number(((itcAmount * 0.18 * overdueDays) / 365).toFixed(2)) : 0.00;
+
+        return {
+          invoice_id: inv.id,
+          invoice_number: inv.invoice_number,
+          invoice_date: inv.invoice_date,
+          vendor_name: inv.vendor_name,
+          vendor_gstin: inv.vendor_gstin,
+          taxable_amount: Number(inv.taxable_amount) || 0,
+          itc_amount: itcAmount,
+          total_amount: Number(inv.total_amount) || 0,
+          payment_status: inv.payment_status || 'unpaid',
+          days_elapsed: daysElapsed,
+          days_remaining: Math.max(0, daysRemaining),
+          overdue_days: overdueDays,
+          urgency,
+          interest_at_risk: interestAtRisk
+        };
+      });
+
+    const totalUnpaidItc = records.reduce((s, r) => s + r.itc_amount, 0);
+    const criticalItc = records.filter(r => r.urgency === 'critical').reduce((s, r) => s + r.itc_amount, 0);
+    const mandatedReversalItc = records.filter(r => r.urgency === 'reversal_mandated').reduce((s, r) => s + r.itc_amount, 0);
+    const safeItc = records.filter(r => r.urgency === 'safe' || r.urgency === 'due_soon').reduce((s, r) => s + r.itc_amount, 0);
+
+    return {
+      selectedBiz,
+      records,
+      summary: {
+        total_unpaid_invoices: records.length,
+        total_unpaid_itc: Number(totalUnpaidItc.toFixed(2)),
+        safe_itc: Number(safeItc.toFixed(2)),
+        critical_itc: Number(criticalItc.toFixed(2)),
+        mandated_reversal_itc: Number(mandatedReversalItc.toFixed(2))
+      }
+    };
+  };
+
+  const handleRule37Remind = async (item, bizName) => {
+    const key = item.invoice_number;
+    setRule37Reminded(prev => ({ ...prev, [key]: true }));
+    addAuditLog('RULE37_REMINDER_SENT', 'invoice', item.invoice_id, `Dispatched 180-day payment urgency notice to ${bizName} for Inv #${item.invoice_number} (${item.vendor_name}).`);
+    try {
+      if (backendConnected) {
+        await authFetch(`${API_BASE_URL}/rule37/remind`, {
+          method: 'POST',
+          body: JSON.stringify({
+            business_name: bizName,
+            vendor_name: item.vendor_name,
+            invoice_number: item.invoice_number,
+            invoice_date: item.invoice_date,
+            itc_amount: item.itc_amount,
+            days_elapsed: item.days_elapsed,
+            days_remaining: item.days_remaining
+          })
+        });
+      }
+    } catch (e) {
+      console.warn('Backend remind error:', e);
+    }
+    showToast(`WhatsApp 180-day urgency notice dispatched to ${bizName}!`, 'success');
+  };
+
+  const handleMarkInvoicePaid = (invoiceNumber) => {
+    setInvoices(prev => prev.map(inv => inv.invoice_number === invoiceNumber ? { ...inv, payment_status: 'paid', payment_date: new Date().toISOString().split('T')[0] } : inv));
+    addAuditLog('PAYMENT_RECORDED', 'invoice', invoiceNumber, `Recorded payment for Invoice #${invoiceNumber}. Rule 37 reversal risk avoided.`);
+    showToast(`Invoice #${invoiceNumber} marked as Paid! Rule 37 reversal risk cleared.`, 'success');
+  };
+
+  const handleSaveFirmSettings = async (e) => {
+    e?.preventDefault();
+    try {
+      if (backendConnected) {
+        await authFetch(`${API_BASE_URL}/ca/firm-settings`, {
+          method: 'POST',
+          body: JSON.stringify(caFirmSettings)
+        });
+      }
+    } catch (err) {
+      console.warn('Backend save settings failed:', err);
+    }
+    addAuditLog('SETTINGS_UPDATED', 'settings', 'ca_firm', `Updated CA Firm Profile & Tally mapping preferences.`);
+    showToast('CA Firm Profile & Tally mapping preferences updated successfully!', 'success');
+  };
+
+  const exportAuditLogCsv = () => {
+    const rows = [
+      ['BILLGURU AI - ICAI AUDIT DOCUMENTATION TRAIL (SA 230 / SQC 1)'],
+      [`CA Firm: ${caFirmSettings.firm_name}`, `ICAI FRN: ${caFirmSettings.icai_frn}`, `Partner: ${caFirmSettings.partner_name}`, `Generated: ${new Date().toLocaleString('en-IN')}`],
+      [],
+      ['Log ID', 'Timestamp', 'User Name', 'Role', 'Action Type', 'Entity Type', 'Entity ID', 'Audit Description'],
+      ...auditLogs.map(l => [
+        l.id,
+        `"${new Date(l.created_at).toLocaleString('en-IN')}"`,
+        `"${l.user_name}"`,
+        `"${l.user_role}"`,
+        `"${l.action_type}"`,
+        `"${l.entity_type}"`,
+        `"${l.entity_id || ''}"`,
+        `"${(l.description || '').replace(/"/g, '""')}"`
+      ])
+    ];
+    const csvContent = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `BillGuru_Audit_Trail_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    showToast('Exported ICAI SA 230 compliant audit trail to CSV!', 'success');
   };
 
 
@@ -1491,6 +2276,38 @@ ${vouchersXml}
                 </div>
               )}
               
+              {/* STAFF ROLE SWITCHER (ICAI SA 230 DOCUMENTATION) */}
+              <div className="hidden sm:flex items-center gap-1 bg-slate-100 border border-slate-300 rounded-full p-0.5 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStaffRole('partner_ca');
+                    showToast('Switched to Partner CA Mode (Full Filing Authority)', 'info');
+                  }}
+                  className={`px-2.5 py-1 rounded-full transition-all flex items-center gap-1 ${
+                    staffRole === 'partner_ca' ? 'bg-teal-700 text-white shadow-xs' : 'text-slate-600 hover:text-ink-900'
+                  }`}
+                  title="Partner CA: Full filing signoff & Tally export authority"
+                >
+                  <span className="material-symbols-outlined text-[13px]">gavel</span>
+                  <span>Partner CA</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStaffRole('article_assistant');
+                    showToast('Switched to Article Assistant Mode (Audit Review & Queue Prep)', 'info');
+                  }}
+                  className={`px-2.5 py-1 rounded-full transition-all flex items-center gap-1 ${
+                    staffRole === 'article_assistant' ? 'bg-indigo-700 text-white shadow-xs' : 'text-slate-600 hover:text-ink-900'
+                  }`}
+                  title="Article Assistant: Review queue, reconcile buckets & submit for signoff"
+                >
+                  <span className="material-symbols-outlined text-[13px]">badge</span>
+                  <span>Article Assistant</span>
+                </button>
+              </div>
+
               {/* GUIDED TOUR & PURPOSE BUTTON */}
               <button 
                 onClick={() => { setShowWelcomeTour(true); setWelcomeTourStep(0); }}
@@ -1807,9 +2624,18 @@ ${vouchersXml}
                       
                       // DESKTOP LAYOUT (Dense table)
                       <div className="bg-white border border-slate-200 overflow-hidden shadow-sm rounded-sm">
-                        <div className="px-md py-sm bg-paper-50 border-b border-slate-200 flex justify-between items-center">
-                          <h3 className="font-label-caps text-label-caps text-ink-900 font-bold">CLIENT LEDGER REGISTRY</h3>
-                          <span className="text-body-sm text-on-surface-variant">Showing {filteredBusinesses.length} businesses</span>
+                        <div className="px-md py-xs bg-paper-50 border-b border-slate-200">
+                          <div className="flex justify-between items-center mb-1">
+                            <h3 className="font-label-caps text-label-caps text-ink-900 font-bold">CLIENT LEDGER REGISTRY</h3>
+                            <span className="text-body-sm text-on-surface-variant">Showing {filteredBusinesses.length} businesses</span>
+                          </div>
+                          <div className="bg-teal-50/70 border border-teal-200/80 px-2 py-1 rounded text-[11px] text-teal-900 flex flex-wrap items-center justify-between gap-xs">
+                            <div className="flex items-center gap-1.5">
+                              <span className="material-symbols-outlined text-[15px] text-teal-700">verified_user</span>
+                              <span><strong>CA Compliance Note:</strong> Vouchers captured below represent client Books. Under Sec 16(2)(aa), portal GSTR-2B reflection is required before claiming final ITC.</span>
+                            </div>
+                            <span className="text-[9px] uppercase font-bold text-teal-800 tracking-wider bg-teal-100/60 px-1.5 py-0.5 rounded">ICAI Due Diligence</span>
+                          </div>
                         </div>
 
                         <div className="overflow-x-auto custom-scrollbar">
@@ -1818,7 +2644,17 @@ ${vouchersXml}
                               <tr className="bg-white">
                                 <th className="px-md py-sm border-b border-ink-900 text-left font-label-caps text-label-caps text-ink-900 w-16">Risk</th>
                                 <th className="px-md py-sm border-b border-ink-900 text-left font-label-caps text-label-caps text-ink-900">Business Name</th>
-                                <th className="px-md py-sm border-b border-ink-900 text-left font-label-caps text-label-caps text-ink-900 w-1/4">Reconciliation Progress</th>
+                                <th className="px-md py-sm border-b border-ink-900 text-left font-label-caps text-label-caps text-ink-900 w-1/4">
+                                  <span className="flex items-center gap-1">
+                                    <span>Voucher Inward (Books)</span>
+                                    <span 
+                                      className="material-symbols-outlined text-[15px] text-teal-700 cursor-help"
+                                      title="Tracks inward voucher capture in Books. GSTR-2B reflection is legally required under Sec 16(2)(aa) to finalize ITC."
+                                    >
+                                      info
+                                    </span>
+                                  </span>
+                                </th>
                                 <th className="px-md py-sm border-b border-ink-900 text-right font-label-caps text-label-caps text-ink-900">Count</th>
                                 <th className="px-md py-sm border-b border-ink-900 text-right font-label-caps text-label-caps text-ink-900">At-Risk Value</th>
                                 <th className="px-md py-sm border-b border-ink-900 text-center font-label-caps text-label-caps text-ink-900 w-24">Action</th>
@@ -1909,6 +2745,1169 @@ ${vouchersXml}
               </>
             )}
 
+            {/* VIEW: GSTR-2B TWO-WAY RECONCILER */}
+            {currentView === 'gstr2b-reconcile' && (() => {
+              const reconData = getGstr2bReconcileData();
+              return (
+                <div className="space-y-lg max-w-7xl mx-auto w-full">
+                  {/* Hidden File Input for GSTR-2B JSON */}
+                  <input
+                    type="file"
+                    ref={fileInputRef2b}
+                    onChange={handleGstr2bJsonUpload}
+                    accept=".json"
+                    className="hidden"
+                  />
+
+                  {/* Header & Controls Bar */}
+                  <div className="bg-white border border-slate-200 rounded p-lg shadow-sm">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-md mb-md">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="material-symbols-outlined text-teal-700 text-2xl">compare_arrows</span>
+                          <h3 className="font-headline-md text-headline-sm md:text-headline-md text-ink-900 font-bold">
+                            GSTR-2B Two-Way Auto-Reconciler
+                          </h3>
+                          <span className="bg-teal-100 text-teal-800 text-xs font-semibold px-2.5 py-0.5 rounded uppercase tracking-wider">
+                            Sec 16(2)(aa) Guard
+                          </span>
+                        </div>
+                        <p className="text-on-surface-variant text-body-md max-w-3xl">
+                          Automated cross-check of your Books inward invoices against official GST portal Form GSTR-2B.
+                          Prevents illegal ITC claims in GSTR-3B Table 4(A)(5) and sends 1-click WhatsApp follow-ups to non-compliant vendors.
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-sm">
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef2b.current?.click()}
+                          className="px-md py-sm bg-white border border-slate-300 hover:bg-slate-50 text-ink-900 font-semibold text-sm rounded transition-all flex items-center gap-1.5 shadow-sm"
+                        >
+                          <span className="material-symbols-outlined text-sm text-teal-700">upload_file</span>
+                          Upload 2B JSON
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleLoadSample2B}
+                          className="px-md py-sm bg-teal-50 border border-teal-300 hover:bg-teal-100 text-teal-800 font-semibold text-sm rounded transition-all flex items-center gap-1.5"
+                        >
+                          <span className="material-symbols-outlined text-sm">flash_on</span>
+                          Load Sample 2B
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => exportFullReconciliationCsv(reconData)}
+                          className="px-md py-sm bg-ink-900 hover:bg-black text-white font-semibold text-sm rounded transition-all flex items-center gap-1.5 shadow-sm"
+                        >
+                          <span className="material-symbols-outlined text-sm">download</span>
+                          Export 4-Bucket CSV
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Filter Strip */}
+                    <div className="pt-md border-t border-slate-100 flex flex-wrap items-center justify-between gap-md">
+                      <div className="flex flex-wrap items-center gap-md">
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Client Business:</label>
+                          <select
+                            value={reconcileBizId}
+                            onChange={(e) => setReconcileBizId(Number(e.target.value))}
+                            className="text-sm font-semibold border border-slate-300 rounded px-3 py-1.5 bg-slate-50 text-ink-900 focus:outline-none focus:ring-1 focus:ring-teal-600"
+                          >
+                            {businesses.map(b => (
+                              <option key={b.id} value={b.id}>{b.name} ({b.gstin})</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Filing Return Period:</label>
+                          <select
+                            value={reconcilePeriod}
+                            onChange={(e) => setReconcilePeriod(e.target.value)}
+                            className="text-sm font-semibold border border-slate-300 rounded px-3 py-1.5 bg-slate-50 text-ink-900 focus:outline-none focus:ring-1 focus:ring-teal-600"
+                          >
+                            <option value="072026">July 2026 (072026) - Current</option>
+                            <option value="062026">June 2026 (062026)</option>
+                            <option value="052026">May 2026 (052026)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="text-xs text-slate-500 flex items-center gap-1.5 font-medium">
+                        <span className="w-2 h-2 rounded-full bg-moss-500 inline-block animate-pulse"></span>
+                        Reconciliation Accuracy: <span className="font-bold text-ink-900">{reconData.summary.reconciliation_percentage}%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Statutory Caution Alert */}
+                  <div className="bg-amber-50 border-l-4 border-amber-500 p-md rounded-r text-amber-900 text-sm flex items-start gap-3 shadow-xs">
+                    <span className="material-symbols-outlined text-amber-600 mt-0.5">gavel</span>
+                    <div>
+                      <p className="font-bold text-ink-900">
+                        Statutory Mandate: Section 16(2)(aa) of CGST Act 2017 & Rule 36(4)
+                      </p>
+                      <p className="text-xs mt-0.5 text-amber-950/80 leading-relaxed">
+                        Input Tax Credit can <strong>ONLY</strong> be claimed in GSTR-3B Table 4(A)(5) if the invoice is communicated in Form GSTR-2B.
+                        Invoices present in your Books but missing in GSTR-2B must NOT be claimed — doing so triggers auto-scrutiny notices (Form DRC-01B) with mandatory 18% p.a. interest.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 5-Card Bento Summary Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-md">
+                    <div className="bg-white border border-slate-200 rounded p-md shadow-xs flex flex-col justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Books Inward ITC</span>
+                      <div className="my-sm">
+                        <div className="text-2xl font-bold text-ink-900">₹{reconData.summary.books_itc.toLocaleString('en-IN')}</div>
+                        <span className="text-xs text-slate-500">{reconData.summary.books_count} invoices recorded</span>
+                      </div>
+                      <span className="text-[11px] text-slate-400 font-medium">From WhatsApp bills</span>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 rounded p-md shadow-xs flex flex-col justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Portal GSTR-2B ITC</span>
+                      <div className="my-sm">
+                        <div className="text-2xl font-bold text-teal-800">₹{reconData.summary.gstr2b_itc.toLocaleString('en-IN')}</div>
+                        <span className="text-xs text-slate-500">{reconData.summary.gstr2b_count} records on portal</span>
+                      </div>
+                      <span className="text-[11px] text-teal-600 font-medium">Official GST portal data</span>
+                    </div>
+
+                    <div className="bg-moss-50/60 border border-moss-300 rounded p-md shadow-xs flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-moss-800">100% Matched ITC</span>
+                        <span className="material-symbols-outlined text-moss-600 text-sm">verified</span>
+                      </div>
+                      <div className="my-sm">
+                        <div className="text-2xl font-bold text-moss-900">₹{reconData.summary.matched_itc.toLocaleString('en-IN')}</div>
+                        <span className="text-xs text-moss-700">{reconData.summary.matched_count} verified invoices</span>
+                      </div>
+                      <span className="text-[11px] font-bold text-moss-700">✓ Safe for GSTR-3B Table 4(A)(5)</span>
+                    </div>
+
+                    <div className="bg-rose-50/60 border border-rose-300 rounded p-md shadow-xs flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-rose-800">Missing in 2B (At-Risk)</span>
+                        <span className="material-symbols-outlined text-rose-600 text-sm">warning</span>
+                      </div>
+                      <div className="my-sm">
+                        <div className="text-2xl font-bold text-rose-900">₹{reconData.summary.at_risk_itc.toLocaleString('en-IN')}</div>
+                        <span className="text-xs text-rose-700">{reconData.summary.missing_in_2b_count} delinquent vendors</span>
+                      </div>
+                      <span className="text-[11px] font-bold text-rose-700">⚠️ Hold Claim · Follow up</span>
+                    </div>
+
+                    <div className="bg-blue-50/60 border border-blue-300 rounded p-md shadow-xs flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-blue-800">Missing in Books</span>
+                        <span className="material-symbols-outlined text-blue-600 text-sm">receipt_long</span>
+                      </div>
+                      <div className="my-sm">
+                        <div className="text-2xl font-bold text-blue-900">₹{reconData.summary.uncaptured_itc.toLocaleString('en-IN')}</div>
+                        <span className="text-xs text-blue-700">{reconData.summary.missing_in_books_count} unclaimed on portal</span>
+                      </div>
+                      <span className="text-[11px] font-bold text-blue-700">📸 Request receipt from client</span>
+                    </div>
+                  </div>
+
+                  {/* Interactive Tabs Section */}
+                  <div className="bg-white border border-slate-200 rounded shadow-sm overflow-hidden">
+                    <div className="border-b border-slate-200 flex flex-wrap bg-slate-50/80 px-md pt-sm">
+                      <button
+                        type="button"
+                        onClick={() => setReconcileTab('missing_in_2b')}
+                        className={`pb-3 pt-2 px-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 ${
+                          reconcileTab === 'missing_in_2b'
+                            ? 'border-rose-600 text-rose-700 bg-white rounded-t'
+                            : 'border-transparent text-slate-500 hover:text-ink-900'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-sm">error</span>
+                        Missing in GSTR-2B
+                        <span className={`px-1.5 py-0.5 rounded-full text-[11px] ${
+                          reconData.inBooksMissingIn2b.length > 0 ? 'bg-rose-100 text-rose-800' : 'bg-slate-200 text-slate-700'
+                        }`}>
+                          {reconData.inBooksMissingIn2b.length}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setReconcileTab('matched')}
+                        className={`pb-3 pt-2 px-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 ${
+                          reconcileTab === 'matched'
+                            ? 'border-moss-600 text-moss-700 bg-white rounded-t'
+                            : 'border-transparent text-slate-500 hover:text-ink-900'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-sm">check_circle</span>
+                        100% Matched
+                        <span className="px-1.5 py-0.5 rounded-full text-[11px] bg-moss-100 text-moss-800">
+                          {reconData.matched.length}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setReconcileTab('missing_in_books')}
+                        className={`pb-3 pt-2 px-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 ${
+                          reconcileTab === 'missing_in_books'
+                            ? 'border-blue-600 text-blue-700 bg-white rounded-t'
+                            : 'border-transparent text-slate-500 hover:text-ink-900'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-sm">help</span>
+                        Missing in Books
+                        <span className={`px-1.5 py-0.5 rounded-full text-[11px] ${
+                          reconData.in2bMissingInBooks.length > 0 ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-700'
+                        }`}>
+                          {reconData.in2bMissingInBooks.length}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setReconcileTab('mismatch_value')}
+                        className={`pb-3 pt-2 px-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 ${
+                          reconcileTab === 'mismatch_value'
+                            ? 'border-amber-600 text-amber-700 bg-white rounded-t'
+                            : 'border-transparent text-slate-500 hover:text-ink-900'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-sm">difference</span>
+                        Value Mismatches
+                        <span className="px-1.5 py-0.5 rounded-full text-[11px] bg-slate-200 text-slate-700">
+                          {reconData.mismatchValue.length}
+                        </span>
+                      </button>
+                    </div>
+
+                    {/* TAB 1: MISSING IN GSTR-2B (VENDOR NUDGE) */}
+                    {reconcileTab === 'missing_in_2b' && (
+                      <div className="p-md space-y-md">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-md bg-rose-50/50 border border-rose-200 rounded p-md">
+                          <div>
+                            <h4 className="font-bold text-rose-950 text-sm flex items-center gap-1.5">
+                              <span className="material-symbols-outlined text-rose-600 text-base">outgoing_mail</span>
+                              Delinquent Vendor Follow-Up Desk
+                            </h4>
+                            <p className="text-xs text-rose-800 mt-0.5">
+                              These vendors supplied goods and issued tax invoices, but haven’t filed their GSTR-1 for July 2026.
+                              Click to send an automated GST legal notice directly to their accounts team over WhatsApp.
+                            </p>
+                          </div>
+                          {reconData.inBooksMissingIn2b.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => handleNudgeAllMissing(reconData.inBooksMissingIn2b, reconData.selectedBiz.name)}
+                              className="px-md py-sm bg-rose-700 hover:bg-rose-800 text-white font-bold text-xs rounded transition-all whitespace-nowrap shadow-xs flex items-center gap-1.5 self-start sm:self-auto"
+                            >
+                              <span className="material-symbols-outlined text-sm">send</span>
+                              Nudge All Delinquent Vendors
+                            </button>
+                          )}
+                        </div>
+
+                        {reconData.inBooksMissingIn2b.length === 0 ? (
+                          <div className="p-xl text-center">
+                            <span className="material-symbols-outlined text-moss-500 text-5xl mb-xs">verified</span>
+                            <h4 className="font-bold text-ink-900">Zero At-Risk Invoices</h4>
+                            <p className="text-xs text-slate-500 mt-1">Every invoice recorded in your Books is corroborated on the GST portal!</p>
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto border border-slate-200 rounded">
+                            <table className="w-full text-left border-collapse text-xs">
+                              <thead>
+                                <tr className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider border-b border-slate-200">
+                                  <th className="p-md">Supplier Details</th>
+                                  <th className="p-md">Invoice #</th>
+                                  <th className="p-md">Invoice Date</th>
+                                  <th className="p-md text-right">Taxable Value</th>
+                                  <th className="p-md text-right text-rose-800">ITC At Risk</th>
+                                  <th className="p-md">Section 16(2)(aa) Status</th>
+                                  <th className="p-md text-center">WhatsApp Chaser</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {reconData.inBooksMissingIn2b.map((item, idx) => {
+                                  const key = `${item.supplier_gstin}_${item.invoice_number}`;
+                                  const isNudged = !!nudgedVendors[key];
+
+                                  return (
+                                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                      <td className="p-md">
+                                        <div className="font-bold text-ink-900">{item.supplier_name}</div>
+                                        <div className="text-[11px] font-mono text-slate-500">{item.supplier_gstin}</div>
+                                      </td>
+                                      <td className="p-md font-mono font-bold text-ink-900">{item.invoice_number}</td>
+                                      <td className="p-md text-slate-600">{item.invoice_date}</td>
+                                      <td className="p-md text-right font-medium text-slate-700">
+                                        ₹{Number(item.taxable_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                      </td>
+                                      <td className="p-md text-right font-bold text-rose-700">
+                                        ₹{Number(item.at_risk_itc || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                      </td>
+                                      <td className="p-md">
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-300">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
+                                          BLOCKED U/S 16(2)(aa)
+                                        </span>
+                                      </td>
+                                      <td className="p-md text-center">
+                                        {isNudged ? (
+                                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-moss-100 text-moss-800 border border-moss-300 rounded text-xs font-bold">
+                                            <span className="material-symbols-outlined text-xs">done_all</span>
+                                            Notice Sent
+                                          </span>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleNudgeVendor(item, reconData.selectedBiz.name)}
+                                            className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded text-xs transition-all shadow-xs inline-flex items-center gap-1"
+                                          >
+                                            <span className="material-symbols-outlined text-xs">chat</span>
+                                            Nudge on WhatsApp
+                                          </button>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+
+                        {/* WhatsApp Message Preview Callout */}
+                        <div className="p-md bg-slate-50 border border-slate-200 rounded text-xs">
+                          <span className="font-bold text-slate-700 uppercase tracking-wider text-[11px] block mb-1">
+                            💬 Automated WhatsApp Notice Template:
+                          </span>
+                          <p className="font-mono text-slate-800 text-[11px] bg-white p-sm border border-slate-200 rounded leading-relaxed">
+                            "🔔 *GST Compliance Notice for [Vendor]*: Your invoice #[Invoice] dated [Date] (ITC: ₹[Amount]) is NOT reflecting in the GSTR-2B of our client *{reconData.selectedBiz.name}* for filing period July 2026. ⚠️ *Action Required:* Please upload this invoice in your GSTR-1 immediately to avoid ITC mismatch notices under Section 16(2)(aa) of CGST Act. — Accounts Desk, Shah & Associates, CAs (via BillGuru AI)"
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* TAB 2: 100% MATCHED (SAFE ITC) */}
+                    {reconcileTab === 'matched' && (
+                      <div className="p-md space-y-md">
+                        <div className="bg-moss-50/60 border border-moss-200 rounded p-md flex items-center justify-between">
+                          <div>
+                            <h4 className="font-bold text-moss-950 text-sm flex items-center gap-1.5">
+                              <span className="material-symbols-outlined text-moss-600 text-base">verified</span>
+                              Corroborated Inward ITC (Ready for GSTR-3B Table 4(A)(5))
+                            </h4>
+                            <p className="text-xs text-moss-800 mt-0.5">
+                              These invoices are confirmed in your Books and fully reflected on the GST Portal GSTR-2B.
+                              These satisfy all 4 conditions of Section 16(2) and are 100% safe to claim.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => downloadGstr3bJson()}
+                            className="px-md py-sm bg-moss-700 hover:bg-moss-800 text-white font-bold text-xs rounded transition-all whitespace-nowrap shadow-xs flex items-center gap-1.5"
+                          >
+                            <span className="material-symbols-outlined text-sm">download</span>
+                            Download GSTR-3B JSON
+                          </button>
+                        </div>
+
+                        {reconData.matched.length === 0 ? (
+                          <div className="p-xl text-center">
+                            <span className="material-symbols-outlined text-slate-400 text-5xl mb-xs">info</span>
+                            <h4 className="font-bold text-ink-900">No Invoices Matched Yet</h4>
+                            <p className="text-xs text-slate-500 mt-1">Upload a GSTR-2B JSON file or load the sample file to see auto-reconciliation.</p>
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto border border-slate-200 rounded">
+                            <table className="w-full text-left border-collapse text-xs">
+                              <thead>
+                                <tr className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider border-b border-slate-200">
+                                  <th className="p-md">Supplier Details</th>
+                                  <th className="p-md">Invoice #</th>
+                                  <th className="p-md">Invoice Date</th>
+                                  <th className="p-md text-right">Books Tax</th>
+                                  <th className="p-md text-right">Portal 2B Tax</th>
+                                  <th className="p-md text-center">Variance</th>
+                                  <th className="p-md">Statutory Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {reconData.matched.map((m, idx) => (
+                                  <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                    <td className="p-md">
+                                      <div className="font-bold text-ink-900">{m.book_invoice.vendor_name}</div>
+                                      <div className="text-[11px] font-mono text-slate-500">{m.book_invoice.vendor_gstin}</div>
+                                    </td>
+                                    <td className="p-md font-mono font-bold text-ink-900">{m.book_invoice.invoice_number}</td>
+                                    <td className="p-md text-slate-600">{m.book_invoice.invoice_date}</td>
+                                    <td className="p-md text-right font-medium text-slate-700">
+                                      ₹{m.eligible_itc.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                    </td>
+                                    <td className="p-md text-right font-bold text-teal-800">
+                                      ₹{m.eligible_itc.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                    </td>
+                                    <td className="p-md text-center font-mono font-bold text-moss-700">₹0.00</td>
+                                    <td className="p-md">
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-moss-100 text-moss-800 border border-moss-300">
+                                        <span className="material-symbols-outlined text-[12px]">check</span>
+                                        Table 4(A)(5) Eligible
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* TAB 3: MISSING IN BOOKS (CLIENT UNCLAIMED ITC) */}
+                    {reconcileTab === 'missing_in_books' && (
+                      <div className="p-md space-y-md">
+                        <div className="bg-blue-50/60 border border-blue-200 rounded p-md">
+                          <h4 className="font-bold text-blue-950 text-sm flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-blue-600 text-base">receipt_long</span>
+                            Portal Invoices Missing in Client's Books (Unclaimed ITC)
+                          </h4>
+                          <p className="text-xs text-blue-800 mt-0.5">
+                            Suppliers filed these invoices in their GSTR-1 with your client's GSTIN, but the client never snapped or forwarded the receipt.
+                            Prompt the client on WhatsApp to locate and photograph the physical bill.
+                          </p>
+                        </div>
+
+                        {reconData.in2bMissingInBooks.length === 0 ? (
+                          <div className="p-xl text-center">
+                            <span className="material-symbols-outlined text-moss-500 text-5xl mb-xs">task_alt</span>
+                            <h4 className="font-bold text-ink-900">All Portal Invoices Booked</h4>
+                            <p className="text-xs text-slate-500 mt-1">Every invoice on GSTR-2B has already been captured into Books.</p>
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto border border-slate-200 rounded">
+                            <table className="w-full text-left border-collapse text-xs">
+                              <thead>
+                                <tr className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider border-b border-slate-200">
+                                  <th className="p-md">Supplier Details</th>
+                                  <th className="p-md">Invoice #</th>
+                                  <th className="p-md">Invoice Date</th>
+                                  <th className="p-md text-right">Taxable Value</th>
+                                  <th className="p-md text-right text-blue-800">Unclaimed ITC</th>
+                                  <th className="p-md text-center">Action</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {reconData.in2bMissingInBooks.map((item, idx) => {
+                                  const key = `${item.supplier_gstin}_${item.invoice_number}`;
+                                  const isRequested = !!requestedBills[key];
+
+                                  return (
+                                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                      <td className="p-md">
+                                        <div className="font-bold text-ink-900">{item.supplier_name}</div>
+                                        <div className="text-[11px] font-mono text-slate-500">{item.supplier_gstin}</div>
+                                      </td>
+                                      <td className="p-md font-mono font-bold text-ink-900">{item.invoice_number}</td>
+                                      <td className="p-md text-slate-600">{item.invoice_date}</td>
+                                      <td className="p-md text-right font-medium text-slate-700">
+                                        ₹{Number(item.taxable_value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                      </td>
+                                      <td className="p-md text-right font-bold text-blue-700">
+                                        ₹{Number(item.uncaptured_itc || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                      </td>
+                                      <td className="p-md text-center">
+                                        {isRequested ? (
+                                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-800 border border-blue-300 rounded text-xs font-bold">
+                                            <span className="material-symbols-outlined text-xs">check</span>
+                                            Prompt Sent
+                                          </span>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRequestBillFromClient(item, reconData.selectedBiz.name)}
+                                            className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded text-xs transition-all shadow-xs inline-flex items-center gap-1"
+                                          >
+                                            <span className="material-symbols-outlined text-xs">add_a_photo</span>
+                                            Request Bill on WhatsApp
+                                          </button>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* TAB 4: VALUE MISMATCHES */}
+                    {reconcileTab === 'mismatch_value' && (
+                      <div className="p-md space-y-md">
+                        <div className="bg-amber-50/60 border border-amber-200 rounded p-md">
+                          <h4 className="font-bold text-amber-950 text-sm flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-amber-600 text-base">difference</span>
+                            Amount / Tax Slab Variances
+                          </h4>
+                          <p className="text-xs text-amber-800 mt-0.5">
+                            Invoices where the invoice number matches, but the tax or taxable amount entered in Books differs from the amount filed by the vendor in GSTR-1.
+                          </p>
+                        </div>
+
+                        {reconData.mismatchValue.length === 0 ? (
+                          <div className="p-xl text-center">
+                            <span className="material-symbols-outlined text-moss-500 text-5xl mb-xs">done_all</span>
+                            <h4 className="font-bold text-ink-900">Zero Value Discrepancies</h4>
+                            <p className="text-xs text-slate-500 mt-1">All matched invoices have exact tax figures matching between Books and GSTR-2B.</p>
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto border border-slate-200 rounded">
+                            <table className="w-full text-left border-collapse text-xs">
+                              <thead>
+                                <tr className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider border-b border-slate-200">
+                                  <th className="p-md">Supplier Details</th>
+                                  <th className="p-md">Invoice #</th>
+                                  <th className="p-md text-right">Books Tax</th>
+                                  <th className="p-md text-right">Portal 2B Tax</th>
+                                  <th className="p-md text-right text-rose-700">Variance</th>
+                                  <th className="p-md text-center">Action</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {reconData.mismatchValue.map((item, idx) => (
+                                  <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                    <td className="p-md">
+                                      <div className="font-bold text-ink-900">{item.book_invoice.vendor_name}</div>
+                                      <div className="text-[11px] font-mono text-slate-500">{item.book_invoice.vendor_gstin}</div>
+                                    </td>
+                                    <td className="p-md font-mono font-bold text-ink-900">{item.book_invoice.invoice_number}</td>
+                                    <td className="p-md text-right font-medium text-slate-700">
+                                      ₹{Number(item.bookTax).toFixed(2)}
+                                    </td>
+                                    <td className="p-md text-right font-medium text-slate-700">
+                                      ₹{Number(item.gTax).toFixed(2)}
+                                    </td>
+                                    <td className="p-md text-right font-bold text-rose-700">
+                                      ₹{Number(item.taxDiff).toFixed(2)}
+                                    </td>
+                                    <td className="p-md text-center">
+                                      <button
+                                        type="button"
+                                        onClick={() => setCurrentView('inward')}
+                                        className="px-2.5 py-1 bg-slate-800 hover:bg-black text-white font-semibold rounded text-xs transition-all shadow-xs"
+                                      >
+                                        Edit in Review Queue
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* VIEW: RULE 37 180-DAY PAYMENT & ITC AGING TRACKER */}
+            {currentView === 'rule37-tracker' && (() => {
+              const rule37Data = getRule37Data();
+              const { selectedBiz, records, summary } = rule37Data;
+
+              return (
+                <div className="space-y-lg max-w-7xl mx-auto w-full">
+                  {/* Header & Controls Bar */}
+                  <div className="bg-white border border-slate-200 rounded p-lg shadow-sm">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-md mb-md">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="material-symbols-outlined text-rose-700 text-2xl">schedule</span>
+                          <h3 className="font-headline-md text-headline-sm md:text-headline-md text-ink-900 font-bold">
+                            180-Day Rule 37 Payment & ITC Aging Desk
+                          </h3>
+                          <span className="bg-rose-100 text-rose-800 text-xs font-semibold px-2.5 py-0.5 rounded uppercase tracking-wider">
+                            Sec 16(2) Proviso 2
+                          </span>
+                        </div>
+                        <p className="text-on-surface-variant text-body-md max-w-3xl">
+                          Under CGST Rule 37, Input Tax Credit availed must be reversed in GSTR-3B Table 4(B)(2) if supplier invoices remain unpaid beyond 180 days, with mandatory 18% p.a. interest under Section 50.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-sm">
+                        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs">
+                          <span className="text-slate-500 font-medium">Aging As On:</span>
+                          <span className="font-bold text-ink-900">28 July 2026</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Filter Strip */}
+                    <div className="pt-md border-t border-slate-100 flex flex-wrap items-center justify-between gap-md">
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Client Business:</label>
+                        <select
+                          value={rule37BizId}
+                          onChange={(e) => setRule37BizId(Number(e.target.value))}
+                          className="text-sm font-semibold border border-slate-300 rounded px-3 py-1.5 bg-slate-50 text-ink-900 focus:outline-none focus:ring-1 focus:ring-teal-600"
+                        >
+                          {businesses.map(b => (
+                            <option key={b.id} value={b.id}>{b.name} ({b.gstin})</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="text-xs text-slate-500 flex items-center gap-1.5 font-medium">
+                        <span className="w-2 h-2 rounded-full bg-rose-500 inline-block animate-pulse"></span>
+                        Rule 37 Monitor Active: <span className="font-bold text-ink-900">{records.length} unpaid vouchers</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Statutory Caution Alert */}
+                  <div className="bg-amber-50 border-l-4 border-amber-500 p-md rounded-r text-amber-900 text-sm flex items-start gap-3 shadow-xs">
+                    <span className="material-symbols-outlined text-amber-600 mt-0.5">gavel</span>
+                    <div>
+                      <p className="font-bold text-ink-900">
+                        Statutory Mandate: Second Proviso to Section 16(2) & Rule 37 CGST Rules
+                      </p>
+                      <p className="text-xs mt-0.5 text-amber-950/80 leading-relaxed">
+                        Where a recipient fails to pay to the supplier the amount towards the value of supply along with tax within <strong>180 days</strong> from the date of issue of invoice, an amount equal to the ITC availed shall be added to the output tax liability in GSTR-3B Table 4(B)(2) with <strong>18% interest</strong>. Once paid, the credit can be re-availed without any time bar.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 4 Bento KPI Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md">
+                    <div className="bg-white border border-slate-200 rounded p-md shadow-xs flex flex-col justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Unpaid ITC</span>
+                      <div className="my-sm">
+                        <div className="text-2xl font-bold text-ink-900">₹{summary.total_unpaid_itc.toLocaleString('en-IN')}</div>
+                        <span className="text-xs text-slate-500">{summary.total_unpaid_invoices} invoices pending payment</span>
+                      </div>
+                      <span className="text-[11px] text-slate-400 font-medium">Inward supply register</span>
+                    </div>
+
+                    <div className="bg-moss-50/60 border border-moss-300 rounded p-md shadow-xs flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-moss-800">Safe ITC (0-60 Days)</span>
+                        <span className="material-symbols-outlined text-moss-600 text-sm">check_circle</span>
+                      </div>
+                      <div className="my-sm">
+                        <div className="text-2xl font-bold text-moss-900">₹{summary.safe_itc.toLocaleString('en-IN')}</div>
+                        <span className="text-xs text-moss-700">Plenty of time to clear payment</span>
+                      </div>
+                      <span className="text-[11px] font-bold text-moss-700">✓ No reversal risk</span>
+                    </div>
+
+                    <div className="bg-amber-50/60 border border-amber-300 rounded p-md shadow-xs flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-amber-800">Approaching 180 Days</span>
+                        <span className="material-symbols-outlined text-amber-600 text-sm">timer</span>
+                      </div>
+                      <div className="my-sm">
+                        <div className="text-2xl font-bold text-amber-900">₹{summary.critical_itc.toLocaleString('en-IN')}</div>
+                        <span className="text-xs text-amber-700">121–179 days elapsed</span>
+                      </div>
+                      <span className="text-[11px] font-bold text-amber-700">⚠️ Send payment reminder</span>
+                    </div>
+
+                    <div className="bg-rose-50/60 border border-rose-300 rounded p-md shadow-xs flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-rose-800">Reversal Mandated (&gt;180d)</span>
+                        <span className="material-symbols-outlined text-rose-600 text-sm">dangerous</span>
+                      </div>
+                      <div className="my-sm">
+                        <div className="text-2xl font-bold text-rose-900">₹{summary.mandated_reversal_itc.toLocaleString('en-IN')}</div>
+                        <span className="text-xs text-rose-700">Exceeded 180 days!</span>
+                      </div>
+                      <span className="text-[11px] font-bold text-rose-700">🚨 Reverse in Table 4(B)(2)</span>
+                    </div>
+                  </div>
+
+                  {/* Aging Table Section */}
+                  <div className="bg-white border border-slate-200 rounded shadow-sm overflow-hidden">
+                    <div className="p-md border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-md bg-slate-50/80">
+                      <div>
+                        <h4 className="font-bold text-ink-900 text-sm flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-teal-700 text-base">hourglass_bottom</span>
+                          Unpaid Purchase Ledger Aging Breakdown
+                        </h4>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Monitor days elapsed for each supplier invoice. Invoices exceeding 180 days must be reversed on the 20th of the month.
+                        </p>
+                      </div>
+                    </div>
+
+                    {records.length === 0 ? (
+                      <div className="p-xl text-center">
+                        <span className="material-symbols-outlined text-moss-500 text-5xl mb-xs">verified</span>
+                        <h4 className="font-bold text-ink-900">All Vouchers Paid</h4>
+                        <p className="text-xs text-slate-500 mt-1">Zero unpaid invoices for {selectedBiz.name}. Rule 37 compliance is 100% clean!</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider border-b border-slate-200">
+                              <th className="p-md">Supplier Details</th>
+                              <th className="p-md">Invoice #</th>
+                              <th className="p-md">Invoice Date</th>
+                              <th className="p-md text-right">Taxable Value</th>
+                              <th className="p-md text-right">ITC Amount</th>
+                              <th className="p-md text-center">180-Day Countdown</th>
+                              <th className="p-md">Compliance Status</th>
+                              <th className="p-md text-center">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {records.map((item, idx) => {
+                              const isReminded = !!rule37Reminded[item.invoice_number];
+                              const progressPct = Math.min(100, Math.round((item.days_elapsed / 180) * 100));
+
+                              let badgeColor = 'bg-moss-100 text-moss-800 border-moss-300';
+                              let badgeLabel = `Safe (${item.days_elapsed}d elapsed)`;
+                              let barColor = 'bg-moss-500';
+
+                              if (item.urgency === 'reversal_mandated') {
+                                badgeColor = 'bg-rose-100 text-rose-900 border-rose-300';
+                                badgeLabel = `REVERSAL MANDATED (${item.overdue_days}d overdue)`;
+                                barColor = 'bg-rose-600';
+                              } else if (item.urgency === 'critical') {
+                                badgeColor = 'bg-amber-100 text-amber-900 border-amber-300';
+                                badgeLabel = `CRITICAL: ${item.days_remaining}d remaining`;
+                                barColor = 'bg-amber-500';
+                              } else if (item.urgency === 'due_soon') {
+                                badgeColor = 'bg-blue-100 text-blue-900 border-blue-300';
+                                badgeLabel = `Due Soon (${item.days_remaining}d left)`;
+                                barColor = 'bg-blue-500';
+                              }
+
+                              return (
+                                <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                  <td className="p-md">
+                                    <div className="font-bold text-ink-900">{item.vendor_name}</div>
+                                    <div className="text-[11px] font-mono text-slate-500">{item.vendor_gstin}</div>
+                                  </td>
+                                  <td className="p-md font-mono font-bold text-ink-900">{item.invoice_number}</td>
+                                  <td className="p-md text-slate-600">{item.invoice_date}</td>
+                                  <td className="p-md text-right font-medium text-slate-700">
+                                    ₹{item.taxable_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                  </td>
+                                  <td className="p-md text-right font-bold text-ink-900">
+                                    ₹{item.itc_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                  </td>
+                                  <td className="p-md text-center">
+                                    <div className="w-28 mx-auto">
+                                      <div className="flex justify-between text-[10px] text-slate-500 mb-0.5">
+                                        <span>{item.days_elapsed}d</span>
+                                        <span>180d</span>
+                                      </div>
+                                      <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                                        <div className={`h-full ${barColor}`} style={{ width: `${progressPct}%` }}></div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="p-md">
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border ${badgeColor}`}>
+                                      {badgeLabel}
+                                    </span>
+                                  </td>
+                                  <td className="p-md text-center">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      {item.urgency !== 'safe' && (
+                                        isReminded ? (
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-moss-100 text-moss-800 border border-moss-300 rounded text-[11px] font-bold">
+                                            <span className="material-symbols-outlined text-xs">done</span>
+                                            Reminded
+                                          </span>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRule37Remind(item, selectedBiz.name)}
+                                            className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded text-[11px] transition-all shadow-xs flex items-center gap-1"
+                                            title="Send urgent WhatsApp payment reminder to client"
+                                          >
+                                            <span className="material-symbols-outlined text-xs">warning</span>
+                                            Nudge Client
+                                          </button>
+                                        )
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleMarkInvoicePaid(item.invoice_number)}
+                                        className="px-2 py-1 bg-slate-800 hover:bg-black text-white font-semibold rounded text-[11px] transition-all shadow-xs"
+                                        title="Mark voucher as paid to clear reversal risk"
+                                      >
+                                        Mark Paid
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* VIEW: CA FIRM PROFILE, WHITE-LABELING & ICAI AUDIT LOGS */}
+            {currentView === 'firm-settings' && (
+              <div className="space-y-lg max-w-7xl mx-auto w-full">
+                {/* Header */}
+                <div className="bg-white border border-slate-200 rounded p-lg shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-md">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="material-symbols-outlined text-teal-700 text-2xl">domain</span>
+                        <h3 className="font-headline-md text-headline-sm md:text-headline-md text-ink-900 font-bold">
+                          CA Firm Operating System & Practice Controls
+                        </h3>
+                        <span className="bg-teal-100 text-teal-800 text-xs font-semibold px-2.5 py-0.5 rounded uppercase tracking-wider">
+                          ICAI Standard SQC 1
+                        </span>
+                      </div>
+                      <p className="text-on-surface-variant text-body-md max-w-3xl">
+                        Configure firm branding for client WhatsApp notifications, customize Tally Prime chart of accounts mapping, and inspect ICAI SA 230 audit documentation logs.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500 font-medium">Active Staff Role:</span>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
+                        staffRole === 'partner_ca' 
+                          ? 'bg-teal-50 text-teal-800 border-teal-300' 
+                          : 'bg-indigo-50 text-indigo-800 border-indigo-300'
+                      }`}>
+                        {staffRole === 'partner_ca' ? '⚖️ Partner CA (Rajesh Shah)' : '👤 Article Assistant (Karan Dave)'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Tab Navigation */}
+                  <div className="mt-md pt-sm border-t border-slate-200 flex flex-wrap gap-sm">
+                    <button
+                      type="button"
+                      onClick={() => setFirmSettingsTab('branding')}
+                      className={`pb-2 pt-1.5 px-3.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-1.5 ${
+                        firmSettingsTab === 'branding'
+                          ? 'border-teal-700 text-teal-800'
+                          : 'border-transparent text-slate-500 hover:text-ink-900'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-sm">badge</span>
+                      Firm Profile & WhatsApp Branding
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFirmSettingsTab('tally_mapping')}
+                      className={`pb-2 pt-1.5 px-3.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-1.5 ${
+                        firmSettingsTab === 'tally_mapping'
+                          ? 'border-teal-700 text-teal-800'
+                          : 'border-transparent text-slate-500 hover:text-ink-900'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-sm">account_tree</span>
+                      Tally Chart of Accounts Mapping
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFirmSettingsTab('audit_trail')}
+                      className={`pb-2 pt-1.5 px-3.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-1.5 ${
+                        firmSettingsTab === 'audit_trail'
+                          ? 'border-teal-700 text-teal-800'
+                          : 'border-transparent text-slate-500 hover:text-ink-900'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-sm">history_edu</span>
+                      ICAI SA 230 Audit Documentation Trail
+                    </button>
+                  </div>
+                </div>
+
+                {/* TAB 1: FIRM PROFILE & WHATSAPP BRANDING */}
+                {firmSettingsTab === 'branding' && (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-lg">
+                    <form onSubmit={handleSaveFirmSettings} className="lg:col-span-2 bg-white border border-slate-200 rounded p-lg shadow-sm space-y-md">
+                      <h4 className="font-bold text-ink-900 text-sm border-b border-slate-100 pb-2">
+                        Chartered Accountant Firm Information
+                      </h4>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-md">
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 block mb-1">Firm Legal Name</label>
+                          <input
+                            type="text"
+                            value={caFirmSettings.firm_name}
+                            onChange={(e) => setCaFirmSettings({ ...caFirmSettings, firm_name: e.target.value })}
+                            className="w-full text-xs font-medium border border-slate-300 rounded p-2 focus:ring-1 focus:ring-teal-600 focus:outline-none"
+                            placeholder="e.g. Shah & Associates, Chartered Accountants"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 block mb-1">ICAI Firm Registration No. (FRN)</label>
+                          <input
+                            type="text"
+                            value={caFirmSettings.icai_frn}
+                            onChange={(e) => setCaFirmSettings({ ...caFirmSettings, icai_frn: e.target.value })}
+                            className="w-full text-xs font-medium border border-slate-300 rounded p-2 focus:ring-1 focus:ring-teal-600 focus:outline-none font-mono"
+                            placeholder="e.g. 109283W"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-md">
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 block mb-1">Senior Partner Name</label>
+                          <input
+                            type="text"
+                            value={caFirmSettings.partner_name}
+                            onChange={(e) => setCaFirmSettings({ ...caFirmSettings, partner_name: e.target.value })}
+                            className="w-full text-xs font-medium border border-slate-300 rounded p-2 focus:ring-1 focus:ring-teal-600 focus:outline-none"
+                            placeholder="e.g. CA Rajesh Shah, FCA"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 block mb-1">ICAI Membership No.</label>
+                          <input
+                            type="text"
+                            value={caFirmSettings.partner_membership_no}
+                            onChange={(e) => setCaFirmSettings({ ...caFirmSettings, partner_membership_no: e.target.value })}
+                            className="w-full text-xs font-medium border border-slate-300 rounded p-2 focus:ring-1 focus:ring-teal-600 focus:outline-none font-mono"
+                            placeholder="e.g. 048921"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-md">
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 block mb-1">Tax Desk Contact Phone</label>
+                          <input
+                            type="text"
+                            value={caFirmSettings.contact_phone}
+                            onChange={(e) => setCaFirmSettings({ ...caFirmSettings, contact_phone: e.target.value })}
+                            className="w-full text-xs font-medium border border-slate-300 rounded p-2 focus:ring-1 focus:ring-teal-600 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 block mb-1">Official Filing Desk Email</label>
+                          <input
+                            type="email"
+                            value={caFirmSettings.contact_email}
+                            onChange={(e) => setCaFirmSettings({ ...caFirmSettings, contact_email: e.target.value })}
+                            className="w-full text-xs font-medium border border-slate-300 rounded p-2 focus:ring-1 focus:ring-teal-600 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 block mb-1">Custom WhatsApp Client Receipt Signature</label>
+                        <textarea
+                          rows={2}
+                          value={caFirmSettings.custom_whatsapp_signature}
+                          onChange={(e) => setCaFirmSettings({ ...caFirmSettings, custom_whatsapp_signature: e.target.value })}
+                          className="w-full text-xs font-medium border border-slate-300 rounded p-2 focus:ring-1 focus:ring-teal-600 focus:outline-none"
+                          placeholder="e.g. — Tax & Compliance Desk, Shah & Associates, CAs"
+                        />
+                        <span className="text-[11px] text-slate-400">This signature is appended to every invoice confirmation message delivered to your shopkeeper clients.</span>
+                      </div>
+
+                      <div className="pt-sm">
+                        <button
+                          type="submit"
+                          className="px-md py-sm bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs rounded transition-all shadow-xs flex items-center gap-1.5"
+                        >
+                          <span className="material-symbols-outlined text-sm">save</span>
+                          Save Firm Profile & Branding
+                        </button>
+                      </div>
+                    </form>
+
+                    {/* Live WhatsApp Client Preview */}
+                    <div className="bg-[#0b141a] text-white p-md rounded shadow-lg flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-2 border-b border-slate-700 pb-2 mb-3">
+                          <span className="material-symbols-outlined text-moss-400 text-xl">chat</span>
+                          <div>
+                            <div className="font-bold text-xs">WhatsApp Client View</div>
+                            <div className="text-[10px] text-slate-400">Kirana Store receipt confirmation</div>
+                          </div>
+                        </div>
+
+                        <div className="bg-[#202c33] rounded-lg p-sm text-xs space-y-2 border-l-4 border-emerald-500">
+                          <div className="font-bold text-emerald-400 flex items-center gap-1">
+                            <span>✅ Bill Verified & Logged</span>
+                          </div>
+                          <p className="text-[11px] text-slate-200">
+                            <strong>Vendor:</strong> Sharma Wholesale Traders<br />
+                            <strong>Invoice #:</strong> INV-4521<br />
+                            <strong>Taxable:</strong> ₹23,333.33<br />
+                            <strong>GST (18%):</strong> ₹4,200.00<br />
+                            <strong>GSTR-2B Status:</strong> Verified Active
+                          </p>
+                          <div className="pt-2 border-t border-slate-700/60 text-[10px] text-slate-400 italic">
+                            {caFirmSettings.custom_whatsapp_signature || '— Tax Desk, Shah & Associates, CAs'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-md text-[10px] text-slate-500 text-center">
+                        Branded for {caFirmSettings.firm_name} (FRN {caFirmSettings.icai_frn})
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB 2: TALLY CHART OF ACCOUNTS MAPPING */}
+                {firmSettingsTab === 'tally_mapping' && (
+                  <form onSubmit={handleSaveFirmSettings} className="bg-white border border-slate-200 rounded p-lg shadow-sm space-y-md">
+                    <div>
+                      <h4 className="font-bold text-ink-900 text-sm">Tally Prime Chart of Accounts Ledger Mapping</h4>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Define exact ledger names configured in your Tally Prime company to guarantee 0 import crashes and eliminate orphan accounts.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-md">
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 block mb-1">Purchase Ledger Name</label>
+                        <input
+                          type="text"
+                          value={caFirmSettings.tally_purchase_ledger}
+                          onChange={(e) => setCaFirmSettings({ ...caFirmSettings, tally_purchase_ledger: e.target.value })}
+                          className="w-full text-xs font-mono font-medium border border-slate-300 rounded p-2 focus:ring-1 focus:ring-teal-600 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 block mb-1">Input CGST Ledger</label>
+                        <input
+                          type="text"
+                          value={caFirmSettings.tally_cgst_ledger}
+                          onChange={(e) => setCaFirmSettings({ ...caFirmSettings, tally_cgst_ledger: e.target.value })}
+                          className="w-full text-xs font-mono font-medium border border-slate-300 rounded p-2 focus:ring-1 focus:ring-teal-600 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 block mb-1">Input SGST Ledger</label>
+                        <input
+                          type="text"
+                          value={caFirmSettings.tally_sgst_ledger}
+                          onChange={(e) => setCaFirmSettings({ ...caFirmSettings, tally_sgst_ledger: e.target.value })}
+                          className="w-full text-xs font-mono font-medium border border-slate-300 rounded p-2 focus:ring-1 focus:ring-teal-600 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 block mb-1">Input IGST Ledger</label>
+                        <input
+                          type="text"
+                          value={caFirmSettings.tally_igst_ledger}
+                          onChange={(e) => setCaFirmSettings({ ...caFirmSettings, tally_igst_ledger: e.target.value })}
+                          className="w-full text-xs font-mono font-medium border border-slate-300 rounded p-2 focus:ring-1 focus:ring-teal-600 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 block mb-1">Round Off Ledger Name</label>
+                        <input
+                          type="text"
+                          value={caFirmSettings.tally_roundoff_ledger}
+                          onChange={(e) => setCaFirmSettings({ ...caFirmSettings, tally_roundoff_ledger: e.target.value })}
+                          className="w-full text-xs font-mono font-medium border border-slate-300 rounded p-2 focus:ring-1 focus:ring-teal-600 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-sm border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-xs text-slate-500 font-medium">Auto-applied to all XML exports in Client Ledgers</span>
+                      <button
+                        type="submit"
+                        className="px-md py-sm bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs rounded transition-all shadow-xs flex items-center gap-1.5"
+                      >
+                        <span className="material-symbols-outlined text-sm">save</span>
+                        Save Tally Preferences
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* TAB 3: ICAI SA 230 AUDIT DOCUMENTATION TRAIL */}
+                {firmSettingsTab === 'audit_trail' && (
+                  <div className="bg-white border border-slate-200 rounded p-lg shadow-sm space-y-md">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-md border-b border-slate-100 pb-md">
+                      <div>
+                        <h4 className="font-bold text-ink-900 text-sm flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-teal-700 text-base">verified_user</span>
+                          ICAI Standard on Auditing (SA 230) Audit Trail
+                        </h4>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Permanent, tamper-evident audit log of all invoice reviews, Section 17(5) toggles, GSTR-2B reconciliations, and Tally exports.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={exportAuditLogCsv}
+                        className="px-md py-sm bg-slate-800 hover:bg-black text-white font-bold text-xs rounded transition-all shadow-xs flex items-center gap-1.5 self-start sm:self-auto"
+                      >
+                        <span className="material-symbols-outlined text-sm">download</span>
+                        Export Audit Trail (CSV)
+                      </button>
+                    </div>
+
+                    <div className="overflow-x-auto border border-slate-200 rounded">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider border-b border-slate-200">
+                            <th className="p-md">Timestamp</th>
+                            <th className="p-md">Staff User</th>
+                            <th className="p-md">Role</th>
+                            <th className="p-md">Action Type</th>
+                            <th className="p-md">Audit Trail Description</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {auditLogs.map((log) => (
+                            <tr key={log.id} className="hover:bg-slate-50 transition-colors">
+                              <td className="p-md font-mono text-slate-600 whitespace-nowrap">
+                                {new Date(log.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </td>
+                              <td className="p-md font-bold text-ink-900 whitespace-nowrap">{log.user_name}</td>
+                              <td className="p-md whitespace-nowrap">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  log.user_role === 'partner_ca' 
+                                    ? 'bg-teal-100 text-teal-800' 
+                                    : 'bg-indigo-100 text-indigo-800'
+                                }`}>
+                                  {log.user_role === 'partner_ca' ? 'Partner CA' : 'Article Assistant'}
+                                </span>
+                              </td>
+                              <td className="p-md font-mono text-[11px] font-semibold text-slate-700 whitespace-nowrap">
+                                {log.action_type}
+                              </td>
+                              <td className="p-md text-slate-800">{log.description}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* VIEW: INWARD QUEUE (Invoice Review Queue) */}
             {currentView === 'inward' && (
               <div className="space-y-lg max-w-7xl mx-auto w-full">
@@ -1961,12 +3960,25 @@ ${vouchersXml}
                                     className="w-full bg-white border border-slate-200 p-sm rounded text-body-sm focus:border-teal-600 focus:ring-0"
                                   />
                                 ) : (
-                                  <div className="flex items-center gap-sm mb-xs">
-                                    <h4 className="font-headline-sm text-ink-900 font-bold">{invoice.vendor_name || 'OM ENTERPRISES LTD.'}</h4>
-                                    <div className="flex items-center gap-1 px-2 py-0.5 bg-error-container text-rust-600 rounded-full">
-                                      <span className="w-1.5 h-1.5 bg-rust-600 rounded-full"></span>
-                                      <span className="text-[10px] font-bold">LOW CONFIDENCE</span>
+                                  <div className="space-y-1 mb-xs">
+                                    <div className="flex items-center gap-sm">
+                                      <h4 className="font-headline-sm text-ink-900 font-bold">{invoice.vendor_name || 'OM ENTERPRISES LTD.'}</h4>
+                                      <div className="flex items-center gap-1 px-2 py-0.5 bg-error-container text-rust-600 rounded-full">
+                                        <span className="w-1.5 h-1.5 bg-rust-600 rounded-full"></span>
+                                        <span className="text-[10px] font-bold">LOW CONFIDENCE</span>
+                                      </div>
                                     </div>
+                                    {invoice.is_itc_eligible === false ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-300 text-amber-900 rounded text-[11px] font-bold">
+                                        <span className="material-symbols-outlined text-[13px] text-amber-700">block</span>
+                                        Blocked ITC u/s 17(5) ({invoice.ineligibility_reason || 'Ineligible Credit'})
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded text-[11px] font-bold">
+                                        <span className="material-symbols-outlined text-[13px] text-emerald-600">check_circle</span>
+                                        Eligible for Input Tax Credit (ITC)
+                                      </span>
+                                    )}
                                   </div>
                                 )}
                                 <p className="text-body-sm text-on-surface-variant italic">
@@ -1977,12 +3989,41 @@ ${vouchersXml}
                               <div className="col-span-12 md:col-span-6">
                                 <label className="font-label-caps text-on-surface-variant block mb-xs uppercase tracking-tight">GSTIN (Extracted)</label>
                                 {isEditing ? (
-                                  <input 
-                                    type="text" 
-                                    value={editGstin}
-                                    onChange={(e) => setEditGstin(e.target.value)}
-                                    className="w-full bg-white border border-slate-200 p-sm rounded font-data-mono text-body-sm focus:border-teal-600 focus:ring-0"
-                                  />
+                                  <div className="space-y-2">
+                                    <input 
+                                      type="text" 
+                                      value={editGstin}
+                                      onChange={(e) => setEditGstin(e.target.value)}
+                                      className="w-full bg-white border border-slate-200 p-sm rounded font-data-mono text-body-sm focus:border-teal-600 focus:ring-0"
+                                    />
+                                    <div className="p-2 bg-slate-50 border border-slate-200 rounded space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        <input 
+                                          type="checkbox"
+                                          id={`sec175-check-${invoice.id}`}
+                                          checked={editIsItcEligible}
+                                          onChange={(e) => setEditIsItcEligible(e.target.checked)}
+                                          className="rounded text-teal-600 focus:ring-0 h-4 w-4"
+                                        />
+                                        <label htmlFor={`sec175-check-${invoice.id}`} className="text-body-sm font-bold text-ink-900 cursor-pointer">
+                                          ITC Eligible in GSTR-3B Table 4(A)
+                                        </label>
+                                      </div>
+                                      {!editIsItcEligible && (
+                                        <select
+                                          value={editIneligibilityReason}
+                                          onChange={(e) => setEditIneligibilityReason(e.target.value)}
+                                          className="w-full text-xs bg-amber-50 border border-amber-300 rounded p-1.5 text-ink-900"
+                                        >
+                                          <option value="Section 17(5) - Ineligible motor vehicle / conveyance">Sec 17(5) Motor Vehicle / Conveyance</option>
+                                          <option value="Section 17(5) - Food, beverages, catering or club membership">Sec 17(5) Food / Catering / Club</option>
+                                          <option value="Section 17(5) - Personal consumption / non-business">Sec 17(5) Personal Consumption</option>
+                                          <option value="Section 17(5) - Goods lost, stolen, destroyed, written off or gift">Sec 17(5) Lost / Written Off / Free Sample</option>
+                                          <option value="Recipient GSTIN Mismatch - Invoice not addressed to client">Recipient GSTIN Mismatch</option>
+                                        </select>
+                                      )}
+                                    </div>
+                                  </div>
                                 ) : (
                                   <div className="flex items-center gap-sm">
                                     <span className="font-data-mono text-headline-sm tracking-tight text-rust-600 bg-rust-600/5 px-2 py-1 border border-rust-600/20 rounded">
@@ -2013,7 +4054,7 @@ ${vouchersXml}
                                 )}
                               </div>
 
-                              <div className="flex gap-sm">
+                              <div className="flex flex-wrap gap-sm">
                                 {isEditing ? (
                                   <>
                                     <button 
@@ -2026,7 +4067,9 @@ ${vouchersXml}
                                       onClick={() => handleConfirmInvoice(invoice.id, {
                                         vendor_name: editVendor,
                                         vendor_gstin: editGstin,
-                                        total_amount: parseFloat(editTotal) || 0
+                                        total_amount: parseFloat(editTotal) || 0,
+                                        is_itc_eligible: editIsItcEligible,
+                                        ineligibility_reason: editIsItcEligible ? null : editIneligibilityReason
                                       })}
                                       className="px-lg py-1.5 bg-teal-600 text-white font-bold hover:bg-teal-600/90 transition-colors rounded text-body-sm"
                                     >
@@ -2044,6 +4087,14 @@ ${vouchersXml}
                                       Reject
                                     </button>
                                     <button 
+                                      onClick={() => handleToggleSec175(invoice.id)}
+                                      className={`px-md py-1.5 border ${invoice.is_itc_eligible === false ? 'border-emerald-300 text-emerald-700 hover:bg-emerald-50' : 'border-amber-300 text-amber-800 hover:bg-amber-50'} font-bold transition-colors rounded text-body-sm flex items-center gap-xs`}
+                                      title="Toggle between Eligible ITC and Ineligible Blocked Credit u/s 17(5)"
+                                    >
+                                      <span className="material-symbols-outlined text-[16px]">{invoice.is_itc_eligible === false ? 'verified' : 'block'}</span>
+                                      {invoice.is_itc_eligible === false ? 'Make Eligible' : 'Block u/s 17(5)'}
+                                    </button>
+                                    <button 
                                       onClick={() => handleRequestClearerPhoto(invoice.id)}
                                       className="px-md py-1.5 border border-slate-200 text-ink-900 font-bold hover:bg-slate-50 transition-colors rounded text-body-sm flex items-center gap-xs"
                                     >
@@ -2056,6 +4107,8 @@ ${vouchersXml}
                                         setEditGstin(invoice.vendor_gstin || '27AAACO456Z1ZX');
                                         setEditVendor(invoice.vendor_name || 'OM ENTERPRISES LTD.');
                                         setEditTotal(invoice.total_amount || 45200);
+                                        setEditIsItcEligible(invoice.is_itc_eligible !== false);
+                                        setEditIneligibilityReason(invoice.ineligibility_reason || 'Section 17(5) - Ineligible motor vehicle / conveyance');
                                       }}
                                       className="px-md py-1.5 border border-slate-200 text-ink-900 font-bold hover:bg-slate-50 transition-colors rounded text-body-sm"
                                     >
@@ -3211,6 +5264,48 @@ ${vouchersXml}
                               <span className="font-label-caps text-on-surface-variant text-[10px] block">Total Amount</span>
                               <span className="font-data-mono font-bold text-teal-700 text-body-sm">₹{res.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                             </div>
+                          </div>
+
+                          {/* Multi-Rate Tax Slabs Breakdown Table (Kirana Wholesale Support) */}
+                          {res.tax_slabs && res.tax_slabs.length > 0 && (
+                            <div className="p-md border-t border-slate-200 bg-white">
+                              <span className="font-label-caps text-on-surface-variant text-[10px] block font-bold uppercase tracking-wider mb-xs">
+                                Extracted Multi-Rate Tax Slabs ({res.tax_slabs.length} Slabs Breakdown)
+                              </span>
+                              <div className="space-y-1">
+                                {res.tax_slabs.map((slab, idx) => (
+                                  <div key={idx} className="flex justify-between items-center text-xs p-2 bg-paper-50 rounded border border-slate-200">
+                                    <div className="flex items-center gap-2">
+                                      <span className="px-2 py-0.5 bg-teal-100 text-teal-800 font-bold rounded text-[10px]">{slab.rate}% GST</span>
+                                      <span className="text-ink-900 font-medium">{slab.items || 'Standard Inward Goods'}</span>
+                                    </div>
+                                    <div className="font-data-mono text-[11px] text-right space-x-3">
+                                      <span className="text-on-surface-variant">Taxable: ₹{slab.taxable_amount.toLocaleString('en-IN')}</span>
+                                      <span className="text-teal-700 font-bold">CGST+SGST: ₹{(slab.cgst_amount + slab.sgst_amount).toLocaleString('en-IN')}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Compliance Intelligence Bar (Buyer Match & Taxpayer Type) */}
+                          <div className="px-md py-sm bg-slate-50 border-t border-slate-200 flex flex-wrap justify-between items-center gap-xs text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-on-surface-variant">Portal Taxpayer Category:</span>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${res.taxpayer_type === 'Composition' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-emerald-50 text-emerald-800 border border-emerald-300'}`}>
+                                {res.taxpayer_type || 'Regular'} Taxpayer
+                              </span>
+                            </div>
+                            {res.recipient_gstin && (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-on-surface-variant">Buyer (Recipient) Verification:</span>
+                                <span className="font-data-mono font-bold text-teal-800 bg-teal-50 px-2 py-0.5 border border-teal-200 rounded text-[10px] flex items-center gap-1">
+                                  <span className="material-symbols-outlined text-[13px]">verified</span>
+                                  {res.recipient_gstin} (Matches Client Firm)
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       );

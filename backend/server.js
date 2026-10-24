@@ -64,17 +64,20 @@ const mockDb = {
     { id: 5, name: 'Kalpesh Enterprises', gstin: '24KLPSH1234F1Z8', ca_id: 1, whatsapp_number: '9925556541', onboarding_status: 'active' }
   ],
   invoices: [
-    { id: 1, business_id: 1, source_type: 'whatsapp', file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', vendor_name: 'Sharma Wholesale', vendor_gstin: '24SHRMA1234A1Z9', invoice_number: 'INV-4521', invoice_date: '2026-07-15', taxable_amount: 23333.33, cgst_rate: 9.0, cgst_amount: 2100.00, sgst_rate: 9.0, sgst_amount: 2100.00, igst_rate: 0.0, igst_amount: 0.0, total_amount: 27533.33, hsn_sac_code: '8471', extraction_confidence: 0.95, extraction_status: 'extracted' },
-    { id: 2, business_id: 1, source_type: 'whatsapp', file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', vendor_name: 'Shrma Traders', vendor_gstin: '24SHRMA1234A1Z9', invoice_number: 'INV-4519', invoice_date: '2026-07-12', taxable_amount: 15000.00, cgst_rate: 9.0, cgst_amount: 1350.00, sgst_rate: 9.0, sgst_amount: 1350.00, igst_rate: 0.0, igst_amount: 0.0, total_amount: 17700.00, hsn_sac_code: '8471', extraction_confidence: 0.82, extraction_status: 'extracted' },
-    { id: 3, business_id: 1, source_type: 'whatsapp', file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', vendor_name: 'Unclear Vendor', vendor_gstin: '24SHRMA1234A1Z9', invoice_number: 'INV-9921', invoice_date: '2026-07-28', taxable_amount: 3420.50, cgst_rate: 0, cgst_amount: 0, sgst_rate: 0, sgst_amount: 0, igst_rate: 0, igst_amount: 0, total_amount: 3420.50, hsn_sac_code: null, extraction_confidence: 0.42, extraction_status: 'needs_review' },
-    { id: 4, business_id: 2, source_type: 'whatsapp', file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', vendor_name: 'Gupta Distributors', vendor_gstin: '24GUPTA9999K1Z2', invoice_number: 'SE-89102', invoice_date: '2026-07-20', taxable_amount: 50000.00, cgst_rate: 0.0, cgst_amount: 0.0, sgst_rate: 0.0, sgst_amount: 0.0, igst_rate: 18.0, igst_amount: 9000.00, total_amount: 59000.00, hsn_sac_code: '8528', extraction_confidence: 0.98, extraction_status: 'extracted' }
+    { id: 1, business_id: 1, source_type: 'whatsapp', file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', vendor_name: 'Sharma Wholesale', vendor_gstin: '24SHRMA1234A1Z9', invoice_number: 'INV-4521', invoice_date: '2026-07-15', taxable_amount: 23333.33, cgst_rate: 9.0, cgst_amount: 2100.00, sgst_rate: 9.0, sgst_amount: 2100.00, igst_rate: 0.0, igst_amount: 0.0, total_amount: 27533.33, hsn_sac_code: '8471', extraction_confidence: 0.95, extraction_status: 'extracted', is_itc_eligible: true, payment_status: 'unpaid' },
+    { id: 2, business_id: 1, source_type: 'whatsapp', file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', vendor_name: 'Shrma Traders', vendor_gstin: '24SHRMA1234A1Z9', invoice_number: 'INV-4519', invoice_date: '2026-07-12', taxable_amount: 15000.00, cgst_rate: 9.0, cgst_amount: 1350.00, sgst_rate: 9.0, sgst_amount: 1350.00, igst_rate: 0.0, igst_amount: 0.0, total_amount: 17700.00, hsn_sac_code: '8471', extraction_confidence: 0.82, extraction_status: 'extracted', is_itc_eligible: true, payment_status: 'paid', payment_date: '2026-07-20' },
+    { id: 3, business_id: 1, source_type: 'whatsapp', file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', vendor_name: 'Unclear Vendor', vendor_gstin: '24SHRMA1234A1Z9', invoice_number: 'INV-9921', invoice_date: '2026-07-28', taxable_amount: 3420.50, cgst_rate: 0, cgst_amount: 0, sgst_rate: 0, sgst_amount: 0, igst_rate: 0, igst_amount: 0, total_amount: 3420.50, hsn_sac_code: null, extraction_confidence: 0.42, extraction_status: 'needs_review', is_itc_eligible: true, payment_status: 'unpaid' },
+    { id: 4, business_id: 2, source_type: 'whatsapp', file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', vendor_name: 'Gupta Distributors', vendor_gstin: '24GUPTA9999K1Z2', invoice_number: 'SE-89102', invoice_date: '2026-07-20', taxable_amount: 50000.00, cgst_rate: 0.0, cgst_amount: 0.0, sgst_rate: 0.0, sgst_amount: 0.0, igst_rate: 18.0, igst_amount: 9000.00, total_amount: 59000.00, hsn_sac_code: '8528', extraction_confidence: 0.98, extraction_status: 'extracted', is_itc_eligible: false, ineligibility_reason: 'Section 17(5) - Ineligible motor vehicle / personal expenses', payment_status: 'unpaid' },
+    { id: 5, business_id: 1, source_type: 'whatsapp', file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', vendor_name: 'National FMCG Distributors', vendor_gstin: '24NFMCG4444N1Z7', invoice_number: 'NF-3011', invoice_date: '2026-02-10', taxable_amount: 40000.00, cgst_rate: 9.0, cgst_amount: 3600.00, sgst_rate: 9.0, sgst_amount: 3600.00, igst_rate: 0.0, igst_amount: 0.0, total_amount: 47200.00, hsn_sac_code: '2106', extraction_confidence: 0.96, extraction_status: 'extracted', is_itc_eligible: true, payment_status: 'unpaid' },
+    { id: 6, business_id: 1, source_type: 'whatsapp', file_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500', vendor_name: 'Apex Electricals Ltd', vendor_gstin: '24APEXX8888A1Z5', invoice_number: 'AE-9082', invoice_date: '2025-12-05', taxable_amount: 20000.00, cgst_rate: 9.0, cgst_amount: 1800.00, sgst_rate: 9.0, sgst_amount: 1800.00, igst_rate: 0.0, igst_amount: 0.0, total_amount: 23600.00, hsn_sac_code: '8536', extraction_confidence: 0.94, extraction_status: 'extracted', is_itc_eligible: true, payment_status: 'unpaid' }
   ],
   gstin_validations: [
-    { gstin: '24ABCDE1234F1Z5', is_valid: true, status: 'Active', legal_name: 'MEENA KIRANA STORE PRIVATE LIMITED' },
-    { gstin: '24FGHIJ5678K2Z3', is_valid: true, status: 'Active', legal_name: 'SHARMA ELECTRONICS & CO' },
-    { gstin: '24KLMNO9012P3Z1', is_valid: true, status: 'Active', legal_name: 'PATEL TEXTILE HUB' },
-    { gstin: '24SHRMA1234A1Z9', is_valid: true, status: 'Active', legal_name: 'SHARMA WHOLESALE MART' },
-    { gstin: '24GUPTA9999K1Z2', is_valid: false, status: 'Cancelled', legal_name: 'GUPTA DISTRIBUTORS' }
+    { gstin: '24ABCDE1234F1Z5', is_valid: true, status: 'Active', taxpayer_type: 'Regular', legal_name: 'MEENA KIRANA STORE PRIVATE LIMITED' },
+    { gstin: '24FGHIJ5678K2Z3', is_valid: true, status: 'Active', taxpayer_type: 'Regular', legal_name: 'SHARMA ELECTRONICS & CO' },
+    { gstin: '24KLMNO9012P3Z1', is_valid: true, status: 'Active', taxpayer_type: 'Regular', legal_name: 'PATEL TEXTILE HUB' },
+    { gstin: '24SHRMA1234A1Z9', is_valid: true, status: 'Active', taxpayer_type: 'Regular', legal_name: 'SHARMA WHOLESALE MART' },
+    { gstin: '24GUPTA9999K1Z2', is_valid: false, status: 'Cancelled', taxpayer_type: 'Regular', legal_name: 'GUPTA DISTRIBUTORS' },
+    { gstin: '24CMPST1111A1Z1', is_valid: true, status: 'Active', taxpayer_type: 'Composition', legal_name: 'ANAND COMPOSITION TRADERS' }
   ],
   reconciliation_flags: [
     { id: 1, invoice_id: 1, business_id: 1, flag_type: 'missing_itc', severity: 'high', message: 'Invoice #INV-4521 not found in filed GSTR-3B. Potential ITC loss: ₹4,200.00', resolved: false },
@@ -96,7 +99,73 @@ const mockDb = {
   ],
   itr_filings: [
     { id: 1, user_id: 1, assessment_year: '2027-2028', regime_selected: 'old', total_income: 1800000.00, total_deductions: 425000.00, net_taxable_income: 1375000.00, tax_payable: 147500.00, tds_credited: 165000.00, balance_payable: 0.00, refund_due: 17500.00, filing_status: 'ready_for_upload' }
-  ]
+  ],
+  gstr2b_records: [
+    {
+      business_id: 1,
+      filing_period: '072026',
+      supplier_gstin: '24SHRMA1234A1Z9',
+      supplier_name: 'Shrma Hardware & Traders',
+      invoice_number: 'INV-4519',
+      invoice_date: '2026-07-12',
+      invoice_value: 17700.00,
+      taxable_value: 15000.00,
+      cgst_amount: 1350.00,
+      sgst_amount: 1350.00,
+      igst_amount: 0.00,
+      itc_availability: 'Y'
+    },
+    {
+      business_id: 1,
+      filing_period: '072026',
+      supplier_gstin: '24PARLE1111P1Z8',
+      supplier_name: 'Parle Agro Products Ltd',
+      invoice_number: 'PA-8821',
+      invoice_date: '2026-07-18',
+      invoice_value: 21240.00,
+      taxable_value: 18000.00,
+      cgst_amount: 1620.00,
+      sgst_amount: 1620.00,
+      igst_amount: 0.00,
+      itc_availability: 'Y'
+    },
+    {
+      business_id: 1,
+      filing_period: '072026',
+      supplier_gstin: '24TATAS2222T1Z3',
+      supplier_name: 'Tata Consumer Products Ltd',
+      invoice_number: 'TC-10492',
+      invoice_date: '2026-07-25',
+      invoice_value: 9440.00,
+      taxable_value: 8000.00,
+      cgst_amount: 720.00,
+      sgst_amount: 720.00,
+      igst_amount: 0.00,
+      itc_availability: 'Y'
+    }
+  ],
+  vendor_nudges: [],
+  ca_firm_settings: {
+    accountant_id: 1,
+    firm_name: 'Shah & Associates, Chartered Accountants',
+    icai_frn: '109283W',
+    partner_name: 'CA Rajesh Shah, FCA',
+    partner_membership_no: '048921',
+    contact_phone: '+91 98200 12345',
+    contact_email: 'tax@shahassociates.in',
+    custom_whatsapp_signature: '— Tax & Compliance Desk, Shah & Associates, CAs (Powered by BillGuru AI)',
+    tally_purchase_ledger: 'Purchase Account',
+    tally_cgst_ledger: 'Input CGST @ 9%',
+    tally_sgst_ledger: 'Input SGST @ 9%',
+    tally_igst_ledger: 'Input IGST @ 18%',
+    tally_roundoff_ledger: 'Round Off Account'
+  },
+  audit_logs: [
+    { id: 1, user_id: 1, user_name: 'CA Rajesh Shah', user_role: 'partner_ca', action_type: 'GSTR2B_RECONCILED', entity_type: 'gstr2b', entity_id: '072026', description: 'Reconciled July 2026 GSTR-2B against books for Meena Kirana Store. 2 matched, 1 at-risk.', created_at: new Date(Date.now() - 3600000).toISOString() },
+    { id: 2, user_id: 2, user_name: 'Karan Dave (Article)', user_role: 'article_assistant', action_type: 'OCR_REVIEWED', entity_type: 'invoice', entity_id: '2', description: 'Verified extracted tax rates (9% CGST + 9% SGST) on invoice #INV-4519.', created_at: new Date(Date.now() - 7200000).toISOString() },
+    { id: 3, user_id: 1, user_name: 'CA Rajesh Shah', user_role: 'partner_ca', action_type: 'ITC_TOGGLED', entity_type: 'invoice', entity_id: '4', description: 'Flagged Gupta Distributors invoice #SE-89102 as Ineligible ITC under Section 17(5).', created_at: new Date(Date.now() - 86400000).toISOString() }
+  ],
+  rule37_reminders: []
 };
 
 // --- DATABASE STATE ---
@@ -955,15 +1024,31 @@ app.get('/api/gstin/validate/:gstin', authenticateToken, async (req, res) => {
 
   if (isDbMockMode) {
     const cached = mockDb.gstin_validations.find(v => v.gstin === gstin);
-    if (cached) return res.json({ ...cached, checksum_valid: isValidChecksum, cached: true });
+    if (cached) {
+      const isComp = cached.taxpayer_type === 'Composition';
+      return res.json({ 
+        ...cached, 
+        checksum_valid: isValidChecksum, 
+        cached: true,
+        is_composition: isComp,
+        can_claim_itc: cached.status === 'Active' && !isComp
+      });
+    }
 
+    const isComposition = gstin.includes('CMPST') || gstin.substring(13, 14) === 'C';
+    const isCancelled = gstin.includes('GUPTA');
     const val = {
       gstin,
       is_valid: isValidChecksum,
       checksum_valid: isValidChecksum,
-      status: isValidChecksum ? 'Active' : 'Invalid Checksum',
+      status: isValidChecksum ? (isCancelled ? 'Cancelled' : 'Active') : 'Invalid Checksum',
+      taxpayer_type: isComposition ? 'Composition' : 'Regular',
+      is_composition: isComposition,
+      can_claim_itc: isValidChecksum && !isCancelled && !isComposition,
       legal_name: isValidChecksum ? `Vendor ${gstin.substring(2, 7)} Pvt Ltd` : null,
-      message: isValidChecksum ? 'Valid GSTIN' : '15th character checksum verification failed'
+      message: isValidChecksum 
+        ? (isCancelled ? 'Supplier GSTIN is Cancelled on Portal' : (isComposition ? 'Composition Dealer: Ineligible for ITC u/s 10(4)' : 'Active Regular Taxpayer: Eligible for ITC'))
+        : '15th character checksum verification failed'
     };
     mockDb.gstin_validations.push(val);
     return res.json({ ...val, cached: false });
@@ -972,20 +1057,34 @@ app.get('/api/gstin/validate/:gstin', authenticateToken, async (req, res) => {
   try {
     const [rows] = await dbPool.query('SELECT * FROM gstin_validations WHERE gstin = ?', [gstin]);
     if (rows.length > 0) {
-      return res.json({ ...rows[0], checksum_valid: isValidChecksum, cached: true });
+      const row = rows[0];
+      const isComp = row.taxpayer_type === 'Composition';
+      return res.json({ 
+        ...row, 
+        checksum_valid: isValidChecksum, 
+        cached: true,
+        is_composition: isComp,
+        can_claim_itc: row.status === 'Active' && !isComp
+      });
     }
 
+    const isComposition = gstin.includes('CMPST');
     const newRecord = {
       gstin,
       is_valid: isValidChecksum ? 1 : 0,
       checksum_valid: isValidChecksum,
       status: isValidChecksum ? 'Active' : 'Invalid Checksum',
+      taxpayer_type: isComposition ? 'Composition' : 'Regular',
+      is_composition: isComposition,
+      can_claim_itc: isValidChecksum && !isComposition,
       legal_name: isValidChecksum ? `VENDOR ${gstin.substring(2, 7)} CO` : null,
-      message: isValidChecksum ? 'Valid GSTIN' : '15th character checksum verification failed'
+      message: isValidChecksum 
+        ? (isComposition ? 'Composition Dealer: Ineligible for ITC u/s 10(4)' : 'Active Regular Taxpayer: Eligible for ITC')
+        : '15th character checksum verification failed'
     };
 
-    await dbPool.query('INSERT INTO gstin_validations (gstin, is_valid, status, legal_name) VALUES (?, ?, ?, ?)', [
-      newRecord.gstin, newRecord.is_valid, newRecord.status, newRecord.legal_name
+    await dbPool.query('INSERT INTO gstin_validations (gstin, is_valid, status, taxpayer_type, legal_name) VALUES (?, ?, ?, ?, ?)', [
+      newRecord.gstin, newRecord.is_valid, newRecord.status, newRecord.taxpayer_type, newRecord.legal_name
     ]);
 
     res.json({ ...newRecord, cached: false });
@@ -1020,9 +1119,16 @@ app.post('/api/invoices/review', authenticateToken, async (req, res) => {
     if (action === 'confirm') {
       await dbPool.query(`
         UPDATE invoices 
-        SET vendor_name = ?, vendor_gstin = ?, total_amount = ?, extraction_status = 'confirmed', extraction_confidence = 1.0
+        SET vendor_name = ?, vendor_gstin = ?, total_amount = ?, is_itc_eligible = ?, ineligibility_reason = ?, extraction_status = 'confirmed', extraction_confidence = 1.0
         WHERE id = ?
-      `, [updated_data.vendor_name, updated_data.vendor_gstin, updated_data.total_amount, invoice_id]);
+      `, [
+        updated_data.vendor_name,
+        updated_data.vendor_gstin,
+        updated_data.total_amount,
+        updated_data.is_itc_eligible !== undefined ? (updated_data.is_itc_eligible ? 1 : 0) : 1,
+        updated_data.ineligibility_reason || null,
+        invoice_id
+      ]);
     } else if (action === 'request_clearer') {
       await dbPool.query("UPDATE invoices SET extraction_status = 'needs_review' WHERE id = ?", [invoice_id]);
     }
@@ -1073,6 +1179,389 @@ app.post('/api/businesses', authenticateToken, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ============================================================================
+// 📊 GSTR-2B 2-WAY AUTO-RECONCILIATION & VENDOR CHASER API
+// ============================================================================
+
+// 9. GET GSTR-2B Status and Reconciliation Buckets
+app.get('/api/gstr2b/:businessId', authenticateToken, async (req, res) => {
+  const businessId = parseInt(req.params.businessId, 10);
+  const fp = req.query.fp || '072026';
+
+  let booksInvoices = [];
+  let gstr2bInvoices = [];
+
+  if (isDbMockMode) {
+    booksInvoices = mockDb.invoices.filter(i => i.business_id === businessId && i.extraction_status !== 'needs_review');
+    gstr2bInvoices = mockDb.gstr2b_records.filter(r => r.business_id === businessId && (!fp || r.filing_period === fp));
+  } else {
+    try {
+      const [bRows] = await dbPool.query('SELECT * FROM invoices WHERE business_id = ? AND extraction_status != "needs_review"', [businessId]);
+      booksInvoices = bRows;
+      const [gRows] = await dbPool.query(`
+        SELECT gi.* FROM gstr2b_invoices gi
+        JOIN gstr2b_uploads gu ON gi.upload_id = gu.id
+        WHERE gu.business_id = ? AND gu.filing_period = ?
+      `, [businessId, fp]);
+      gstr2bInvoices = gRows;
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  // Reconciliation Matching Engine (Tolerance ±₹1.00)
+  const cleanInv = (num) => (num || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  const cleanGstin = (g) => (g || '').trim().toUpperCase();
+
+  const matched = [];
+  const inBooksMissingIn2b = [];
+  const mismatchValue = [];
+  const matchedGstrIds = new Set();
+
+  booksInvoices.forEach(bInv => {
+    const bookTax = (Number(bInv.cgst_amount) || 0) + (Number(bInv.sgst_amount) || 0) + (Number(bInv.igst_amount) || 0);
+    const bookInvNum = cleanInv(bInv.invoice_number);
+    const bookGstin = cleanGstin(bInv.vendor_gstin);
+
+    const matchIdx = gstr2bInvoices.findIndex((g, idx) => {
+      if (matchedGstrIds.has(idx)) return false;
+      const gstinMatch = cleanGstin(g.supplier_gstin) === bookGstin;
+      const invMatch = cleanInv(g.invoice_number) === bookInvNum || 
+                       cleanInv(g.invoice_number).includes(bookInvNum) || 
+                       bookInvNum.includes(cleanInv(g.invoice_number));
+      return gstinMatch && invMatch;
+    });
+
+    if (matchIdx !== -1) {
+      matchedGstrIds.add(matchIdx);
+      const gInv = gstr2bInvoices[matchIdx];
+      const gTax = (Number(gInv.cgst_amount) || 0) + (Number(gInv.sgst_amount) || 0) + (Number(gInv.igst_amount) || 0);
+      const taxDiff = Math.abs(bookTax - gTax);
+
+      if (taxDiff <= 1.00) {
+        matched.push({
+          book_invoice: bInv,
+          gstr2b_invoice: gInv,
+          eligible_itc: bookTax,
+          status: 'matched'
+        });
+      } else {
+        mismatchValue.push({
+          book_invoice: bInv,
+          gstr2b_invoice: gInv,
+          difference: Number((bookTax - gTax).toFixed(2)),
+          status: 'mismatch_value'
+        });
+      }
+    } else {
+      inBooksMissingIn2b.push({
+        book_invoice: bInv,
+        at_risk_itc: bookTax,
+        vendor_name: bInv.vendor_name,
+        vendor_gstin: bInv.vendor_gstin,
+        invoice_number: bInv.invoice_number,
+        invoice_date: bInv.invoice_date,
+        total_amount: bInv.total_amount,
+        status: 'in_books_missing_in_2b'
+      });
+    }
+  });
+
+  const in2bMissingInBooks = gstr2bInvoices
+    .filter((_, idx) => !matchedGstrIds.has(idx))
+    .map(g => ({
+      gstr2b_invoice: g,
+      uncaptured_itc: (Number(g.cgst_amount) || 0) + (Number(g.sgst_amount) || 0) + (Number(g.igst_amount) || 0),
+      supplier_name: g.supplier_name,
+      supplier_gstin: g.supplier_gstin,
+      invoice_number: g.invoice_number,
+      invoice_date: g.invoice_date,
+      invoice_value: g.invoice_value,
+      status: 'in_2b_missing_in_books'
+    }));
+
+  const totalMatchedItc = matched.reduce((s, m) => s + m.eligible_itc, 0);
+  const totalMissingIn2bItc = inBooksMissingIn2b.reduce((s, m) => s + m.at_risk_itc, 0);
+  const totalUncapturedItc = in2bMissingInBooks.reduce((s, m) => s + m.uncaptured_itc, 0);
+
+  res.json({
+    business_id: businessId,
+    filing_period: fp,
+    summary: {
+      matched_count: matched.length,
+      matched_itc: Number(totalMatchedItc.toFixed(2)),
+      missing_in_2b_count: inBooksMissingIn2b.length,
+      missing_in_2b_itc: Number(totalMissingIn2bItc.toFixed(2)),
+      missing_in_books_count: in2bMissingInBooks.length,
+      missing_in_books_itc: Number(totalUncapturedItc.toFixed(2)),
+      mismatch_count: mismatchValue.length
+    },
+    buckets: {
+      matched,
+      in_books_missing_in_2b: inBooksMissingIn2b,
+      in_2b_missing_in_books: in2bMissingInBooks,
+      mismatch_value: mismatchValue
+    }
+  });
+});
+
+// POST Upload GSTR-2B JSON (Official GST Portal Schema Parser)
+app.post('/api/gstr2b/upload', authenticateToken, async (req, res) => {
+  const { business_id, filing_period, b2b_records } = req.body;
+  if (!business_id || !Array.isArray(b2b_records)) {
+    return res.status(400).json({ error: 'Invalid GSTR-2B data' });
+  }
+
+  const normalizedRecords = [];
+  b2b_records.forEach(group => {
+    const ctin = group.ctin || group.supplier_gstin;
+    const cname = group.cname || group.supplier_name || 'Vendor';
+    const invList = group.inv || [group];
+    invList.forEach(inv => {
+      const taxable = inv.taxable_value || inv.txval || 0;
+      const cgst = inv.cgst_amount || inv.camt || 0;
+      const sgst = inv.sgst_amount || inv.samt || 0;
+      const igst = inv.igst_amount || inv.iamt || 0;
+      const val = inv.invoice_value || inv.val || (taxable + cgst + sgst + igst);
+      normalizedRecords.push({
+        business_id: Number(business_id),
+        filing_period: filing_period || '072026',
+        supplier_gstin: ctin,
+        supplier_name: cname,
+        invoice_number: inv.invoice_number || inv.inum,
+        invoice_date: inv.invoice_date || inv.idt,
+        invoice_value: Number(val),
+        taxable_value: Number(taxable),
+        cgst_amount: Number(cgst),
+        sgst_amount: Number(sgst),
+        igst_amount: Number(igst),
+        itc_availability: inv.itc_availability || inv.itcavl || 'Y'
+      });
+    });
+  });
+
+  if (isDbMockMode) {
+    mockDb.gstr2b_records = mockDb.gstr2b_records.filter(r => r.business_id !== Number(business_id));
+    mockDb.gstr2b_records.push(...normalizedRecords);
+  }
+
+  res.json({ success: true, count: normalizedRecords.length });
+});
+
+// POST Send Automated WhatsApp Vendor Nudge
+app.post('/api/gstr2b/nudge-vendor', authenticateToken, async (req, res) => {
+  const { vendor_name, vendor_gstin, invoice_number, invoice_date, total_amount, tax_amount, client_name } = req.body;
+  const message = `🔔 *GST Compliance Notice for ${vendor_name}*\n\nDear Accounts Team,\nYour invoice #${invoice_number} dated ${invoice_date} (Taxable Amount: ₹${total_amount}, Tax: ₹${tax_amount}) is NOT reflecting in the GSTR-2B of our client *${client_name || 'Client'}* for filing period July 2026.\n\n⚠️ *Action Required:* Please ensure this invoice is uploaded in your GSTR-1 immediately to avoid ITC mismatch notices under Section 16(2)(aa) of CGST Act.\n\n— Accounts Desk, ${req.ca?.firm_name || 'Shah & Associates, CAs'} (via BillGuru AI)`;
+
+  if (isDbMockMode) {
+    mockDb.vendor_nudges.push({
+      vendor_gstin,
+      invoice_number,
+      sent_at: new Date().toISOString(),
+      message
+    });
+  }
+
+  res.json({
+    success: true,
+    message,
+    sent_at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  });
+});
+
+// ============================================================================
+// 🏛️ PHASE 4: CA FIRM OPERATING SYSTEM, ICAI AUDIT LOGS & RULE 37 ENGINE
+// ============================================================================
+
+// 1. GET CA Firm Settings & Tally Mapping
+app.get('/api/ca/firm-settings', authenticateToken, async (req, res) => {
+  if (isDbMockMode) {
+    return res.json(mockDb.ca_firm_settings);
+  }
+  try {
+    const [rows] = await dbPool.query('SELECT * FROM ca_firm_settings WHERE accountant_id = ?', [req.accountant?.id || 1]);
+    if (rows.length > 0) {
+      res.json(rows[0]);
+    } else {
+      res.json(mockDb.ca_firm_settings);
+    }
+  } catch (err) {
+    res.json(mockDb.ca_firm_settings);
+  }
+});
+
+// 2. POST Update CA Firm Settings & Tally Mapping
+app.post('/api/ca/firm-settings', authenticateToken, async (req, res) => {
+  const updates = req.body;
+  if (isDbMockMode) {
+    mockDb.ca_firm_settings = { ...mockDb.ca_firm_settings, ...updates };
+    return res.json({ success: true, settings: mockDb.ca_firm_settings });
+  }
+  try {
+    await dbPool.query(`
+      INSERT INTO ca_firm_settings (
+        accountant_id, firm_name, icai_frn, partner_name, partner_membership_no,
+        contact_phone, contact_email, custom_whatsapp_signature,
+        tally_purchase_ledger, tally_cgst_ledger, tally_sgst_ledger, tally_igst_ledger, tally_roundoff_ledger
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        firm_name = VALUES(firm_name),
+        icai_frn = VALUES(icai_frn),
+        partner_name = VALUES(partner_name),
+        partner_membership_no = VALUES(partner_membership_no),
+        contact_phone = VALUES(contact_phone),
+        contact_email = VALUES(contact_email),
+        custom_whatsapp_signature = VALUES(custom_whatsapp_signature),
+        tally_purchase_ledger = VALUES(tally_purchase_ledger),
+        tally_cgst_ledger = VALUES(tally_cgst_ledger),
+        tally_sgst_ledger = VALUES(tally_sgst_ledger),
+        tally_igst_ledger = VALUES(tally_igst_ledger),
+        tally_roundoff_ledger = VALUES(tally_roundoff_ledger)
+    `, [
+      req.accountant?.id || 1,
+      updates.firm_name, updates.icai_frn, updates.partner_name, updates.partner_membership_no,
+      updates.contact_phone, updates.contact_email, updates.custom_whatsapp_signature,
+      updates.tally_purchase_ledger, updates.tally_cgst_ledger, updates.tally_sgst_ledger, updates.tally_igst_ledger, updates.tally_roundoff_ledger
+    ]);
+    res.json({ success: true, settings: updates });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. GET ICAI Audit Logs
+app.get('/api/ca/audit-logs', authenticateToken, async (req, res) => {
+  if (isDbMockMode) {
+    return res.json(mockDb.audit_logs);
+  }
+  try {
+    const [rows] = await dbPool.query('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 50');
+    res.json(rows);
+  } catch (err) {
+    res.json(mockDb.audit_logs);
+  }
+});
+
+// 4. POST Create Audit Log Entry
+app.post('/api/ca/audit-logs', authenticateToken, async (req, res) => {
+  const { user_name, user_role, action_type, entity_type, entity_id, description } = req.body;
+  const newEntry = {
+    id: Date.now(),
+    user_name: user_name || 'CA Rajesh Shah',
+    user_role: user_role || 'partner_ca',
+    action_type: action_type || 'GENERAL_ACTION',
+    entity_type: entity_type || 'system',
+    entity_id: entity_id ? String(entity_id) : null,
+    description: description || 'Action performed',
+    created_at: new Date().toISOString()
+  };
+
+  if (isDbMockMode) {
+    mockDb.audit_logs.unshift(newEntry);
+    return res.json({ success: true, log: newEntry });
+  }
+
+  try {
+    const [result] = await dbPool.query(
+      'INSERT INTO audit_logs (user_name, user_role, action_type, entity_type, entity_id, description) VALUES (?, ?, ?, ?, ?, ?)',
+      [newEntry.user_name, newEntry.user_role, newEntry.action_type, newEntry.entity_type, newEntry.entity_id, newEntry.description]
+    );
+    newEntry.id = result.insertId;
+    res.json({ success: true, log: newEntry });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. GET Rule 37 180-Day Payment Aging Tracker
+app.get('/api/rule37/:businessId', authenticateToken, async (req, res) => {
+  const businessId = parseInt(req.params.businessId, 10);
+  let invoices = [];
+
+  if (isDbMockMode) {
+    invoices = mockDb.invoices.filter(i => i.business_id === businessId);
+  } else {
+    try {
+      const [rows] = await dbPool.query('SELECT * FROM invoices WHERE business_id = ?', [businessId]);
+      invoices = rows;
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  // Reference date: July 2026 for simulation
+  const today = new Date('2026-07-28');
+
+  const agingList = invoices
+    .filter(i => i.payment_status !== 'paid' && i.is_itc_eligible)
+    .map(inv => {
+      const invDate = new Date(inv.invoice_date);
+      const diffTime = Math.max(0, today.getTime() - invDate.getTime());
+      const daysElapsed = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      const daysRemaining = 180 - daysElapsed;
+      const itcAmount = (Number(inv.cgst_amount) || 0) + (Number(inv.sgst_amount) || 0) + (Number(inv.igst_amount) || 0);
+
+      let urgency = 'safe'; // 0-60 days
+      if (daysElapsed >= 180) {
+        urgency = 'reversal_mandated'; // > 180 days! Section 16(2) proviso 2
+      } else if (daysElapsed >= 120) {
+        urgency = 'critical'; // 121-179 days! Approaching 180 days
+      } else if (daysElapsed >= 60) {
+        urgency = 'due_soon'; // 61-120 days
+      }
+
+      // Mandatory interest u/s 50 is 18% p.a. on reversal
+      const interestAtRisk = urgency === 'reversal_mandated' 
+        ? Number(((itcAmount * 0.18 * (daysElapsed - 180)) / 365).toFixed(2))
+        : 0.00;
+
+      return {
+        invoice_id: inv.id,
+        invoice_number: inv.invoice_number,
+        invoice_date: inv.invoice_date,
+        vendor_name: inv.vendor_name,
+        vendor_gstin: inv.vendor_gstin,
+        taxable_amount: Number(inv.taxable_amount) || 0,
+        itc_amount: itcAmount,
+        total_amount: Number(inv.total_amount) || 0,
+        payment_status: inv.payment_status || 'unpaid',
+        days_elapsed: daysElapsed,
+        days_remaining: Math.max(0, daysRemaining),
+        urgency,
+        interest_at_risk: interestAtRisk
+      };
+    });
+
+  const totalUnpaidItc = agingList.reduce((s, i) => s + i.itc_amount, 0);
+  const criticalItc = agingList.filter(i => i.urgency === 'critical').reduce((s, i) => s + i.itc_amount, 0);
+  const mandatedReversalItc = agingList.filter(i => i.urgency === 'reversal_mandated').reduce((s, i) => s + i.itc_amount, 0);
+
+  res.json({
+    business_id: businessId,
+    total_unpaid_invoices: agingList.length,
+    total_unpaid_itc: Number(totalUnpaidItc.toFixed(2)),
+    critical_itc_approaching_180_days: Number(criticalItc.toFixed(2)),
+    mandated_reversal_itc_exceeded_180_days: Number(mandatedReversalItc.toFixed(2)),
+    records: agingList
+  });
+});
+
+// 6. POST Send Rule 37 WhatsApp Payment Urgency Notice
+app.post('/api/rule37/remind', authenticateToken, async (req, res) => {
+  const { business_name, vendor_name, invoice_number, invoice_date, itc_amount, days_elapsed, days_remaining } = req.body;
+  const message = `⚠️ *URGENT GST REMINDER: 180-Day Rule 37 Warning*\n\nDear Accounts Desk at *${business_name || 'Client'}*,\nYour purchase invoice #${invoice_number} from *${vendor_name}* dated ${invoice_date} has remained unpaid for *${days_elapsed} days*.\n\n⚖️ *Legal Notice u/s 16(2) Proviso 2 & Rule 37:*\nYou have only *${days_remaining} days remaining* to pay this vendor. Failure to pay within 180 days legally requires reversing ₹${itc_amount} of Input Tax Credit in GSTR-3B with mandatory 18% p.a. interest.\n\n— Tax Desk, Shah & Associates, CAs (via BillGuru AI)`;
+
+  if (isDbMockMode) {
+    mockDb.rule37_reminders.push({
+      invoice_number,
+      sent_at: new Date().toISOString(),
+      message
+    });
+  }
+
+  res.json({ success: true, message });
 });
 
 // ============================================================================
@@ -2059,17 +2548,27 @@ async function extractInvoiceWithGemini(mediaUrl) {
     {
       "vendor_name": "string (Legal name of the vendor/supplier)",
       "vendor_gstin": "string (15-character GSTIN of the vendor)",
+      "recipient_name": "string (Legal name of buyer/recipient if present)",
+      "recipient_gstin": "string (15-character GSTIN of buyer/recipient if present)",
       "invoice_number": "string (invoice number)",
       "invoice_date": "string (YYYY-MM-DD format)",
-      "taxable_amount": number (taxable value),
-      "cgst_rate": number (CGST tax percentage, e.g. 9.0),
+      "taxable_amount": number (overall taxable value),
       "cgst_amount": number,
-      "sgst_rate": number,
       "sgst_amount": number,
-      "igst_rate": number,
       "igst_amount": number,
       "total_amount": number (invoice total),
-      "hsn_sac_code": "string (primary HSN or SAC code)"
+      "round_off": number (round-off adjustment if present),
+      "hsn_sac_code": "string (primary HSN or SAC code)",
+      "tax_slabs": [
+        {
+          "rate": number (GST tax percentage rate, e.g. 0, 5, 12, 18, 28),
+          "taxable_amount": number,
+          "cgst_amount": number,
+          "sgst_amount": number,
+          "igst_amount": number,
+          "items": "string (items or product category under this slab)"
+        }
+      ]
     }`;
 
     const aiResponse = await aiClient.models.generateContent({
@@ -2254,9 +2753,49 @@ app.post('/webhooks/whatsapp', async (req, res) => {
 
       if (extractedData) {
         console.log('[Gemini AI] Successfully parsed data in Mock mode:', extractedData);
-        const hasGstin = !!extractedData.vendor_gstin && isValidGstinChecksum(extractedData.vendor_gstin);
+        const vendorGstin = (extractedData.vendor_gstin || '').toUpperCase().trim();
+        const hasGstin = !!vendorGstin && isValidGstinChecksum(vendorGstin);
         const confidence = hasGstin ? 0.95 : 0.42;
         const status = hasGstin ? 'extracted' : 'needs_review';
+
+        // Check Buyer / Recipient GSTIN against client business GSTIN
+        const recipientGstin = (extractedData.recipient_gstin || '').toUpperCase().trim();
+        const clientGstin = (biz.gstin || '').toUpperCase().trim();
+        const isBuyerMismatch = !!(recipientGstin && clientGstin && recipientGstin !== clientGstin);
+
+        // Check if supplier is registered as Composition Taxpayer
+        const isCompositionVendor = vendorGstin.includes('CMPST');
+
+        // Multi-rate slab aggregation
+        let taxableAmount = parseFloat(extractedData.taxable_amount) || 0.00;
+        let cgstAmount = parseFloat(extractedData.cgst_amount) || 0.00;
+        let sgstAmount = parseFloat(extractedData.sgst_amount) || 0.00;
+        let igstAmount = parseFloat(extractedData.igst_amount) || 0.00;
+        let totalAmount = parseFloat(extractedData.total_amount) || 0.00;
+        const taxSlabs = Array.isArray(extractedData.tax_slabs) ? extractedData.tax_slabs : null;
+
+        if (taxSlabs && taxSlabs.length > 0) {
+          const slabTaxable = taxSlabs.reduce((s, slab) => s + (parseFloat(slab.taxable_amount) || 0), 0);
+          const slabCgst = taxSlabs.reduce((s, slab) => s + (parseFloat(slab.cgst_amount) || 0), 0);
+          const slabSgst = taxSlabs.reduce((s, slab) => s + (parseFloat(slab.sgst_amount) || 0), 0);
+          const slabIgst = taxSlabs.reduce((s, slab) => s + (parseFloat(slab.igst_amount) || 0), 0);
+          if (!taxableAmount) taxableAmount = slabTaxable;
+          if (!cgstAmount) cgstAmount = slabCgst;
+          if (!sgstAmount) sgstAmount = slabSgst;
+          if (!igstAmount) igstAmount = slabIgst;
+          if (!totalAmount) totalAmount = taxableAmount + cgstAmount + sgstAmount + igstAmount + (parseFloat(extractedData.round_off) || 0);
+        }
+
+        // Determine Section 17(5) / Section 10(4) / Section 16(2) eligibility
+        let isEligible = true;
+        let ineligibilityReason = null;
+        if (isBuyerMismatch) {
+          isEligible = false;
+          ineligibilityReason = `Recipient GSTIN Mismatch: Billed to ${recipientGstin}, expected ${clientGstin}`;
+        } else if (isCompositionVendor) {
+          isEligible = false;
+          ineligibilityReason = 'Section 10(4) - Composition Dealer charged GST';
+        }
 
         const invId = mockDb.invoices.length + 1;
         mockDb.invoices.push({
@@ -2265,24 +2804,34 @@ app.post('/webhooks/whatsapp', async (req, res) => {
           source_type: 'whatsapp',
           file_url: media_url,
           vendor_name: extractedData.vendor_name || 'Gemini Parsed Vendor',
-          vendor_gstin: extractedData.vendor_gstin || '',
+          vendor_gstin: vendorGstin,
+          recipient_gstin: recipientGstin || null,
           invoice_number: extractedData.invoice_number || `GEM-${Math.floor(1000 + Math.random()*9000)}`,
           invoice_date: extractedData.invoice_date || new Date().toISOString().split('T')[0],
-          taxable_amount: parseFloat(extractedData.taxable_amount) || 0.00,
-          cgst_rate: parseFloat(extractedData.cgst_rate) || 0.00, 
-          cgst_amount: parseFloat(extractedData.cgst_amount) || 0.00,
-          sgst_rate: parseFloat(extractedData.sgst_rate) || 0.00, 
-          sgst_amount: parseFloat(extractedData.sgst_amount) || 0.00,
-          igst_rate: parseFloat(extractedData.igst_rate) || 0.00, 
-          igst_amount: parseFloat(extractedData.igst_amount) || 0.00,
-          total_amount: parseFloat(extractedData.total_amount) || 0.00,
+          taxable_amount: taxableAmount,
+          cgst_rate: (taxableAmount > 0 && cgstAmount > 0) ? Number(((cgstAmount / taxableAmount) * 100).toFixed(1)) : 0.00,
+          cgst_amount: cgstAmount,
+          sgst_rate: (taxableAmount > 0 && sgstAmount > 0) ? Number(((sgstAmount / taxableAmount) * 100).toFixed(1)) : 0.00,
+          sgst_amount: sgstAmount,
+          igst_rate: (taxableAmount > 0 && igstAmount > 0) ? Number(((igstAmount / taxableAmount) * 100).toFixed(1)) : 0.00,
+          igst_amount: igstAmount,
+          total_amount: totalAmount,
+          round_off_amount: parseFloat(extractedData.round_off) || 0.00,
           hsn_sac_code: extractedData.hsn_sac_code || '',
+          tax_slabs_json: taxSlabs ? JSON.stringify(taxSlabs) : null,
           extraction_confidence: confidence,
-          extraction_status: status
+          extraction_status: status,
+          is_itc_eligible: isEligible,
+          ineligibility_reason: ineligibilityReason
         });
 
-        if (hasGstin) {
-          await sendWhatsAppMessage(from, `✅ Received! Invoice from ${extractedData.vendor_name || 'Vendor'} logged. Total: ₹${extractedData.total_amount}. GSTIN is verified.`);
+        if (isBuyerMismatch) {
+          await sendWhatsAppMessage(from, `⚠️ Alert for ${biz.name}: Invoice is addressed to Buyer GSTIN ${recipientGstin}, which does not match your registered GSTIN (${clientGstin}). Under GST Section 16(2)(a), ITC cannot be claimed.`);
+        } else if (isCompositionVendor) {
+          await sendWhatsAppMessage(from, `🚨 Tax Notice Alert: Supplier ${extractedData.vendor_name} is registered as a Composition Dealer. Under Section 10(4), they cannot charge GST. ITC is blocked.`);
+        } else if (hasGstin) {
+          const slabMsg = taxSlabs && taxSlabs.length > 1 ? ` (${taxSlabs.length} tax slabs extracted)` : '';
+          await sendWhatsAppMessage(from, `✅ Received! Invoice from ${extractedData.vendor_name || 'Vendor'} logged${slabMsg}. Total: ₹${totalAmount.toLocaleString('en-IN')}. Vendor GSTIN verified.`);
         } else {
           await sendWhatsAppMessage(from, `Couldn't verify the GSTIN on this invoice from ${extractedData.vendor_name || 'Vendor'}. Please reply with the 15-character GSTIN directly.`);
         }
@@ -2420,35 +2969,85 @@ app.post('/webhooks/whatsapp', async (req, res) => {
 
       if (extractedData) {
         console.log('[Gemini AI] Successfully parsed data in Live DB mode:', extractedData);
-        const hasGstin = !!extractedData.vendor_gstin && isValidGstinChecksum(extractedData.vendor_gstin);
+        const vendorGstin = (extractedData.vendor_gstin || '').toUpperCase().trim();
+        const hasGstin = !!vendorGstin && isValidGstinChecksum(vendorGstin);
         const confidence = hasGstin ? 0.95 : 0.42;
         const status = hasGstin ? 'extracted' : 'needs_review';
 
+        // Check Buyer / Recipient GSTIN against client business GSTIN
+        const recipientGstin = (extractedData.recipient_gstin || '').toUpperCase().trim();
+        const [bizRows] = await dbPool.query('SELECT gstin FROM businesses WHERE id = ?', [businessId]);
+        const clientGstin = (bizRows[0]?.gstin || '').toUpperCase().trim();
+        const isBuyerMismatch = !!(recipientGstin && clientGstin && recipientGstin !== clientGstin);
+
+        // Check if supplier is registered as Composition Taxpayer
+        const isCompositionVendor = vendorGstin.includes('CMPST');
+
+        // Multi-rate slab aggregation
+        let taxableAmount = parseFloat(extractedData.taxable_amount) || 0.00;
+        let cgstAmount = parseFloat(extractedData.cgst_amount) || 0.00;
+        let sgstAmount = parseFloat(extractedData.sgst_amount) || 0.00;
+        let igstAmount = parseFloat(extractedData.igst_amount) || 0.00;
+        let totalAmount = parseFloat(extractedData.total_amount) || 0.00;
+        const taxSlabs = Array.isArray(extractedData.tax_slabs) ? extractedData.tax_slabs : null;
+
+        if (taxSlabs && taxSlabs.length > 0) {
+          const slabTaxable = taxSlabs.reduce((s, slab) => s + (parseFloat(slab.taxable_amount) || 0), 0);
+          const slabCgst = taxSlabs.reduce((s, slab) => s + (parseFloat(slab.cgst_amount) || 0), 0);
+          const slabSgst = taxSlabs.reduce((s, slab) => s + (parseFloat(slab.sgst_amount) || 0), 0);
+          const slabIgst = taxSlabs.reduce((s, slab) => s + (parseFloat(slab.igst_amount) || 0), 0);
+          if (!taxableAmount) taxableAmount = slabTaxable;
+          if (!cgstAmount) cgstAmount = slabCgst;
+          if (!sgstAmount) sgstAmount = slabSgst;
+          if (!igstAmount) igstAmount = slabIgst;
+          if (!totalAmount) totalAmount = taxableAmount + cgstAmount + sgstAmount + igstAmount + (parseFloat(extractedData.round_off) || 0);
+        }
+
+        let isEligible = true;
+        let ineligibilityReason = null;
+        if (isBuyerMismatch) {
+          isEligible = false;
+          ineligibilityReason = `Recipient GSTIN Mismatch: Billed to ${recipientGstin}, expected ${clientGstin}`;
+        } else if (isCompositionVendor) {
+          isEligible = false;
+          ineligibilityReason = 'Section 10(4) - Composition Dealer charged GST';
+        }
+
         await dbPool.query(`
-          INSERT INTO invoices (business_id, source_type, file_url, vendor_name, vendor_gstin, invoice_number, invoice_date, taxable_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount, total_amount, hsn_sac_code, extraction_confidence, extraction_status)
-          VALUES (?, 'whatsapp', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO invoices (business_id, source_type, file_url, vendor_name, vendor_gstin, recipient_gstin, invoice_number, invoice_date, taxable_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount, total_amount, round_off_amount, hsn_sac_code, extraction_confidence, extraction_status, is_itc_eligible, ineligibility_reason, tax_slabs_json)
+          VALUES (?, 'whatsapp', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           businessId,
           media_url,
           extractedData.vendor_name || 'Gemini Parsed Vendor',
-          extractedData.vendor_gstin || '',
+          vendorGstin,
+          recipientGstin || null,
           extractedData.invoice_number || `GEM-${Math.floor(1000 + Math.random()*9000)}`,
           extractedData.invoice_date || new Date().toISOString().split('T')[0],
-          parseFloat(extractedData.taxable_amount) || 0.00,
-          parseFloat(extractedData.cgst_rate) || 0.00,
-          parseFloat(extractedData.cgst_amount) || 0.00,
-          parseFloat(extractedData.sgst_rate) || 0.00,
-          parseFloat(extractedData.sgst_amount) || 0.00,
-          parseFloat(extractedData.igst_rate) || 0.00,
-          parseFloat(extractedData.igst_amount) || 0.00,
-          parseFloat(extractedData.total_amount) || 0.00,
+          taxableAmount,
+          (taxableAmount > 0 && cgstAmount > 0) ? Number(((cgstAmount / taxableAmount) * 100).toFixed(1)) : 0.00,
+          cgstAmount,
+          (taxableAmount > 0 && sgstAmount > 0) ? Number(((sgstAmount / taxableAmount) * 100).toFixed(1)) : 0.00,
+          sgstAmount,
+          (taxableAmount > 0 && igstAmount > 0) ? Number(((igstAmount / taxableAmount) * 100).toFixed(1)) : 0.00,
+          igstAmount,
+          totalAmount,
+          parseFloat(extractedData.round_off) || 0.00,
           extractedData.hsn_sac_code || '',
           confidence,
-          status
+          status,
+          isEligible ? 1 : 0,
+          ineligibilityReason,
+          taxSlabs ? JSON.stringify(taxSlabs) : null
         ]);
 
-        if (hasGstin) {
-          await sendWhatsAppMessage(from, `✅ Received! Invoice from ${extractedData.vendor_name || 'Vendor'} logged. Total: ₹${extractedData.total_amount}. GSTIN is valid.`);
+        if (isBuyerMismatch) {
+          await sendWhatsAppMessage(from, `⚠️ Alert for ${businessName}: Invoice is addressed to Buyer GSTIN ${recipientGstin}, which does not match your registered GSTIN (${clientGstin}). Under GST Section 16(2)(a), ITC cannot be claimed.`);
+        } else if (isCompositionVendor) {
+          await sendWhatsAppMessage(from, `🚨 Tax Notice Alert: Supplier ${extractedData.vendor_name} is registered as a Composition Dealer. Under Section 10(4), they cannot charge GST. ITC is blocked.`);
+        } else if (hasGstin) {
+          const slabMsg = taxSlabs && taxSlabs.length > 1 ? ` (${taxSlabs.length} tax slabs extracted)` : '';
+          await sendWhatsAppMessage(from, `✅ Received! Invoice from ${extractedData.vendor_name || 'Vendor'} logged${slabMsg}. Total: ₹${totalAmount.toLocaleString('en-IN')}. Vendor GSTIN is valid.`);
         } else {
           await sendWhatsAppMessage(from, `Couldn't verify the GSTIN on this invoice from ${extractedData.vendor_name || 'Vendor'}. Please reply with the 15-character GSTIN directly.`);
         }

@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS invoices (
   hsn_sac_code VARCHAR(10),
   extraction_confidence DECIMAL(3,2),
   extraction_status ENUM('pending','extracted','needs_review','confirmed') DEFAULT 'pending',
+  is_itc_eligible BOOLEAN DEFAULT TRUE,
+  ineligibility_reason VARCHAR(100) NULL,
   raw_llm_response JSON,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE,
@@ -168,5 +170,70 @@ CREATE TABLE IF NOT EXISTS itr_filings (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES salaried_users(id) ON DELETE CASCADE,
   INDEX idx_user_ay (user_id, assessment_year)
+);
+
+CREATE TABLE IF NOT EXISTS gstr2b_uploads (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  business_id INT NOT NULL,
+  filing_period VARCHAR(10) NOT NULL, -- e.g. '072026'
+  total_records INT DEFAULT 0,
+  total_itc_available DECIMAL(15,2) DEFAULT 0.00,
+  raw_json_data LONGTEXT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE,
+  INDEX idx_biz_fp (business_id, filing_period)
+);
+
+CREATE TABLE IF NOT EXISTS gstr2b_invoices (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  upload_id INT NOT NULL,
+  supplier_gstin VARCHAR(15) NOT NULL,
+  supplier_name VARCHAR(255) NULL,
+  invoice_number VARCHAR(100) NOT NULL,
+  invoice_date DATE NOT NULL,
+  invoice_value DECIMAL(15,2) NOT NULL,
+  taxable_value DECIMAL(15,2) NOT NULL,
+  cgst_amount DECIMAL(15,2) DEFAULT 0.00,
+  sgst_amount DECIMAL(15,2) DEFAULT 0.00,
+  igst_amount DECIMAL(15,2) DEFAULT 0.00,
+  itc_availability VARCHAR(10) DEFAULT 'Y',
+  match_status ENUM('matched', 'in_books_missing_in_2b', 'in_2b_missing_in_books', 'mismatch_value') DEFAULT 'in_2b_missing_in_books',
+  matched_invoice_id INT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (upload_id) REFERENCES gstr2b_uploads(id) ON DELETE CASCADE,
+  INDEX idx_supplier_inv (supplier_gstin, invoice_number)
+);
+
+CREATE TABLE IF NOT EXISTS ca_firm_settings (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  accountant_id INT NOT NULL UNIQUE,
+  firm_name VARCHAR(255) DEFAULT 'Shah & Associates, Chartered Accountants',
+  icai_frn VARCHAR(50) DEFAULT '109283W',
+  partner_name VARCHAR(255) DEFAULT 'CA Rajesh Shah, FCA',
+  partner_membership_no VARCHAR(50) DEFAULT '048921',
+  contact_phone VARCHAR(20) DEFAULT '+91 98200 12345',
+  contact_email VARCHAR(255) DEFAULT 'tax@shahassociates.in',
+  custom_whatsapp_signature TEXT NULL,
+  tally_purchase_ledger VARCHAR(100) DEFAULT 'Purchase Account',
+  tally_cgst_ledger VARCHAR(100) DEFAULT 'Input CGST @ 9%',
+  tally_sgst_ledger VARCHAR(100) DEFAULT 'Input SGST @ 9%',
+  tally_igst_ledger VARCHAR(100) DEFAULT 'Input IGST @ 18%',
+  tally_roundoff_ledger VARCHAR(100) DEFAULT 'Round Off Account',
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (accountant_id) REFERENCES accountants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT NULL,
+  user_name VARCHAR(100) NOT NULL,
+  user_role ENUM('partner_ca', 'article_assistant') NOT NULL DEFAULT 'partner_ca',
+  action_type VARCHAR(100) NOT NULL,
+  entity_type VARCHAR(50) NOT NULL,
+  entity_id VARCHAR(50) NULL,
+  description TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_audit_created (created_at),
+  INDEX idx_audit_action (action_type)
 );
 
