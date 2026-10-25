@@ -1921,6 +1921,48 @@ ${vouchersXml}
                 Log In
               </button>
 
+              {/* QUICK INSTANT DEMO LOGIN BUTTONS */}
+              <div className="pt-xs border-t border-slate-200">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block text-center mb-1.5 tracking-wider">
+                  ⚡ Or Explore Instantly With 1 Click:
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const user = { id: 1, name: 'CA Rajesh Shah, FCA', firm_name: 'Shah & Associates, Chartered Accountants', email: 'rajesh@shah.com', role: 'partner_ca' };
+                      setToken('mock_jwt_token_demo');
+                      setCaUser(user);
+                      setStaffRole('partner_ca');
+                      localStorage.setItem('bg_auth_token', 'mock_jwt_token_demo');
+                      localStorage.setItem('bg_ca_user', JSON.stringify(user));
+                      showToast('Logged in as Partner CA (Shah & Associates)!', 'success');
+                    }}
+                    className="w-full bg-slate-800 hover:bg-black text-white text-xs font-bold py-2 px-2 rounded transition-all flex items-center justify-center gap-1 shadow-xs"
+                  >
+                    <span className="material-symbols-outlined text-[15px] text-teal-400">gavel</span>
+                    <span>Demo Partner CA</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const user = { id: 2, name: 'Karan Dave (Article)', firm_name: 'Shah & Associates, Chartered Accountants', email: 'karan@shah.com', role: 'article_assistant' };
+                      setToken('mock_jwt_token_demo');
+                      setCaUser(user);
+                      setStaffRole('article_assistant');
+                      localStorage.setItem('bg_auth_token', 'mock_jwt_token_demo');
+                      localStorage.setItem('bg_ca_user', JSON.stringify(user));
+                      showToast('Logged in as Article Assistant (Karan Dave)!', 'success');
+                    }}
+                    className="w-full bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-bold py-2 px-2 rounded transition-all flex items-center justify-center gap-1 shadow-xs"
+                  >
+                    <span className="material-symbols-outlined text-[15px] text-indigo-300">badge</span>
+                    <span>Demo Article</span>
+                  </button>
+                </div>
+              </div>
+
               <div className="text-center pt-xs">
                 <button 
                   type="button" 
