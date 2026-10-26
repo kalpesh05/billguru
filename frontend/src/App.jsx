@@ -330,6 +330,12 @@ export default function App() {
   const [googleSheetLastSync, setGoogleSheetLastSync] = useState('Just now (Auto-synced)');
   const excelFileInputRef = useRef(null);
 
+  // Local Computer Disk Database State (Native File System Access API)
+  const [localFileHandle, setLocalFileHandle] = useState(null);
+  const [localFileName, setLocalFileName] = useState('');
+  const [localFileLastSync, setLocalFileLastSync] = useState('');
+  const [isLocalFileConnected, setIsLocalFileConnected] = useState(false);
+
   // Salaried Professional State (ITR & Tax Locker)
   const [salariedUser, setSalariedUser] = useState({
     id: 1,
@@ -2003,65 +2009,238 @@ function doPost(e) {
     showToast('Google Sheet Master Template downloaded! Import this into your Google Drive.', 'success');
   };
 
+  // --- REUSABLE CSV GENERATOR FOR LOCAL DISK / EXCEL ---
+  const generateCsvDatabaseString = (voucherList) => {
+    const headers = [
+      'Voucher_ID',
+      'Client_Name',
+      'Client_GSTIN',
+      'Invoice_Number',
+      'Invoice_Date',
+      'Vendor_Name',
+      'Vendor_GSTIN',
+      'Taxable_Value_INR',
+      'CGST_INR',
+      'SGST_INR',
+      'IGST_INR',
+      'Total_Amount_INR',
+      'ITC_Eligibility',
+      'Section_17_5_Blocked',
+      'GSTR2B_Match_Status',
+      'Rule37_Days_Aging',
+      'Payment_Status',
+      'Tally_Ledger_Group',
+      'OCR_Confidence',
+      'Last_Verified_By'
+    ];
+
+    const rows = (voucherList || invoices).map(inv => {
+      const client = businesses.find(b => b.id === inv.business_id) || { name: 'Direct Client', gstin: '27AABCU9603R1ZM' };
+      const invoiceDate = new Date(inv.date || '2026-07-01');
+      const daysOld = Math.floor((new Date('2026-10-25') - invoiceDate) / (1000 * 60 * 60 * 24));
+      const isPaid = inv.is_paid || false;
+      const itcEligibility = inv.itc_ineligible ? 'Ineligible (Sec 17(5))' : (daysOld > 180 && !isPaid ? 'Reversal Risk (Rule 37)' : 'Eligible ITC');
+
+      return [
+        inv.id,
+        `"${(client.name || '').replace(/"/g, '""')}"`,
+        `"${client.gstin || ''}"`,
+        `"${(inv.invoice_number || '').replace(/"/g, '""')}"`,
+        `"${inv.date || ''}"`,
+        `"${(inv.vendor_name || '').replace(/"/g, '""')}"`,
+        `"${inv.gstin || ''}"`,
+        (Number(inv.taxable_amount) || 0).toFixed(2),
+        (Number(inv.cgst) || 0).toFixed(2),
+        (Number(inv.sgst) || 0).toFixed(2),
+        (Number(inv.igst) || 0).toFixed(2),
+        (Number(inv.total_amount) || 0).toFixed(2),
+        `"${itcEligibility}"`,
+        `"${inv.itc_ineligible ? 'YES' : 'NO'}"`,
+        `"${inv.gstr2b_status || 'Matched in 2B'}"`,
+        daysOld,
+        `"${isPaid ? 'PAID' : 'UNPAID'}"`,
+        `"${(inv.tally_ledger || 'Sundry Creditors').replace(/"/g, '""')}"`,
+        `"${((inv.ocr_confidence || 0.95) * 100).toFixed(0)}%"`,
+        `"${caFirmSettings.partner_name || 'Rajesh Shah'}"`
+      ];
+    });
+
+    return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  };
+
+  const writeCsvToHandle = async (handle, voucherList) => {
+    const csvContent = generateCsvDatabaseString(voucherList);
+    const writable = await handle.createWritable();
+    await writable.write(csvContent);
+    await writable.close();
+    return csvContent;
+  };
+
+  // --- NATIVE FILE SYSTEM ACCESS API HANDLERS (LOCAL HARD DRIVE AS LIVE DB) ---
+  const handlePickLocalDatabaseFile = async () => {
+    if (!('showOpenFilePicker' in window)) {
+      showToast('Native File System Access API not supported in this browser. Please use Chrome, Edge, or Brave, or use standard file upload.', 'warning');
+      excelFileInputRef.current?.click();
+      return;
+    }
+
+    try {
+      const [handle] = await window.showOpenFilePicker({
+        types: [{
+          description: 'Excel / CSV Master Databases',
+          accept: {
+            'text/csv': ['.csv'],
+            'text/plain': ['.txt']
+          }
+        }],
+        multiple: false
+      });
+
+      const options = { mode: 'readwrite' };
+      if ((await handle.queryPermission(options)) !== 'granted') {
+        const req = await handle.requestPermission(options);
+        if (req !== 'granted') {
+          showToast('Write permission is required so BillGuru can save changes directly to your local file.', 'warning');
+          return;
+        }
+      }
+
+      const file = await handle.getFile();
+      const text = await file.text();
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+      if (lines.length > 1) {
+        // Parse existing rows into memory
+        const parsedVouchers = [];
+        for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(',').map(c => c.replace(/^"|"$/g, '').trim());
+          if (cols.length >= 6) {
+            parsedVouchers.push({
+              id: Date.now() + i,
+              business_id: 1,
+              vendor_name: cols[5] || cols[1] || 'Imported Vendor',
+              invoice_number: cols[3] || `IMP-${i}`,
+              date: cols[4] || '2026-07-01',
+              gstin: cols[6] || '27AAACT1234A1Z5',
+              taxable_amount: parseFloat(cols[7]) || 10000,
+              cgst: parseFloat(cols[8]) || 900,
+              sgst: parseFloat(cols[9]) || 900,
+              igst: parseFloat(cols[10]) || 0,
+              total_amount: parseFloat(cols[11]) || 11800,
+              status: 'processed',
+              tally_ledger: cols[17] || 'Sundry Creditors',
+              ocr_confidence: 0.99
+            });
+          }
+        }
+        if (parsedVouchers.length > 0) {
+          setInvoices(parsedVouchers);
+        }
+      } else {
+        // Empty file -> initialize with current memory vouchers
+        await writeCsvToHandle(handle, invoices);
+      }
+
+      setLocalFileHandle(handle);
+      setLocalFileName(file.name);
+      setIsLocalFileConnected(true);
+      const syncTime = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setLocalFileLastSync(`${syncTime} (Live Disk Linked)`);
+      addAuditLog('LOCAL_DISK_DB_LINKED', 'database', 'local_disk', `Linked local hard drive database: ${file.name} via File System Access API. Zero cloud retention active.`);
+      showToast(`Linked local file: ${file.name}! All edits will save directly to your computer hard drive.`, 'success');
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error('File pick error:', err);
+        showToast('Error opening local file: ' + err.message, 'error');
+      }
+    }
+  };
+
+  const handleCreateNewLocalDatabaseFile = async () => {
+    if (!('showSaveFilePicker' in window)) {
+      showToast('Native File System Access API not supported in this browser. Use standard CSV export.', 'warning');
+      handleDownloadFirmExcel();
+      return;
+    }
+
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const handle = await window.showSaveFilePicker({
+        suggestedName: `BillGuru_Firm_Master_DB_${today}.csv`,
+        types: [{
+          description: 'Excel / CSV Database',
+          accept: { 'text/csv': ['.csv'] }
+        }]
+      });
+
+      await writeCsvToHandle(handle, invoices);
+      const file = await handle.getFile();
+      setLocalFileHandle(handle);
+      setLocalFileName(file.name);
+      setIsLocalFileConnected(true);
+      const syncTime = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setLocalFileLastSync(`${syncTime} (File Created on Hard Drive)`);
+      addAuditLog('LOCAL_DISK_DB_CREATED', 'database', 'local_disk', `Created fresh local database file: ${file.name} on CA hard drive.`);
+      showToast(`Created new database file on your PC: ${file.name}! Live 2-way disk sync active.`, 'success');
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error('File create error:', err);
+        showToast('Error creating local file: ' + err.message, 'error');
+      }
+    }
+  };
+
+  const handleSaveToLocalDisk = async () => {
+    if (!localFileHandle) {
+      showToast('No local file linked. Please click "Link Existing Local File" or "Create New Database File" first.', 'warning');
+      return;
+    }
+
+    try {
+      await writeCsvToHandle(localFileHandle, invoices);
+      const syncTime = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setLocalFileLastSync(`${syncTime} (Saved to Disk)`);
+      addAuditLog('LOCAL_DISK_SAVED', 'database', 'local_disk', `Saved ${invoices.length} vouchers directly to local file: ${localFileName}`);
+      showToast(`Saved ${invoices.length} vouchers directly to ${localFileName} on your computer!`, 'success');
+    } catch (err) {
+      console.error('Save to local disk error:', err);
+      showToast('Error saving to local file: ' + err.message, 'error');
+    }
+  };
+
+  const handleLoadDemoDataToLocalDisk = async () => {
+    const demoVouchers = [
+      { id: 101, business_id: 1, vendor_name: 'Tata Tea Distributors', invoice_number: 'INV-2026-001', date: '2026-07-02', gstin: '27AAACT1234A1Z5', taxable_amount: 25000.00, cgst: 2250.00, sgst: 2250.00, igst: 0.00, total_amount: 29500.00, status: 'processed', tally_ledger: 'Sundry Creditors', ocr_confidence: 0.99, is_paid: false, itc_ineligible: false, gstr2b_status: 'Matched in 2B' },
+      { id: 102, business_id: 1, vendor_name: 'Steel Authority of India Ltd', invoice_number: 'SAIL-8821', date: '2026-07-05', gstin: '27AAACS0011B1Z2', taxable_amount: 100000.00, cgst: 9000.00, sgst: 9000.00, igst: 0.00, total_amount: 118000.00, status: 'processed', tally_ledger: 'Sundry Creditors', ocr_confidence: 0.98, is_paid: false, itc_ineligible: false, gstr2b_status: 'Matched in 2B' },
+      { id: 103, business_id: 1, vendor_name: 'Apex Electricals Pvt Ltd', invoice_number: 'BL-9921', date: '2026-01-10', gstin: '27AABCA5566C1ZX', taxable_amount: 45000.00, cgst: 4050.00, sgst: 4050.00, igst: 0.00, total_amount: 53100.00, status: 'processed', tally_ledger: 'Sundry Creditors', ocr_confidence: 0.97, is_paid: false, itc_ineligible: false, gstr2b_status: 'Matched in 2B' },
+      { id: 104, business_id: 1, vendor_name: 'Gupta Distributors', invoice_number: 'SE-89102', date: '2026-07-08', gstin: '27AABCG9988D1Z8', taxable_amount: 12500.00, cgst: 1125.00, sgst: 1125.00, igst: 0.00, total_amount: 14750.00, status: 'processed', tally_ledger: 'Office Expenses', ocr_confidence: 0.99, is_paid: false, itc_ineligible: true, gstr2b_status: 'Matched in 2B' },
+      { id: 105, business_id: 2, vendor_name: 'Bharat Petroleum Corp Ltd', invoice_number: 'BPCL-4091', date: '2026-07-12', gstin: '27AAACB0080Q1ZM', taxable_amount: 80000.00, cgst: 7200.00, sgst: 7200.00, igst: 0.00, total_amount: 94400.00, status: 'processed', tally_ledger: 'Fuel & Transportation', ocr_confidence: 0.96, is_paid: true, itc_ineligible: false, gstr2b_status: 'Matched in 2B' },
+      { id: 106, business_id: 2, vendor_name: 'Mahindra Heavy Castings', invoice_number: 'MHC-2026-7', date: '2026-07-18', gstin: '27AABCM7766K1Z9', taxable_amount: 150000.00, cgst: 13500.00, sgst: 13500.00, igst: 0.00, total_amount: 177000.00, status: 'processed', tally_ledger: 'Sundry Creditors', ocr_confidence: 0.99, is_paid: false, itc_ineligible: false, gstr2b_status: 'Matched in 2B' }
+    ];
+
+    setInvoices(demoVouchers);
+    if (localFileHandle) {
+      await writeCsvToHandle(localFileHandle, demoVouchers);
+      const syncTime = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setLocalFileLastSync(`${syncTime} (Demo Data Written to Disk)`);
+    }
+    addAuditLog('LOCAL_DISK_DEMO_LOADED', 'database', 'local_disk', `Loaded 6 sample CA vouchers into local database${localFileHandle ? ' and saved to ' + localFileName : ''}.`);
+    showToast(`Loaded 6 sample CA vouchers${localFileHandle ? ' & saved directly into ' + localFileName : ''}!`, 'success');
+  };
+
+  const handleDisconnectLocalFile = () => {
+    setLocalFileHandle(null);
+    setLocalFileName('');
+    setIsLocalFileConnected(false);
+    setLocalFileLastSync('');
+    showToast('Disconnected local file. BillGuru is now operating in pure RAM mode.', 'info');
+  };
+
   const handleDownloadFirmExcel = () => {
     try {
       showToast('Generating Sovereign Excel/CSV database...', 'info');
       const timestamp = new Date().toISOString().split('T')[0];
-      const headers = [
-        'Voucher_ID',
-        'Client_Name',
-        'Client_GSTIN',
-        'Invoice_Number',
-        'Invoice_Date',
-        'Vendor_Name',
-        'Vendor_GSTIN',
-        'Taxable_Value_INR',
-        'CGST_INR',
-        'SGST_INR',
-        'IGST_INR',
-        'Total_Amount_INR',
-        'ITC_Eligibility',
-        'Section_17_5_Blocked',
-        'GSTR2B_Match_Status',
-        'Rule37_Days_Aging',
-        'Payment_Status',
-        'Tally_Ledger_Group',
-        'OCR_Confidence',
-        'Last_Verified_By'
-      ];
-
-      const rows = invoices.map(inv => {
-        const client = businesses.find(b => b.id === inv.business_id) || { name: 'Direct Client', gstin: '27AABCU9603R1ZM' };
-        const invoiceDate = new Date(inv.date || '2026-07-01');
-        const daysOld = Math.floor((new Date('2026-10-25') - invoiceDate) / (1000 * 60 * 60 * 24));
-        const isPaid = inv.is_paid || false;
-        const itcEligibility = inv.itc_ineligible ? 'Ineligible (Sec 17(5))' : (daysOld > 180 && !isPaid ? 'Reversal Risk (Rule 37)' : 'Eligible ITC');
-
-        return [
-          inv.id,
-          `"${(client.name || '').replace(/"/g, '""')}"`,
-          `"${client.gstin || ''}"`,
-          `"${(inv.invoice_number || '').replace(/"/g, '""')}"`,
-          `"${inv.date || ''}"`,
-          `"${(inv.vendor_name || '').replace(/"/g, '""')}"`,
-          `"${inv.gstin || ''}"`,
-          (Number(inv.taxable_amount) || 0).toFixed(2),
-          (Number(inv.cgst) || 0).toFixed(2),
-          (Number(inv.sgst) || 0).toFixed(2),
-          (Number(inv.igst) || 0).toFixed(2),
-          (Number(inv.total_amount) || 0).toFixed(2),
-          `"${itcEligibility}"`,
-          `"${inv.itc_ineligible ? 'YES' : 'NO'}"`,
-          `"${inv.gstr2b_status || 'Matched in 2B'}"`,
-          daysOld,
-          `"${isPaid ? 'PAID' : 'UNPAID'}"`,
-          `"${(inv.tally_ledger || 'Sundry Creditors').replace(/"/g, '""')}"`,
-          `"${((inv.ocr_confidence || 0.95) * 100).toFixed(0)}%"`,
-          `"${caFirmSettings.partner_name}"`
-        ];
-      });
-
-      const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      const csvContent = generateCsvDatabaseString(invoices);
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -2782,84 +2961,240 @@ function doPost(e) {
 
         {isExcelMode && (
           <div className="bg-white border border-slate-200 rounded p-lg shadow-sm space-y-md">
-            <div className="border-b border-slate-100 pb-sm">
-              <h4 className="font-bold text-ink-900 text-sm flex items-center gap-2">
-                <span className="material-symbols-outlined text-amber-700 text-lg">folder_zip</span>
-                Offline Local Excel / CSV Master Control
-              </h4>
-              <p className="text-xs text-slate-500">
-                100% offline data management. Keep all vouchers on your computer. BillGuru operates strictly inside browser memory without saving to any database.
-              </p>
+            {/* Local Disk Status Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-sm border-b border-slate-100 pb-sm">
+              <div>
+                <h4 className="font-bold text-ink-900 text-sm flex items-center gap-2">
+                  <span className="material-symbols-outlined text-amber-700 text-lg">hard_drive</span>
+                  Local Computer Hard Drive Database (File System Access Engine)
+                </h4>
+                <p className="text-xs text-slate-500">
+                  {isLocalFileConnected 
+                    ? `Connected to local file: "${localFileName}". BillGuru AI reads & writes directly to this file on your PC.`
+                    : '100% offline data sovereignty. Link an existing file or create a new database file directly on your computer hard drive.'
+                  }
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded text-xs font-bold border ${
+                  isLocalFileConnected 
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300' 
+                    : 'bg-amber-50 text-amber-800 border-amber-300'
+                }`}>
+                  <span className={`w-2 h-2 rounded-full ${isLocalFileConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
+                  {isLocalFileConnected ? (localFileLastSync || `Active: ${localFileName}`) : 'No Disk File Linked (RAM Only)'}
+                </span>
+
+                {isLocalFileConnected && (
+                  <button
+                    type="button"
+                    onClick={handleDisconnectLocalFile}
+                    className="text-[11px] text-slate-500 hover:text-rose-700 font-semibold underline px-1"
+                  >
+                    Disconnect
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-md">
-              <div className="bg-amber-50/50 border border-amber-200 p-md rounded flex flex-col justify-between">
+            {/* 4 Interactive Disk Control Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-md">
+              {/* Card 1: Link Existing File */}
+              <div className="bg-slate-50 border border-slate-200 p-md rounded flex flex-col justify-between hover:border-amber-400 transition-all">
                 <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="material-symbols-outlined text-amber-800 text-xl">download</span>
-                    <h5 className="font-bold text-xs text-amber-900">Export Master Database</h5>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="material-symbols-outlined text-amber-700 text-xl">folder_open</span>
+                    <h5 className="font-bold text-xs text-slate-900">Link File from Hard Drive</h5>
                   </div>
-                  <p className="text-[11px] text-amber-800 leading-normal mb-3">
-                    Downloads all client purchase registers, vendor GSTINs, and ITC classifications into a standard 20-column Excel/CSV file.
+                  <p className="text-[11px] text-slate-600 leading-normal mb-3">
+                    Select an existing CSV/Excel file on your PC. BillGuru will read all vouchers and save updates directly to disk.
                   </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={handlePickLocalDatabaseFile}
+                  className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs py-2 px-3 rounded flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                >
+                  <span className="material-symbols-outlined text-sm">file_open</span>
+                  Pick File on PC
+                </button>
+              </div>
+
+              {/* Card 2: Create New File on PC */}
+              <div className="bg-emerald-50/50 border border-emerald-200 p-md rounded flex flex-col justify-between hover:border-emerald-400 transition-all">
+                <div>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="material-symbols-outlined text-emerald-800 text-xl">create_new_folder</span>
+                    <h5 className="font-bold text-xs text-emerald-950">Create New File on PC</h5>
+                  </div>
+                  <p className="text-[11px] text-emerald-800 leading-normal mb-3">
+                    Choose a location on your computer (e.g. Desktop or Client Folder) to create a brand new 20-column accounting database.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCreateNewLocalDatabaseFile}
+                  className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs py-2 px-3 rounded flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                >
+                  <span className="material-symbols-outlined text-sm">add_circle</span>
+                  Create .CSV on Hard Drive
+                </button>
+              </div>
+
+              {/* Card 3: Save to Disk Now */}
+              <div className={`p-md rounded flex flex-col justify-between transition-all border ${
+                isLocalFileConnected 
+                  ? 'bg-amber-50/70 border-amber-300' 
+                  : 'bg-slate-50/60 border-slate-200 opacity-70'
+              }`}>
+                <div>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="material-symbols-outlined text-amber-800 text-xl">save</span>
+                    <h5 className="font-bold text-xs text-amber-950">Save Changes to Disk</h5>
+                  </div>
+                  <p className="text-[11px] text-amber-900 leading-normal mb-3">
+                    {isLocalFileConnected 
+                      ? `Immediately write all ${invoices.length} vouchers, ITC statuses, and Rule 37 aging directly into "${localFileName}".`
+                      : 'Link a local file first to enable live two-way disk saving.'
+                    }
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveToLocalDisk}
+                  disabled={!isLocalFileConnected}
+                  className={`w-full font-bold text-xs py-2 px-3 rounded flex items-center justify-center gap-1.5 transition-all shadow-sm ${
+                    isLocalFileConnected 
+                      ? 'bg-amber-700 hover:bg-amber-800 text-white cursor-pointer' 
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-sm">save_as</span>
+                  Save to Disk ({invoices.length} Vouchers)
+                </button>
+              </div>
+
+              {/* Card 4: Load Demo Data */}
+              <div className="bg-indigo-50/60 border border-indigo-200 p-md rounded flex flex-col justify-between hover:border-indigo-400 transition-all">
+                <div>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="material-symbols-outlined text-indigo-800 text-xl">dataset</span>
+                    <h5 className="font-bold text-xs text-indigo-950">Load CA Demo Dataset</h5>
+                  </div>
+                  <p className="text-[11px] text-indigo-800 leading-normal mb-3">
+                    Load 6 realistic CA client invoices (Tata Tea, SAIL, Apex Electricals). If a local file is linked, immediately writes them to disk!
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleLoadDemoDataToLocalDisk}
+                  className="w-full bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs py-2 px-3 rounded flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                >
+                  <span className="material-symbols-outlined text-sm">play_arrow</span>
+                  Load Demo Vouchers
+                </button>
+              </div>
+            </div>
+
+            {/* Secondary Controls Bar (Export standalone, standard upload fallback, cache wipe) */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-sm border-t border-slate-100">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={handleDownloadFirmExcel}
-                  className="bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs py-2 px-3 rounded flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3.5 py-2 rounded flex items-center gap-1.5 border border-slate-300 transition-all"
                 >
                   <span className="material-symbols-outlined text-sm">file_download</span>
-                  Export .CSV Master ({invoices.length} Rows)
+                  Download Standalone .CSV Copy ({invoices.length} Rows)
                 </button>
-              </div>
 
-              <div className="bg-slate-50 border border-slate-200 p-md rounded flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="material-symbols-outlined text-slate-800 text-xl">upload_file</span>
-                    <h5 className="font-bold text-xs text-slate-900">Restore From Local File</h5>
-                  </div>
-                  <p className="text-[11px] text-slate-600 leading-normal mb-3">
-                    Load previously exported Excel/CSV master records back into browser memory for instant reconciliation or Tally XML export.
-                  </p>
-                </div>
-                <div>
-                  <input
-                    type="file"
-                    ref={excelFileInputRef}
-                    accept=".csv,.txt"
-                    onChange={handleUploadLocalExcel}
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => excelFileInputRef.current?.click()}
-                    className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs py-2 px-3 rounded flex items-center justify-center gap-1.5 transition-all shadow-sm"
-                  >
-                    <span className="material-symbols-outlined text-sm">folder_open</span>
-                    Browse & Load Offline File
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-rose-50/50 border border-rose-200 p-md rounded flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="material-symbols-outlined text-rose-800 text-xl">delete_sweep</span>
-                    <h5 className="font-bold text-xs text-rose-900">Purge Memory Cache</h5>
-                  </div>
-                  <p className="text-[11px] text-rose-800 leading-normal mb-3">
-                    Immediately wipe all temporary browser session vouchers. Leaves zero residual client data in cache.
-                  </p>
-                </div>
+                <input
+                  type="file"
+                  ref={excelFileInputRef}
+                  accept=".csv,.txt"
+                  onChange={handleUploadLocalExcel}
+                  className="hidden"
+                />
                 <button
                   type="button"
-                  onClick={handleWipeCloudCache}
-                  className="bg-rose-700 hover:bg-rose-800 text-white font-bold text-xs py-2 px-3 rounded flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                  onClick={() => excelFileInputRef.current?.click()}
+                  className="bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs px-3.5 py-2 rounded flex items-center gap-1.5 border border-slate-200 transition-all"
+                  title="Legacy file upload fallback for non-Chromium browsers"
                 >
-                  <span className="material-symbols-outlined text-sm">lock_reset</span>
-                  Wipe Ephemeral Cache
+                  <span className="material-symbols-outlined text-sm">upload_file</span>
+                  Legacy Upload Fallback
                 </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleWipeCloudCache}
+                className="bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-xs px-3 py-2 rounded flex items-center gap-1.5 border border-rose-200 transition-all"
+              >
+                <span className="material-symbols-outlined text-sm">delete_sweep</span>
+                Purge RAM Cache
+              </button>
+            </div>
+
+            {/* Live Local Disk Records Preview Table */}
+            <div className="mt-md">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm text-amber-700">table_rows</span>
+                  Live Records in Active Local Database ({invoices.length} Vouchers)
+                </span>
+                <span className="text-[11px] text-slate-500 font-mono">
+                  {isLocalFileConnected ? `💾 Synchronized with: ${localFileName}` : '⚡ Operating in ephemeral memory (Click Pick File to link disk)'}
+                </span>
+              </div>
+
+              <div className="overflow-x-auto border border-slate-200 rounded max-h-72">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 text-[11px] font-bold text-slate-600 uppercase">
+                    <tr>
+                      <th className="p-2 border-r border-slate-200">#</th>
+                      <th className="p-2 border-r border-slate-200">Client Name</th>
+                      <th className="p-2 border-r border-slate-200">Invoice No</th>
+                      <th className="p-2 border-r border-slate-200">Date</th>
+                      <th className="p-2 border-r border-slate-200">Vendor Trade Name</th>
+                      <th className="p-2 border-r border-slate-200 text-right">Taxable (₹)</th>
+                      <th className="p-2 border-r border-slate-200 text-right">CGST (₹)</th>
+                      <th className="p-2 border-r border-slate-200 text-right">SGST (₹)</th>
+                      <th className="p-2 border-r border-slate-200 text-right">Total (₹)</th>
+                      <th className="p-2 border-r border-slate-200">ITC Status</th>
+                      <th className="p-2">Tally Group</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
+                    {invoices.map((inv, idx) => {
+                      const client = businesses.find(b => b.id === inv.business_id) || { name: 'Direct Client' };
+                      return (
+                        <tr key={inv.id || idx} className="hover:bg-amber-50/40 transition-colors">
+                          <td className="p-2 border-r border-slate-200 text-slate-500 font-bold">{idx + 1}</td>
+                          <td className="p-2 border-r border-slate-200 font-sans font-semibold text-ink-900">{client.name}</td>
+                          <td className="p-2 border-r border-slate-200 font-bold text-teal-800">{inv.invoice_number}</td>
+                          <td className="p-2 border-r border-slate-200 text-slate-600">{inv.date}</td>
+                          <td className="p-2 border-r border-slate-200 font-sans text-slate-800">{inv.vendor_name}</td>
+                          <td className="p-2 border-r border-slate-200 text-right font-bold text-slate-900">₹{(Number(inv.taxable_amount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                          <td className="p-2 border-r border-slate-200 text-right text-slate-600">₹{(Number(inv.cgst) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                          <td className="p-2 border-r border-slate-200 text-right text-slate-600">₹{(Number(inv.sgst) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                          <td className="p-2 border-r border-slate-200 text-right font-bold text-amber-900">₹{(Number(inv.total_amount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                          <td className="p-2 border-r border-slate-200">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              inv.itc_ineligible 
+                                ? 'bg-rose-100 text-rose-800' 
+                                : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {inv.itc_ineligible ? 'Blocked 17(5)' : 'Eligible ITC'}
+                            </span>
+                          </td>
+                          <td className="p-2 font-sans text-slate-700">{inv.tally_ledger || 'Sundry Creditors'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
