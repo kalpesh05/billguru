@@ -2505,41 +2505,117 @@ async function downloadMetaMedia(mediaId) {
   return { buffer, mimeType };
 }
 
-// Helper to call Google Gemini 1.5 Flash API to extract metadata from invoice images or PDFs
-async function extractInvoiceWithGemini(mediaUrl) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey.includes('YOUR_GEMINI_API_KEY') || apiKey.includes('YOUR_GOOGLE_AI_STUDIO_API_KEY')) {
-    console.warn('[Gemini AI] GEMINI_API_KEY is not configured in .env. Falling back to simulation.');
+// Helper to download image or document buffer from Meta or URL
+async function fetchMediaBuffer(mediaUrl) {
+  let buffer = null;
+  let mimeType = 'image/jpeg';
+
+  if (typeof mediaUrl === 'string' && mediaUrl.startsWith('meta-media-id:')) {
+    const mediaId = mediaUrl.replace('meta-media-id:', '').trim();
+    console.log(`[Media Fetch] Fetching media from Meta Graph API for mediaId: ${mediaId}...`);
+    const downloaded = await downloadMetaMedia(mediaId);
+    buffer = downloaded.buffer;
+    mimeType = downloaded.mimeType;
+  } else if (typeof mediaUrl === 'string' && (mediaUrl.includes('unsplash.com') || mediaUrl.includes('googleusercontent.com') || !mediaUrl.startsWith('http'))) {
+    return null; // Mock URL
+  } else {
+    console.log(`[Media Fetch] Fetching file from URL: ${mediaUrl}...`);
+    const imageResponse = await fetch(mediaUrl);
+    if (!imageResponse.ok) {
+      throw new Error(`Failed to download file (HTTP ${imageResponse.status})`);
+    }
+    const arrayBuffer = await imageResponse.arrayBuffer();
+    buffer = Buffer.from(arrayBuffer);
+    const headerMime = imageResponse.headers.get('content-type');
+    mimeType = (headerMime && !headerMime.includes('octet-stream')) 
+      ? headerMime.split(';')[0].trim() 
+      : detectBufferMimeType(buffer);
+  }
+  return { buffer, mimeType };
+}
+
+// 1. Helper to call Groq Vision API (Qwen 3.8 27B) - Free & Ultra-fast
+async function extractInvoiceWithGroq(buffer, mimeType) {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey || apiKey.includes('YOUR_GROQ_API_KEY')) {
     return null;
   }
 
   try {
-    let buffer = null;
-    let mimeType = 'image/jpeg';
+    console.log(`[Groq AI] Calling Groq Vision API (qwen/qwen3.8-27b, Size: ${buffer.length} bytes)...`);
+    const base64Data = buffer.toString('base64');
+    const prompt = `Identify the tax invoice details from this image. Return strictly as a valid JSON object matching this schema. Do not wrap in markdown or backticks:
+    {
+      "vendor_name": "string (Legal name of the vendor/supplier)",
+      "vendor_gstin": "string (15-character GSTIN of the vendor)",
+      "recipient_name": "string (Legal name of buyer/recipient if present)",
+      "recipient_gstin": "string (15-character GSTIN of buyer/recipient if present)",
+      "invoice_number": "string (invoice number)",
+      "invoice_date": "string (YYYY-MM-DD format)",
+      "taxable_amount": number (overall taxable value),
+      "cgst_amount": number,
+      "sgst_amount": number,
+      "igst_amount": number,
+      "total_amount": number (invoice total),
+      "round_off": number (round-off adjustment if present),
+      "hsn_sac_code": "string (primary HSN or SAC code)",
+      "tax_slabs": [
+        {
+          "rate": number (GST tax percentage rate, e.g. 0, 5, 12, 18, 28),
+          "taxable_amount": number,
+          "cgst_amount": number,
+          "sgst_amount": number,
+          "igst_amount": number,
+          "items": "string (items or product category under this slab)"
+        }
+      ]
+    }`;
 
-    if (typeof mediaUrl === 'string' && mediaUrl.startsWith('meta-media-id:')) {
-      const mediaId = mediaUrl.replace('meta-media-id:', '').trim();
-      console.log(`[Gemini AI] Fetching media from Meta Graph API for mediaId: ${mediaId}...`);
-      const downloaded = await downloadMetaMedia(mediaId);
-      buffer = downloaded.buffer;
-      mimeType = downloaded.mimeType;
-    } else if (typeof mediaUrl === 'string' && (mediaUrl.includes('unsplash.com') || mediaUrl.includes('googleusercontent.com') || !mediaUrl.startsWith('http'))) {
-      console.log('[Gemini AI] Mock URL received. Returning simulated parse.');
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey.trim()}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'qwen/qwen3.8-27b',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Data}` } }
+          ]
+        }],
+        response_format: { type: 'json_object' },
+        temperature: 0.1
+      })
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.warn(`[Groq AI] Request failed with HTTP ${res.status}:`, errText);
       return null;
-    } else {
-      console.log(`[Gemini AI] Fetching file from URL: ${mediaUrl}...`);
-      const imageResponse = await fetch(mediaUrl);
-      if (!imageResponse.ok) {
-        throw new Error(`Failed to download file (HTTP ${imageResponse.status})`);
-      }
-      const arrayBuffer = await imageResponse.arrayBuffer();
-      buffer = Buffer.from(arrayBuffer);
-      const headerMime = imageResponse.headers.get('content-type');
-      mimeType = (headerMime && !headerMime.includes('octet-stream')) 
-        ? headerMime.split(';')[0].trim() 
-        : detectBufferMimeType(buffer);
     }
 
+    const json = await res.json();
+    const rawContent = json.choices?.[0]?.message?.content || '{}';
+    console.log('[Groq AI] Raw extraction response received:', rawContent.substring(0, 150) + '...');
+    const parsed = JSON.parse(rawContent.replace(/```json/g, '').replace(/```/g, '').trim());
+    return parsed;
+  } catch (err) {
+    console.error('[Groq AI Error] Extraction error:', err.message);
+    return null;
+  }
+}
+
+// 2. Helper to call Google Gemini 1.5 Flash API
+async function extractInvoiceWithGemini(buffer, mimeType) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey.includes('YOUR_GEMINI_API_KEY') || apiKey.includes('YOUR_GOOGLE_AI_STUDIO_API_KEY')) {
+    return null;
+  }
+
+  try {
     console.log(`[Gemini AI] Connecting to Gemini 1.5 Flash API (MIME: ${mimeType}, Size: ${buffer.length} bytes)...`);
     const { GoogleGenAI } = await import('@google/genai');
     const aiClient = new GoogleGenAI({ apiKey });
@@ -2586,14 +2662,39 @@ async function extractInvoiceWithGemini(mediaUrl) {
 
     let rawText = aiResponse.text || '';
     console.log('[Gemini AI] Raw response received:', rawText);
-
-    // Clean markdown wraps if present
     rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-
-    const parsed = JSON.parse(rawText);
-    return parsed;
+    return JSON.parse(rawText);
   } catch (err) {
     console.error('[Gemini AI Error] Failed to process document/image extraction:', err.message);
+    return null;
+  }
+}
+
+// Unified Multi-Provider AI Extraction (Groq -> Gemini -> Simulation)
+async function extractInvoiceWithAI(mediaUrl) {
+  try {
+    const media = await fetchMediaBuffer(mediaUrl);
+    if (!media || !media.buffer) {
+      console.log('[AI Router] Mock URL or no buffer available. Falling back to simulation.');
+      return null;
+    }
+
+    // Try Groq Vision first (Fastest & Free)
+    if (process.env.GROQ_API_KEY && !process.env.GROQ_API_KEY.includes('YOUR_GROQ_API_KEY')) {
+      const groqResult = await extractInvoiceWithGroq(media.buffer, media.mimeType);
+      if (groqResult) return groqResult;
+    }
+
+    // Fallback to Gemini 1.5 Flash
+    if (process.env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY.includes('YOUR_GEMINI_API_KEY')) {
+      const geminiResult = await extractInvoiceWithGemini(media.buffer, media.mimeType);
+      if (geminiResult) return geminiResult;
+    }
+
+    console.warn('[AI Router] No external AI provider succeeded. Falling back to simulation.');
+    return null;
+  } catch (e) {
+    console.error('[AI Router Error]', e.message);
     return null;
   }
 }
@@ -2745,10 +2846,10 @@ app.post('/webhooks/whatsapp', async (req, res) => {
         return;
       }
 
-      // Handle Image / Document upload (Try Gemini first, fallback to mock)
+      // Handle Image / Document upload (Try Groq/Gemini AI first, fallback to simulation)
       let extractedData = null;
       if (message_type === 'image' || message_type === 'document') {
-        extractedData = await extractInvoiceWithGemini(media_url);
+        extractedData = await extractInvoiceWithAI(media_url);
       }
 
       if (extractedData) {
@@ -2961,10 +3062,10 @@ app.post('/webhooks/whatsapp', async (req, res) => {
         return;
       }
 
-      // Handle Image / Document upload (Try Gemini first, fallback to mock)
+      // Handle Image / Document upload (Try Groq/Gemini AI first, fallback to simulation)
       let extractedData = null;
       if (message_type === 'image' || message_type === 'document') {
-        extractedData = await extractInvoiceWithGemini(media_url);
+        extractedData = await extractInvoiceWithAI(media_url);
       }
 
       if (extractedData) {
