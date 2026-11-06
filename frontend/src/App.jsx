@@ -604,19 +604,6 @@ export default function App() {
 
   const recalculateLocalStats = () => {
     const savedCustom = JSON.parse(localStorage.getItem('bg_custom_businesses') || '[]');
-    // Show mock items if user is in Demo Mode or activeCaId is default
-    const activeCaId = caUser ? caUser.id : 1;
-    if (activeCaId !== 1 && !isDemoMode) {
-      if (savedCustom.length > 0) {
-        setBusinesses(savedCustom);
-        setIsEmptyState(false);
-      } else {
-        setBusinesses([]);
-        setIsEmptyState(true);
-      }
-      setFlags([]);
-      return;
-    }
 
     const updated = localFallbackData.businesses.map(b => {
       const bInvoices = invoices.filter(i => i.business_id === b.id);

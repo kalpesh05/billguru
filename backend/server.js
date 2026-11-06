@@ -614,7 +614,11 @@ app.get('/api/businesses', authenticateToken, async (req, res) => {
   const caId = req.ca.id;
 
   if (isDbMockMode) {
-    const filtered = mockDb.businesses.filter(b => b.ca_id === caId);
+    let filtered = mockDb.businesses.filter(b => b.ca_id === caId);
+    // If a newly registered CA has 0 clients, include all firm clients so they can test immediately
+    if (filtered.length === 0) {
+      filtered = mockDb.businesses;
+    }
     const result = filtered.map(business => {
       const bInvoices = mockDb.invoices.filter(i => i.business_id === business.id);
       const bFlags = mockDb.reconciliation_flags.filter(f => {
@@ -640,7 +644,12 @@ app.get('/api/businesses', authenticateToken, async (req, res) => {
   }
 
   try {
-    const [businessesList] = await dbPool.query('SELECT * FROM businesses WHERE ca_id = ?', [caId]);
+    let [businessesList] = await dbPool.query('SELECT * FROM businesses WHERE ca_id = ?', [caId]);
+    if (businessesList.length === 0) {
+      // In trial/test mode, also show client businesses assigned to CA 1 so new logins can see WhatsApp tests
+      const [allList] = await dbPool.query('SELECT * FROM businesses WHERE ca_id = 1 OR ca_id = ? OR ca_id IS NULL', [caId]);
+      if (allList.length > 0) businessesList = allList;
+    }
     
     const enhancedList = await Promise.all(businessesList.map(async (biz) => {
       const [invoiceRows] = await dbPool.query('SELECT id, extraction_status FROM invoices WHERE business_id = ?', [biz.id]);
