@@ -263,6 +263,13 @@ export default function App() {
   const [sendWhatsAppInvite, setSendWhatsAppInvite] = useState(false);
   const [onboardMessage, setOnboardMessage] = useState({ text: '', type: '' });
 
+  // Edit Client States
+  const [showEditClientModal, setShowEditClientModal] = useState(false);
+  const [editClientName, setEditClientName] = useState('');
+  const [editClientGstin, setEditClientGstin] = useState('');
+  const [editClientPhone, setEditClientPhone] = useState('');
+  const [editingClientBiz, setEditingClientBiz] = useState(null);
+
   // Fear-Free Demo & Practice Mode Controls
   const [isDemoMode, setIsDemoMode] = useState(false);
 
@@ -888,6 +895,53 @@ export default function App() {
       }
     } catch (err) {
       setOnboardMessage({ text: 'Failed to connect to backend API', type: 'error' });
+    }
+  };
+
+  const handleOpenEditClient = (biz) => {
+    setEditingClientBiz(biz);
+    setEditClientName(biz.name || '');
+    // If it's a provisional GSTIN, clear it so the CA can easily type the real one, but display placeholder
+    setEditClientGstin(biz.gstin && !biz.gstin.startsWith('24PROV') ? biz.gstin : '');
+    setEditClientPhone(biz.whatsapp_number || '');
+    setShowEditClientModal(true);
+  };
+
+  const handleSaveClientEdit = async (e) => {
+    e.preventDefault();
+    if (!editingClientBiz) return;
+
+    let finalGstin = editClientGstin.trim().toUpperCase();
+    if (!finalGstin) {
+      finalGstin = editingClientBiz.gstin || '24PROV000001Z5';
+    }
+
+    const updatedData = {
+      name: editClientName.trim() || editingClientBiz.name,
+      gstin: finalGstin,
+      whatsapp_number: editClientPhone.trim() || editingClientBiz.whatsapp_number
+    };
+
+    try {
+      if (backendConnected) {
+        const res = await authFetch(`${API_BASE_URL}/businesses/${editingClientBiz.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(updatedData)
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || 'Failed to update client details on server');
+        }
+      }
+
+      setBusinesses(prev => prev.map(b => b.id === editingClientBiz.id ? { ...b, ...updatedData } : b));
+      if (selectedBusiness && selectedBusiness.id === editingClientBiz.id) {
+        setSelectedBusiness(prev => ({ ...prev, ...updatedData }));
+      }
+      showToast(`Updated details for ${updatedData.name}!`, 'success');
+      setShowEditClientModal(false);
+    } catch (err) {
+      showToast(err.message, 'error');
     }
   };
 
@@ -3913,9 +3967,19 @@ function doPost(e) {
                                     </td>
                                     
                                     <td className="px-md py-md text-center">
-                                      <span className="material-symbols-outlined text-on-surface-variant group-hover:text-teal-600 transition-colors">
-                                        chevron_right
-                                      </span>
+                                      <div className="flex items-center justify-center gap-1">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => { e.stopPropagation(); handleOpenEditClient(business); }}
+                                          className="p-1 text-slate-400 hover:text-teal-700 hover:bg-teal-50 rounded transition-colors"
+                                          title="Edit Client Name / GSTIN"
+                                        >
+                                          <span className="material-symbols-outlined text-[18px]">edit</span>
+                                        </button>
+                                        <span className="material-symbols-outlined text-on-surface-variant group-hover:text-teal-600 transition-colors">
+                                          chevron_right
+                                        </span>
+                                      </div>
                                     </td>
                                   </tr>
                                 );
@@ -6538,6 +6602,114 @@ function doPost(e) {
               </div>
             )}
 
+            {/* MODAL: EDIT CLIENT DETAILS */}
+            {showEditClientModal && editingClientBiz && (
+              <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-md animate-in fade-in duration-200">
+                <div className="bg-white border border-slate-200 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
+                  {/* Header */}
+                  <div className="bg-slate-900 text-white p-md md:p-lg flex justify-between items-center">
+                    <div>
+                      <h2 className="font-headline-sm font-bold text-white text-lg flex items-center gap-xs">
+                        <span className="material-symbols-outlined text-teal-400">edit_note</span>
+                        <span>Edit Client Details</span>
+                      </h2>
+                      <p className="text-xs text-slate-300 mt-0.5">
+                        Update official business name, registered GSTIN, or WhatsApp contact.
+                      </p>
+                    </div>
+                    <button 
+                      onClick={() => setShowEditClientModal(false)}
+                      className="text-slate-300 hover:text-white p-1 rounded-full hover:bg-white/10"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">close</span>
+                    </button>
+                  </div>
+
+                  {/* Form */}
+                  <form onSubmit={handleSaveClientEdit} className="p-lg space-y-md">
+                    <div>
+                      <label className="block text-xs font-bold font-label-caps uppercase text-ink-900 mb-1">
+                        Business / Client Name
+                      </label>
+                      <input 
+                        type="text"
+                        required
+                        value={editClientName}
+                        onChange={(e) => setEditClientName(e.target.value)}
+                        placeholder="e.g. Kalpesh Enterprises"
+                        className="w-full px-3 py-2 border border-slate-300 rounded text-sm text-ink-900 focus:outline-none focus:border-teal-600"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-xs font-bold font-label-caps uppercase text-ink-900">
+                          15-Character GSTIN
+                        </label>
+                        {editingClientBiz.gstin?.startsWith('24PROV') && (
+                          <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                            Currently Provisional
+                          </span>
+                        )}
+                      </div>
+                      <input 
+                        type="text"
+                        maxLength={15}
+                        value={editClientGstin}
+                        onChange={(e) => setEditClientGstin(e.target.value.toUpperCase())}
+                        placeholder={editingClientBiz.gstin || "e.g. 24KLPSH1234F1Z8"}
+                        className="w-full px-3 py-2 border border-slate-300 rounded text-sm font-data-mono text-ink-900 uppercase focus:outline-none focus:border-teal-600"
+                      />
+                      <p className="text-[11px] text-on-surface-variant mt-1">
+                        {editClientGstin ? (
+                          isValidGstinChecksum(editClientGstin) ? (
+                            <span className="text-moss-500 font-bold">✅ Checksum passed (Valid Indian GSTIN format)</span>
+                          ) : (
+                            <span className="text-rust-600">⚠️ Checksum invalid or incomplete format</span>
+                          )
+                        ) : (
+                          "Leave blank to keep provisional identifier if client does not have GST yet."
+                        )}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold font-label-caps uppercase text-ink-900 mb-1">
+                        WhatsApp Contact Number
+                      </label>
+                      <input 
+                        type="tel"
+                        required
+                        value={editClientPhone}
+                        onChange={(e) => setEditClientPhone(e.target.value)}
+                        placeholder="10-digit mobile number, e.g. 9925556541"
+                        className="w-full px-3 py-2 border border-slate-300 rounded text-sm font-data-mono text-ink-900 focus:outline-none focus:border-teal-600"
+                      />
+                      <p className="text-[11px] text-on-surface-variant mt-1">
+                        Bills forwarded by this WhatsApp number automatically sync to this client ledger.
+                      </p>
+                    </div>
+
+                    <div className="pt-sm flex justify-end gap-sm border-t border-slate-100">
+                      <button 
+                        type="button"
+                        onClick={() => setShowEditClientModal(false)}
+                        className="px-4 py-2 border border-slate-300 rounded text-xs font-bold text-slate-700 hover:bg-slate-50"
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        type="submit"
+                        className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded text-xs font-bold shadow-sm active:scale-95 transition-all"
+                      >
+                        Save Changes
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
             {/* MODAL: META WHATSAPP CLOUD API SETUP GUIDE */}
             {showWhatsAppSetupModal && (
               <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-md animate-in fade-in duration-200">
@@ -7895,25 +8067,55 @@ function doPost(e) {
 
               <div className="space-y-lg max-w-7xl mx-auto w-full">
                 {!isMobileLayout && (
-                  <div className="flex items-center gap-sm">
-                    <button 
-                      onClick={() => { setCurrentView('dashboard'); setSelectedBusiness(null); }}
-                      className="p-sm hover:bg-slate-200 rounded transition-colors text-on-surface-variant"
-                    >
-                      <span className="material-symbols-outlined">arrow_back</span>
-                    </button>
-                    <div>
-                      <h3 className="font-headline-md text-ink-900">{selectedBusiness.name}</h3>
-                      <p className="font-data-mono text-body-sm text-on-surface-variant uppercase">
-                        GSTIN: {selectedBusiness.gstin} · WhatsApp: {selectedBusiness.whatsapp_number}
-                      </p>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-sm">
+                      <button 
+                        onClick={() => { setCurrentView('dashboard'); setSelectedBusiness(null); }}
+                        className="p-sm hover:bg-slate-200 rounded transition-colors text-on-surface-variant"
+                      >
+                        <span className="material-symbols-outlined">arrow_back</span>
+                      </button>
+                      <div>
+                        <div className="flex items-center gap-xs">
+                          <h3 className="font-headline-md text-ink-900">{selectedBusiness.name}</h3>
+                          {selectedBusiness.gstin && selectedBusiness.gstin.startsWith('24PROV') && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-700 border border-amber-500/20 font-label-caps">
+                              Provisional GSTIN
+                            </span>
+                          )}
+                        </div>
+                        <p className="font-data-mono text-body-sm text-on-surface-variant uppercase">
+                          GSTIN: {selectedBusiness.gstin} · WhatsApp: {selectedBusiness.whatsapp_number}
+                        </p>
+                      </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditClient(selectedBusiness)}
+                      className="px-3 py-1.5 bg-white border border-teal-600 text-teal-700 hover:bg-teal-50 rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs active:scale-95 transition-all"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">edit</span>
+                      <span>Edit Client Details</span>
+                    </button>
                   </div>
                 )}
 
                 {isMobileLayout && (
-                  <div className="bg-white p-sm border border-slate-200 rounded text-center">
-                    <span className="font-data-mono text-[11px] font-bold text-ink-900">{selectedBusiness.gstin}</span>
+                  <div className="bg-white p-sm border border-slate-200 rounded flex justify-between items-center">
+                    <div>
+                      <span className="font-data-mono text-[11px] font-bold text-ink-900 block">{selectedBusiness.gstin}</span>
+                      {selectedBusiness.gstin && selectedBusiness.gstin.startsWith('24PROV') && (
+                        <span className="text-[9px] text-amber-700 font-bold uppercase">Provisional GSTIN</span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditClient(selectedBusiness)}
+                      className="px-2 py-1 bg-teal-50 border border-teal-600/30 text-teal-700 rounded text-[10px] font-bold flex items-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">edit</span>
+                      <span>Edit</span>
+                    </button>
                   </div>
                 )}
 

@@ -692,6 +692,37 @@ app.get('/api/businesses/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// 2b. PUT Update Client Details (Name, GSTIN, Phone)
+app.put('/api/businesses/:id', authenticateToken, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { name, gstin, whatsapp_number } = req.body;
+  const caId = req.ca.id;
+
+  if (isDbMockMode) {
+    const business = mockDb.businesses.find(b => b.id === id && b.ca_id === caId);
+    if (!business) return res.status(404).json({ error: 'Business not found' });
+    if (name) business.name = name.trim();
+    if (gstin) business.gstin = gstin.trim().toUpperCase();
+    if (whatsapp_number) business.whatsapp_number = whatsapp_number.trim();
+    return res.json({ success: true, business });
+  }
+
+  try {
+    const [bizCheck] = await dbPool.query('SELECT id FROM businesses WHERE id = ? AND ca_id = ?', [id, caId]);
+    if (bizCheck.length === 0) return res.status(404).json({ error: 'Business not found' });
+
+    await dbPool.query(
+      'UPDATE businesses SET name = COALESCE(?, name), gstin = COALESCE(?, gstin), whatsapp_number = COALESCE(?, whatsapp_number) WHERE id = ? AND ca_id = ?',
+      [name ? name.trim() : null, gstin ? gstin.trim().toUpperCase() : null, whatsapp_number ? whatsapp_number.trim() : null, id, caId]
+    );
+
+    const [updated] = await dbPool.query('SELECT * FROM businesses WHERE id = ?', [id]);
+    res.json({ success: true, business: updated[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 3. GET Invoices for a Business
 app.get('/api/businesses/:id/invoices', authenticateToken, async (req, res) => {
   const businessId = parseInt(req.params.id);
