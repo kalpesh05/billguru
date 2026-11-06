@@ -15,10 +15,10 @@ const GST_STATE_MAP = {
 };
 
 // MOCK DATA (Fallback for local offline testing if backend is down)
-const DEMO_BIZ_NAMES = ['Meena Kirana Store', 'Sharma Electronics', 'Patel Textiles'];
+const DEMO_BIZ_NAMES = ['Meena Kirana Store', 'Sharma Electronics', 'Patel Textiles', 'New Gen Traders'];
 const isDemoBiz = (biz) => {
   if (!biz) return false;
-  return biz.id === 1 || biz.id === 2 || biz.id === 3 || DEMO_BIZ_NAMES.includes(biz.name);
+  return biz.id === 1 || biz.id === 2 || biz.id === 3 || biz.id === 4 || DEMO_BIZ_NAMES.includes(biz.name);
 };
 
 const localFallbackData = {
@@ -491,12 +491,14 @@ export default function App() {
       const flagRes = await authFetch(`${API_BASE_URL}/ca/${caUser?.id || 1}/flags?resolved=false`);
       const flagData = flagRes.ok ? await flagRes.json() : [];
       
-      setBusinesses(bizData);
+      const isDemoSaved = typeof window !== 'undefined' && localStorage.getItem('bg_demo_mode') === 'true';
+      const cleanBizData = isDemoSaved ? bizData : bizData.filter(b => !isDemoBiz(b));
+      setBusinesses(cleanBizData);
       setFlags(flagData);
       setBackendConnected(true);
       
       // If a newly registered CA has 0 clients, trigger Empty State automatically
-      if (bizData.length === 0) {
+      if (cleanBizData.length === 0) {
         setIsEmptyState(true);
       } else {
         setIsEmptyState(false);
@@ -510,11 +512,12 @@ export default function App() {
         recalculateLocalStats();
       } else {
         const savedCustom = JSON.parse(localStorage.getItem('bg_custom_businesses') || '[]');
+        const cleanCustom = savedCustom.filter(b => !isDemoBiz(b));
         const savedInvoices = JSON.parse(localStorage.getItem('bg_custom_invoices') || '[]');
-        setBusinesses(savedCustom);
+        setBusinesses(cleanCustom);
         setInvoices(savedInvoices);
         setFlags([]);
-        setIsEmptyState(savedCustom.length === 0);
+        setIsEmptyState(cleanCustom.length === 0);
       }
     } finally {
       setLoading(false);
@@ -524,6 +527,22 @@ export default function App() {
   useEffect(() => {
     loadData();
   }, [token]);
+
+  // Automatic Workspace Sanitization: Purge lingering demo businesses from live mode on startup
+  useEffect(() => {
+    if (!isDemoMode) {
+      setBusinesses(prev => {
+        const cleaned = prev.filter(b => !isDemoBiz(b));
+        if (cleaned.length !== prev.length) {
+          const raw = JSON.parse(localStorage.getItem('bg_custom_businesses') || '[]');
+          const cleanCustom = raw.filter(b => !isDemoBiz(b));
+          localStorage.setItem('bg_custom_businesses', JSON.stringify(cleanCustom));
+          return cleaned;
+        }
+        return prev;
+      });
+    }
+  }, [isDemoMode]);
 
   // Keep Reconciler and Rule 37 client selection in sync with valid business list
   useEffect(() => {
@@ -670,7 +689,7 @@ export default function App() {
     localStorage.setItem('bg_custom_businesses', JSON.stringify(cleanCustom));
 
     setBusinesses(cleanCustom);
-    setInvoices(JSON.parse(localStorage.getItem('bg_custom_invoices') || '[]').filter(i => i.business_id !== 1 && i.business_id !== 2 && i.business_id !== 3));
+    setInvoices(JSON.parse(localStorage.getItem('bg_custom_invoices') || '[]').filter(i => i.business_id !== 1 && i.business_id !== 2 && i.business_id !== 3 && i.business_id !== 4));
     setFlags([]);
     setIsEmptyState(cleanCustom.length === 0);
     showToast('✅ Purged sample data! Returned to your clean, private CA live workspace.', 'success');
@@ -696,13 +715,23 @@ export default function App() {
     setShowEditClientModal(false);
   };
 
+  const handleGenerateDummyGstin = () => {
+    const randNums = Math.floor(1000 + Math.random() * 9000);
+    const randLetters = Math.random().toString(36).substring(2, 7).toUpperCase().padEnd(5, 'T');
+    const dummy = `24${randLetters}${randNums}A1Z5`;
+    setNewClientGstin(dummy);
+    setSkipGstin(false);
+    showToast(`🎲 Generated synthetic test GSTIN: ${dummy} (0% government connection)`, 'info');
+  };
+
   const handleQuickFillDemoClient = () => {
-    setNewClientName('Ramesh Kirana & General Store');
-    setNewClientGstin('24ABCDE1234F1Z5');
-    setNewClientPhone('9876543210');
+    const randId = Math.floor(100 + Math.random() * 900);
+    setNewClientName(`Test Client ${randId} (Safe Sandbox)`);
+    setNewClientGstin(`24TEST${randId}00A1Z5`);
+    setNewClientPhone('9000000000');
     setSkipGstin(false);
     setSendWhatsAppInvite(false);
-    showToast('Auto-filled demo client details.', 'info');
+    showToast('Auto-filled safe test client (Zero real GST or phone used).', 'info');
   };
 
   const handleRunScanner = (sampleKey) => {
@@ -953,12 +982,14 @@ export default function App() {
     e.preventDefault();
     setOnboardMessage({ text: '', type: '' });
 
-    if (!newClientName.trim() || !newClientPhone.trim()) {
-      setOnboardMessage({ text: 'Business Name and Contact Number are required.', type: 'error' });
+    if (!newClientName.trim()) {
+      setOnboardMessage({ text: 'Please enter a Client Name or Internal Nickname (e.g. Client 1).', type: 'error' });
       return;
     }
 
-    // Determine GSTIN to submit
+    const phoneToSubmit = newClientPhone.trim() || '9000000000';
+
+    // Determine GSTIN to submit (defaults safely to provisional identifier if CA prefers not to provide real GST)
     let gstinToSubmit = newClientGstin.trim().toUpperCase();
     if (skipGstin || !gstinToSubmit) {
       const randPart = Math.random().toString(36).substring(2, 7).toUpperCase().padEnd(5, '0');
@@ -976,7 +1007,7 @@ export default function App() {
           body: JSON.stringify({
             name: newClientName.trim(),
             gstin: gstinToSubmit,
-            whatsapp_number: newClientPhone.trim(),
+            whatsapp_number: phoneToSubmit,
             send_whatsapp_invite: sendWhatsAppInvite
           })
         });
@@ -999,7 +1030,7 @@ export default function App() {
           id: Date.now(),
           name: newClientName.trim(),
           gstin: gstinToSubmit,
-          whatsapp_number: newClientPhone.trim(),
+          whatsapp_number: phoneToSubmit,
           onboarding_status: sendWhatsAppInvite ? 'invited' : 'active',
           total_invoices: 0,
           filed_invoices: 0,
@@ -8928,24 +8959,35 @@ function doPost(e) {
                     <button
                       type="button"
                       onClick={handleQuickFillDemoClient}
-                      className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded text-xs font-bold font-label-caps transition-all flex items-center gap-xs shrink-0"
-                      title="Auto-fill with sample Kirana store details to test"
+                      className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded text-xs font-bold font-label-caps transition-all flex items-center gap-xs shrink-0 cursor-pointer"
+                      title="Auto-fill with safe synthetic test details to test without real client data"
                     >
                       <span className="material-symbols-outlined text-[15px] text-teal-600">bolt</span>
-                      <span>Auto-Fill Demo Shop</span>
+                      <span>⚡ 1-Click Test Client (No Real Data)</span>
                     </button>
                   </div>
                 </div>
 
                 {/* 100% PRIVACY REASSURANCE CALLOUT */}
-                <div className="p-md bg-teal-50/70 border border-teal-200 rounded text-xs text-teal-900 space-y-xs">
-                  <div className="flex items-center gap-xs font-bold text-teal-800">
-                    <span className="material-symbols-outlined text-[18px]">verified_user</span>
-                    <span>100% Chartered Accountant Client Confidentiality Guarantee</span>
+                <div className="p-md bg-teal-50/80 border border-teal-200 rounded-lg text-xs text-teal-950 space-y-2">
+                  <div className="flex items-center gap-1.5 font-bold text-teal-800 text-sm">
+                    <span className="material-symbols-outlined text-base text-teal-700">shield_lock</span>
+                    <span>ICAI Data Privacy & Zero-Notice Guarantee</span>
                   </div>
-                  <p className="text-slate-600 leading-relaxed">
-                    You do NOT have to enter your client's real GSTIN or send them any WhatsApp messages to test BillGuru. You can check <em>"Skip GSTIN for now"</em> and leave WhatsApp invite unchecked.
-                  </p>
+                  <ul className="space-y-1 text-slate-700 leading-relaxed text-[11px]">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-moss-600 font-bold shrink-0">✓</span>
+                      <span><strong>Zero Government API Calls</strong>: We NEVER connect to the GST Portal or Income Tax servers with your client's credentials.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-moss-600 font-bold shrink-0">✓</span>
+                      <span><strong>Real GSTIN is 100% Optional</strong>: You can test with any nickname (e.g. <em>"Client 101"</em>) or click <em>[ 🎲 Generate Dummy GSTIN ]</em>.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-moss-600 font-bold shrink-0">✓</span>
+                      <span><strong>No Unsolicited WhatsApp Messages</strong>: Your clients are NEVER contacted unless you explicitly choose to dispatch an invitation.</span>
+                    </li>
+                  </ul>
                 </div>
 
                 {onboardMessage.text && (
@@ -8961,44 +9003,31 @@ function doPost(e) {
 
                 <form onSubmit={handleOnboardClient} className="space-y-md">
                   <div>
-                    <label className="font-label-caps text-on-surface-variant block mb-xs">Business Legal / Trade Name</label>
+                    <label className="font-label-caps text-on-surface-variant block mb-xs">Business Legal / Trade Name (or Internal Code)</label>
                     <input 
                       type="text" 
                       value={newClientName}
                       onChange={(e) => setNewClientName(e.target.value)}
-                      placeholder="e.g. Ramesh Kirana & General Store" 
+                      placeholder="e.g. Client 101, Ramesh Kirana, or Test Merchant" 
                       className="w-full bg-white border border-slate-200 p-sm rounded text-body-sm focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20"
                       required
                     />
                   </div>
 
                   <div>
-                    <div className="flex justify-between items-center mb-xs">
+                    <div className="flex flex-wrap justify-between items-center mb-xs gap-1">
                       <label className="font-label-caps text-on-surface-variant block">
-                        GSTIN <span className="font-normal text-on-surface-variant/70">(Optional for trial / Add later)</span>
+                        GSTIN <span className="font-normal text-slate-500">(Optional — leave blank for test client)</span>
                       </label>
-                      {!skipGstin && newClientGstin.length > 0 && (
-                        <span className={`text-[11px] font-bold flex items-center gap-0.5 ${
-                          /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(newClientGstin.trim())
-                            ? 'text-moss-500'
-                            : newClientGstin.trim().length === 15
-                            ? 'text-rust-600'
-                            : 'text-on-surface-variant'
-                        }`}>
-                          <span className="material-symbols-outlined text-[14px]">
-                            {/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(newClientGstin.trim())
-                              ? 'check_circle'
-                              : newClientGstin.trim().length === 15
-                              ? 'error'
-                              : 'pending'}
-                          </span>
-                          {/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(newClientGstin.trim())
-                            ? 'Valid GSTIN structure'
-                            : newClientGstin.trim().length === 15
-                            ? 'Invalid GSTIN pattern'
-                            : `${newClientGstin.trim().length}/15 characters`}
-                        </span>
-                      )}
+                      <button
+                        type="button"
+                        onClick={handleGenerateDummyGstin}
+                        className="text-[11px] font-bold text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2 py-0.5 rounded transition-all flex items-center gap-1 cursor-pointer"
+                        title="Generate a synthetic 15-char GSTIN for sandbox testing"
+                      >
+                        <span className="material-symbols-outlined text-[13px]">casino</span>
+                        <span>🎲 Generate Dummy GSTIN</span>
+                      </button>
                     </div>
 
                     {/* SKIP GSTIN TOGGLE */}
@@ -9020,35 +9049,36 @@ function doPost(e) {
                       value={skipGstin ? '24PROV(TEST_CLIENT)1Z5' : newClientGstin}
                       disabled={skipGstin}
                       onChange={(e) => setNewClientGstin(e.target.value.toUpperCase())}
-                      placeholder="e.g. 24ABCDE1234F1Z5 (or leave blank)" 
+                      placeholder="e.g. 24ABCDE1234F1Z5 or click 'Generate Dummy'" 
                       maxLength={15}
                       className={`w-full border p-sm rounded font-data-mono text-body-sm uppercase focus:ring-2 focus:ring-teal-600/20 ${
                         skipGstin
                           ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed italic'
-                          : newClientGstin.length === 15
-                          ? (/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(newClientGstin.trim()) ? 'bg-white border-moss-500 focus:border-moss-500' : 'bg-white border-rust-600 focus:border-rust-600')
+                          : newClientGstin.length === 15 && /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(newClientGstin.trim())
+                          ? 'bg-white border-moss-500 focus:border-moss-500'
                           : 'bg-white border-slate-200 focus:border-teal-600'
                       }`}
                     />
-                    <span className="text-[10px] text-on-surface-variant mt-xs block">
+                    <span className="text-[11px] text-slate-500 mt-xs block">
                       {skipGstin 
-                        ? 'Provisional identifier assigned. You can update with actual GSTIN before filing GSTR-3B.' 
-                        : 'Format: 2-digit state code + 10-char PAN + 1 entity count + Z + checksum. (Can be added later).'}
+                        ? 'Provisional identifier assigned. Safe for local OCR, reconciliation & Tally export testing.' 
+                        : 'Entering a real GSTIN does NOT connect to the government. If unsure, leave blank or click Generate Dummy.'}
                     </span>
                   </div>
 
                   <div>
-                    <label className="font-label-caps text-on-surface-variant block mb-xs">Contact / WhatsApp Phone Number</label>
+                    <label className="font-label-caps text-on-surface-variant block mb-xs">
+                      Contact / WhatsApp Phone Number <span className="font-normal text-slate-500">(Optional for trial)</span>
+                    </label>
                     <input 
                       type="text" 
                       value={newClientPhone}
                       onChange={(e) => setNewClientPhone(e.target.value)}
-                      placeholder="e.g. 9876543210" 
+                      placeholder="e.g. 9876543210 (or leave blank for 9000000000)" 
                       className="w-full bg-white border border-slate-200 p-sm rounded font-data-mono text-body-sm focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20"
-                      required
                     />
-                    <span className="text-[11px] text-on-surface-variant mt-xs block">
-                      Used to associate forwarded invoice photographs with this business ledger.
+                    <span className="text-[11px] text-slate-500 mt-xs block">
+                      Only used to route forwarded bills to this business ledger. No messages sent without your consent.
                     </span>
                   </div>
 

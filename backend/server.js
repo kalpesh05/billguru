@@ -56,11 +56,13 @@ const mockDb = {
     // Password for Rajesh Shah is: rajesh123 (hashed value will be stored in MySQL, plaintext checked in mock fallback)
     { id: 1, name: 'Rajesh Shah', firm_name: 'Shah & Associates', email: 'rajesh@shah.com', phone: '9876543210', password_plain: 'rajesh123', plan_tier: 'pro' }
   ],
+  demo_businesses: [
+    { id: 1, name: 'Meena Kirana Store', gstin: '24ABCDE1234F1Z5', is_demo: true, whatsapp_number: '9123456789', onboarding_status: 'active' },
+    { id: 2, name: 'Sharma Electronics', gstin: '24FGHIJ5678K2Z3', is_demo: true, whatsapp_number: '9234567890', onboarding_status: 'active' },
+    { id: 3, name: 'Patel Textiles', gstin: '24KLMNO9012P3Z1', is_demo: true, whatsapp_number: '9345678901', onboarding_status: 'active' },
+    { id: 4, name: 'New Gen Traders', gstin: '24QRSTU3456V4Z0', is_demo: true, whatsapp_number: '9456789012', onboarding_status: 'invited' }
+  ],
   businesses: [
-    { id: 1, name: 'Meena Kirana Store', gstin: '24ABCDE1234F1Z5', ca_id: 1, whatsapp_number: '9123456789', onboarding_status: 'active' },
-    { id: 2, name: 'Sharma Electronics', gstin: '24FGHIJ5678K2Z3', ca_id: 1, whatsapp_number: '9234567890', onboarding_status: 'active' },
-    { id: 3, name: 'Patel Textiles', gstin: '24KLMNO9012P3Z1', ca_id: 1, whatsapp_number: '9345678901', onboarding_status: 'active' },
-    { id: 4, name: 'New Gen Traders', gstin: '24QRSTU3456V4Z0', ca_id: 1, whatsapp_number: '9456789012', onboarding_status: 'invited' },
     { id: 5, name: 'Kalpesh Enterprises', gstin: '24KLPSH1234F1Z8', ca_id: 1, whatsapp_number: '9925556541', onboarding_status: 'active' }
   ],
   invoices: [
@@ -613,11 +615,10 @@ app.get('/api/businesses', authenticateToken, async (req, res) => {
     const caId = req.ca?.id || req.user?.id || 1;
 
     if (isDbMockMode) {
-      let filtered = mockDb.businesses.filter(b => b.ca_id === caId);
-      // If a newly registered CA has 0 clients, include all firm clients so they can test immediately
-      if (filtered.length === 0) {
-        filtered = mockDb.businesses;
-      }
+      const isDemo = req.query.demo === 'true';
+      let filtered = isDemo 
+        ? [...mockDb.demo_businesses, ...mockDb.businesses]
+        : mockDb.businesses.filter(b => b.ca_id === caId && !['Meena Kirana Store', 'Sharma Electronics', 'Patel Textiles', 'New Gen Traders'].includes(b.name));
       const result = filtered.map(business => {
         const bInvoices = mockDb.invoices.filter(i => i.business_id === business.id);
         const bFlags = mockDb.reconciliation_flags.filter(f => {
