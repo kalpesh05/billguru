@@ -279,6 +279,16 @@ export default function App() {
   });
   const [welcomeTourStep, setWelcomeTourStep] = useState(0);
 
+  // Collapsible Sidebar Drawer State
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('bg_sidebar_collapsed') === 'true';
+  });
+
+  // Non-CA Testing Playbook & Module Guide Modal
+  const [showTesterGuide, setShowTesterGuide] = useState(false);
+  const [testerGuideSearch, setTesterGuideSearch] = useState('');
+  const [testerGuideCategory, setTesterGuideCategory] = useState('all');
+
   // Instant AI Bill Scanner Test Modal
   const [showBillScannerModal, setShowBillScannerModal] = useState(false);
   const [scannerSampleId, setScannerSampleId] = useState('sample1');
@@ -1029,19 +1039,226 @@ export default function App() {
 
   const totalCriticalIssues = flags.filter(f => !f.resolved && f.severity === 'high').length;
 
+  const MODULE_TESTING_DATA = [
+    {
+      id: 'dashboard',
+      label: 'CA Multi-Client Dashboard',
+      icon: 'dashboard',
+      category: 'CA Operations',
+      tag: 'Core Hub',
+      summary: 'Master CA control center to monitor all assigned client businesses.',
+      caPainPoint: 'CAs manage 20 to 100+ SME clients simultaneously. Without a central dashboard, they lose track of who uploaded bills, who has unresolved GST flags, and whose filing deadline is approaching.',
+      whyItMatters: 'Gives the CA a high-level bird\'s eye view with health scores (e.g. 98% Healthy vs Action Needed) and unreconciled ITC amounts in rupees.',
+      testChecklist: [
+        'Click "⚡ Load Demo Data" in the top bar to populate 3 practice client businesses (Ramesh Kirana, Sharma Electronics, Priya Textiles).',
+        'Examine the client cards: Notice "Unreconciled ITC", "Active Flags", and "Compliance Health".',
+        'Use the "Search businesses..." input in the top bar to filter clients by name or GSTIN.',
+        'Click on any client card (e.g., Ramesh Kirana) to enter their detailed client workspace.'
+      ],
+      pitchLine: '"See all your 50+ clients on one screen with automated health checks, instead of tracking files on paper or Excel sheets."'
+    },
+    {
+      id: 'gstr2b-reconcile',
+      label: 'GSTR-2B Matcher',
+      icon: 'compare_arrows',
+      category: 'CA Operations',
+      tag: 'High Value',
+      summary: '2-way reconciliation matching client purchase receipts against the Govt GST portal statement (GSTR-2B).',
+      caPainPoint: 'In India, a business CANNOT claim tax credit (ITC) unless their vendor has officially uploaded that invoice to the Govt portal. CAs spend 15–20 hours every month running Excel VLOOKUP formulas to cross-check purchase registers against GSTR-2B.',
+      whyItMatters: 'Saves direct money: catches missing bills (where client paid tax but vendor didn\'t report), tax rate mismatches, and ineligible claims before filing GSTR-3B.',
+      testChecklist: [
+        'Click "GSTR-2B Matcher" from the sidebar.',
+        'Pick a client (e.g., Ramesh Kirana) from the dropdown selector.',
+        'Review the summary KPI cards: "Total ITC Claimable", "Matched Invoices", and "At-Risk Discrepancy Amount".',
+        'Switch between the "Matched" and "Discrepancy" tabs. See flags like "Missing in GSTR-2B" or "Tax Value Mismatch".',
+        'Click "Auto-Match All" or "1-Click Tally Prime XML Export" to test the automated workflow.'
+      ],
+      pitchLine: '"Eliminate 20 hours of manual Excel VLOOKUP monthly reconciliation with 1-click 2-way GSTR-2B matching and discrepancy detection."'
+    },
+    {
+      id: 'rule37-tracker',
+      label: 'Rule 37 Tracker',
+      icon: 'schedule',
+      category: 'CA Operations',
+      tag: 'Statutory Risk',
+      summary: 'Automated 180-day vendor payment tracking to prevent compulsory ITC reversals with 18% annual interest.',
+      caPainPoint: 'GST Rule 37 states that if a buyer does not pay their supplier within 180 days of invoice date, they MUST reverse the claimed ITC along with 18% p.a. interest. CAs get hit by audits because clients quietly delay supplier payments.',
+      whyItMatters: 'Calculates the exact elapsed days and penal interest down to the rupee, flagging bills that are 0-90 days (Safe), 91-150 days (Watchlist), and >180 days (Critical Violation).',
+      testChecklist: [
+        'Click "Rule 37 Tracker" from the sidebar.',
+        'Check the aging buckets: Notice the warning badges on invoices approaching or exceeding 180 days.',
+        'Inspect the computed 18% interest figure displayed on overdue vendor bills.',
+        'Test clicking "Mark Paid" or entering a payment date to see the bill move from overdue to compliant.'
+      ],
+      pitchLine: '"Protect your clients from painful GST audit penalties with automated 180-day aging alerts and exact 18% interest calculation."'
+    },
+    {
+      id: 'firm-settings',
+      label: 'CA Firm Profile & Credentials',
+      icon: 'domain',
+      category: 'CA Operations',
+      tag: 'Compliance & Brand',
+      summary: 'Professional CA practice configuration, ICAI Membership, COP, and audit letterhead settings.',
+      caPainPoint: 'ICAI Standards of Auditing (SA 230) require working papers to clearly identify the CA firm, engagement partner, registration numbers, and review sign-offs.',
+      whyItMatters: 'Branded audit trail: all generated PDF audit reports, reconciliation certificates, and Tally export packages carry the CA firm\'s official letterhead and disclaimers.',
+      testChecklist: [
+        'Click "CA Firm Profile" in the sidebar.',
+        'Edit the Firm Name, Partner CA Name, and ICAI Membership No.',
+        'Toggle the ICAI SA 230 compliance disclaimers or notification preferences.',
+        'Save and observe the updated firm name reflected in the top navigation bar.'
+      ],
+      pitchLine: '"Every export and report is professionally branded with your ICAI credentials and compliant with SA 230 working paper standards."'
+    },
+    {
+      id: 'sovereign-db',
+      label: 'Sovereign Sheets DB',
+      icon: 'table_view',
+      category: 'CA Operations',
+      tag: 'Data Privacy',
+      summary: '100% private, sovereign data viewer and audit ledger keeping client financial records under CA custody.',
+      caPainPoint: 'CAs cannot risk uploading confidential client accounting databases to blackbox third-party clouds due to ICAI ethical guidelines and the Digital Personal Data Protection (DPDP) Act 2023.',
+      whyItMatters: 'Data sovereignty: records are stored with AES-256 encryption, local fallback, and full JSON/Excel export without vendor lock-in.',
+      testChecklist: [
+        'Click "Sovereign Sheets DB" in the sidebar.',
+        'Filter and search through the consolidated invoice ledger.',
+        'Verify the DPDP Act 2023 compliance status badges.',
+        'Click "Export Full Audit JSON" or "Download CA Backup" to test instant data portability.'
+      ],
+      pitchLine: '"Complete data sovereignty compliant with DPDP Act 2023: your client data remains under your firm\'s custody, not locked into proprietary clouds."'
+    },
+    {
+      id: 'inward',
+      label: 'Inward Queue (Purchases & ITC)',
+      icon: 'receipt_long',
+      category: 'Registers',
+      tag: 'Client Input',
+      summary: 'Queue of incoming vendor purchase invoices uploaded via WhatsApp or manual scan.',
+      caPainPoint: 'Clients bring crumpled paper receipts, blurry smartphone photos, or thermal bills at the end of the month in a shoebox or via messy WhatsApp dumps.',
+      whyItMatters: 'AI OCR extracts Invoice Number, Date, Vendor GSTIN, Line items, and Tax breakup (CGST, SGST, IGST) within 2 seconds. Automatically checks if vendor GSTIN is active or cancelled.',
+      testChecklist: [
+        'Click "Inward Queue" from the sidebar.',
+        'Browse through the pending invoices. Look at the flags for "Cancelled Vendor GSTIN" or "HSN Rate Mismatch".',
+        'Click "Review / Edit" on any invoice: edit fields, change ITC eligibility under Section 17(5), and click Save.',
+        'Click "Approve & Push to Ledger" to see it move to reconciled status.'
+      ],
+      pitchLine: '"Turn crumpled WhatsApp bill photos into verified purchase vouchers with instant AI fraud and GSTIN validity checks."'
+    },
+    {
+      id: 'outward',
+      label: 'Sales Ledger (GSTR-1 Outward)',
+      icon: 'upload_file',
+      category: 'Registers',
+      tag: 'Tax Liability',
+      summary: 'Sales register tracking customer invoices and calculating gross output tax liability for GSTR-1.',
+      caPainPoint: 'Reconciling client sales registers for GSTR-1 filing requires categorizing B2B sales (with buyer GSTIN) vs B2C sales (unregistered buyers) and matching HSN summaries.',
+      whyItMatters: 'Auto-calculates total tax payable, separates B2B and B2C turnover, and prepares data for direct GSTR-1 portal filing or Tally import.',
+      testChecklist: [
+        'Click "Sales Ledger" from the sidebar.',
+        'Check the B2B vs B2C classification of sales entries.',
+        'View the total CGST + SGST output liability calculated at the top.',
+        'Test filtering by date range or specific client business.'
+      ],
+      pitchLine: '"Automated GSTR-1 sales ledger ready for monthly return filing with clean B2B and B2C categorization."'
+    },
+    {
+      id: 'solo-business',
+      label: 'Solo Shop (DIY Portal)',
+      icon: 'storefront',
+      category: 'Client Portals',
+      tag: 'SME Self-Service',
+      summary: 'Simplified, non-technical portal designed for small retailers and local dukandars.',
+      caPainPoint: 'Small shop owners find software like Tally or SAP too complicated, so they do everything on paper, creating headaches for their CA at tax time.',
+      whyItMatters: 'Gives the shopkeeper a dead-simple interface to record sales, snap bills, and view their estimated GST liability without needing any accounting knowledge.',
+      testChecklist: [
+        'Click "Solo Shop (DIY)" from the sidebar.',
+        'Notice the simplified, intuitive UI tailored for non-accountants.',
+        'Test creating a quick bill or logging an expense.',
+        'Observe how bills logged here immediately sync to the CA\'s master Inward Queue.'
+      ],
+      pitchLine: '"A dead-simple interface you can hand to your small dukandar clients so they send you structured bills instead of paper piles."'
+    },
+    {
+      id: 'salaried-portal',
+      label: 'Salaried Tax Locker',
+      icon: 'account_balance_wallet',
+      category: 'Client Portals',
+      tag: 'Income Tax',
+      summary: 'Personal tax vault for salaried clients: Form 16, deductions, and Old vs New tax regime simulator.',
+      caPainPoint: 'Every July, CAs are overwhelmed by hundreds of salaried individuals emailing Form 16s, LIC policy receipts, and rent agreements with frantic questions on which tax regime to pick.',
+      whyItMatters: 'Compares Old vs New Regime taxes side-by-side using the latest FY 2026-27 tax slabs (including standard deduction ₹75,000) and organizes tax deduction proofs in one vault.',
+      testChecklist: [
+        'Click "Salaried Tax Locker" in the sidebar.',
+        'Select Financial Year (e.g., 2026-2027 vs 2025-2026).',
+        'Toggle between Old Regime and New Regime to see the exact tax difference calculated in real-time.',
+        'Review the deduction proof lockers for Section 80C, 80D, and HRA.'
+      ],
+      pitchLine: '"Effortlessly process hundreds of salaried ITR filings in July with instant Form 16 parsing and Old vs New regime simulation."'
+    },
+    {
+      id: 'analytics',
+      label: 'Firm Analytics & Compliance Score',
+      icon: 'analytics',
+      category: 'Tools & Simulators',
+      tag: 'Intelligence',
+      summary: 'High-level visual charts showing total ITC saved, fraud prevented, and firm workload metrics.',
+      caPainPoint: 'CAs struggle to prove their value to clients beyond "I filed your taxes". Clients don\'t realize how much penalty or fraud their CA prevented.',
+      whyItMatters: 'Provides clean metrics (e.g. ₹1.4 Lakhs ITC recovered, 14 fake GSTINs blocked) that CAs can share with clients to justify their advisory fees.',
+      testChecklist: [
+        'Click "Analytics" in the sidebar.',
+        'Review the visual breakdown of matched vs disputed ITC.',
+        'Check the risk distribution metrics and vendor compliance ratings.',
+        'Examine the monthly filing progress tracker.'
+      ],
+      pitchLine: '"Visual proof of the value your firm delivers: show clients exactly how many lakhs of ITC you protected and audit risks you blocked."'
+    },
+    {
+      id: 'whatsapp',
+      label: 'WhatsApp Bot Simulator',
+      icon: 'chat',
+      category: 'Tools & Simulators',
+      tag: 'Interactive Demo',
+      summary: 'Live interactive simulation of the WhatsApp chat experience for shop owners.',
+      caPainPoint: 'Getting SME business owners to install or learn a new software app is nearly impossible. They prefer WhatsApp over everything.',
+      whyItMatters: 'Zero adoption friction: shopkeepers just take a photo of any receipt in WhatsApp and send it to the BillGuru bot; AI does the rest in the background.',
+      testChecklist: [
+        'Click "WhatsApp Sim" from the sidebar.',
+        'Send a sample message or click one of the quick test prompt buttons.',
+        'Watch the simulated AI bot respond with receipt extraction and GSTIN validation.',
+        'Notice how the parsed invoice instantly syncs to the CA\'s Inward Queue!'
+      ],
+      pitchLine: '"Zero learning curve for clients: if they know how to send a photo on WhatsApp, they can use BillGuru with zero training."'
+    },
+    {
+      id: 'guide',
+      label: 'Guide & FAQ Knowledge Base',
+      icon: 'help_outline',
+      category: 'Tools & Simulators',
+      tag: 'Documentation',
+      summary: 'Comprehensive documentation, FAQ repository, and regulatory reference for GST & ICAI standards.',
+      caPainPoint: 'Junior article clerks and client staff frequently ask repetitive questions on GST rules, Section 17(5) blocked credits, and filing steps.',
+      whyItMatters: 'Central repository answering common questions for CAs, article assistants, business owners, and salaried taxpayers.',
+      testChecklist: [
+        'Click "Guide & FAQ" in the sidebar.',
+        'Switch between the tabs: "Quick Start", "CA Firm Hub", "Shop Owner (DIY)", and "FAQ".',
+        'Use the search bar to find answers to specific questions like "Rule 37" or "Tally XML".'
+      ],
+      pitchLine: '"Self-service knowledge base for your firm\'s article assistants and clients to resolve queries in seconds."'
+    }
+  ];
+
   const navItems = [
-    { view: 'dashboard', label: 'CA Multi-Client', icon: 'dashboard' },
-    { view: 'gstr2b-reconcile', label: 'GSTR-2B Matcher', icon: 'compare_arrows' },
-    { view: 'rule37-tracker', label: 'Rule 37 Tracker', icon: 'schedule' },
-    { view: 'firm-settings', label: 'CA Firm Profile', icon: 'domain' },
-    { view: 'sovereign-db', label: 'Sovereign Sheets DB', icon: 'table_view' },
-    { view: 'inward', label: 'Inward Queue', icon: 'receipt_long' },
-    { view: 'outward', label: 'Sales Ledger', icon: 'upload_file' },
-    { view: 'solo-business', label: 'Solo Shop (DIY)', icon: 'storefront' },
-    { view: 'salaried-portal', label: 'Salaried Tax Locker', icon: 'account_balance_wallet' },
-    { view: 'analytics', label: 'Analytics', icon: 'analytics' },
-    { view: 'whatsapp', label: 'WhatsApp Sim', icon: 'chat' },
-    { view: 'guide', label: 'Guide & FAQ', icon: 'help_outline' },
+    { view: 'dashboard', label: 'CA Multi-Client', icon: 'dashboard', hint: 'All client businesses overview & filing status', category: 'CA Operations' },
+    { view: 'gstr2b-reconcile', label: 'GSTR-2B Matcher', icon: 'compare_arrows', hint: 'Match bills with Govt portal statement', category: 'CA Operations' },
+    { view: 'rule37-tracker', label: 'Rule 37 Tracker', icon: 'schedule', hint: '180-day vendor payment aging & ITC reversal', category: 'CA Operations' },
+    { view: 'firm-settings', label: 'CA Firm Profile', icon: 'domain', hint: 'Firm registration, ICAI membership & COP', category: 'CA Operations' },
+    { view: 'sovereign-db', label: 'Sovereign Sheets DB', icon: 'table_view', hint: 'Private client database & audit records', category: 'CA Operations' },
+    { view: 'inward', label: 'Inward Queue', icon: 'receipt_long', hint: 'Purchase bills uploaded via WhatsApp & OCR', category: 'Registers' },
+    { view: 'outward', label: 'Sales Ledger', icon: 'upload_file', hint: 'GSTR-1 outward sales invoices & GST liability', category: 'Registers' },
+    { view: 'solo-business', label: 'Solo Shop (DIY)', icon: 'storefront', hint: 'Micro-merchant simplified invoicing portal', category: 'Client Portals' },
+    { view: 'salaried-portal', label: 'Salaried Tax Locker', icon: 'account_balance_wallet', hint: 'Form 16, deductions & Old vs New tax regime', category: 'Client Portals' },
+    { view: 'analytics', label: 'Analytics', icon: 'analytics', hint: 'Firm-wide compliance charts & ITC savings', category: 'Tools & Simulators' },
+    { view: 'whatsapp', label: 'WhatsApp Sim', icon: 'chat', hint: 'Test client WhatsApp bill capture experience', category: 'Tools & Simulators' },
+    { view: 'guide', label: 'Guide & FAQ', icon: 'help_outline', hint: 'Documentation & non-CA tester cheat sheet', category: 'Tools & Simulators' },
   ];
 
 
@@ -3389,112 +3606,296 @@ function doPost(e) {
 
         {/* --- DESKTOP SIDEBAR NAVIGATION (Hidden in Mobile layout) --- */}
         {!isMobileLayout && (
-          <aside className="h-full w-64 fixed left-0 top-0 bg-paper-50 border-r border-slate-200 flex flex-col p-md z-50">
-            <div className="mb-md">
-              <div className="flex items-center gap-sm mb-xs">
-                <div className="w-8 h-8 bg-teal-600 rounded flex items-center justify-center text-white font-headline-sm font-bold">B</div>
-                <span className="font-headline-sm text-headline-sm font-bold text-ink-900">BillGuru AI</span>
+          <aside className={`h-full fixed left-0 top-0 bg-paper-50 border-r border-slate-200 flex flex-col z-50 transition-all duration-300 ease-in-out ${
+            isSidebarCollapsed ? 'w-[72px] p-2' : 'w-64 p-3.5'
+          }`}>
+            {/* Top Brand & Drawer Toggle */}
+            <div className={`mb-3 ${isSidebarCollapsed ? 'flex flex-col items-center gap-1.5' : 'flex items-center justify-between'}`}>
+              <div 
+                className="flex items-center gap-2.5 cursor-pointer group"
+                onClick={() => { setCurrentView('dashboard'); setSelectedBusiness(null); }}
+                title="BillGuru AI - CA Compliance Copilot"
+              >
+                <div className="w-8 h-8 bg-teal-600 rounded-lg flex items-center justify-center text-white font-headline-sm font-bold shadow-xs shrink-0 group-hover:scale-105 transition-transform">
+                  B
+                </div>
+                {!isSidebarCollapsed && (
+                  <div className="min-w-0">
+                    <span className="font-headline-sm text-headline-sm font-bold text-ink-900 block leading-tight truncate">BillGuru AI</span>
+                    <p className="font-label-caps text-[10px] text-on-surface-variant opacity-70 tracking-wider uppercase">GST Compliance Copilot</p>
+                  </div>
+                )}
               </div>
-              <p className="font-label-caps text-label-caps text-on-surface-variant opacity-70">GST Compliance Copilot</p>
+              
+              <button 
+                type="button"
+                onClick={() => {
+                  const next = !isSidebarCollapsed;
+                  setIsSidebarCollapsed(next);
+                  localStorage.setItem('bg_sidebar_collapsed', String(next));
+                }}
+                className={`p-1.5 text-slate-400 hover:text-ink-900 hover:bg-slate-200/80 rounded-lg transition-colors ${isSidebarCollapsed ? 'w-8 h-8 flex items-center justify-center' : 'ml-auto'}`}
+                title={isSidebarCollapsed ? "Expand sidebar (Drawer)" : "Collapse sidebar to icon drawer"}
+              >
+                <span className="material-symbols-outlined text-[19px]">{isSidebarCollapsed ? 'menu' : 'menu_open'}</span>
+              </button>
             </div>
 
             {/* PRIMARY ACTION CTA: SINGLE CLEAN PROMINENT BUTTON */}
-            <button 
-              onClick={() => { setCurrentView('onboard'); setSelectedBusiness(null); }}
-              className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 px-md rounded-lg mb-md transition-all text-body-sm shadow-sm active:scale-95 flex items-center justify-center gap-xs"
-            >
-              <span className="material-symbols-outlined text-[18px]">person_add</span>
-              <span>＋ Add Client Business</span>
-            </button>
+            {isSidebarCollapsed ? (
+              <button 
+                type="button"
+                onClick={() => { setCurrentView('onboard'); setSelectedBusiness(null); }}
+                className="w-10 h-10 mx-auto bg-teal-600 hover:bg-teal-700 text-white rounded-lg mb-3 shadow-sm active:scale-95 flex items-center justify-center transition-all shrink-0"
+                title="＋ Add Client Business"
+              >
+                <span className="material-symbols-outlined text-[20px]">person_add</span>
+              </button>
+            ) : (
+              <button 
+                type="button"
+                onClick={() => { setCurrentView('onboard'); setSelectedBusiness(null); }}
+                className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 px-md rounded-lg mb-3 transition-all text-body-sm shadow-sm active:scale-95 flex items-center justify-center gap-xs shrink-0"
+              >
+                <span className="material-symbols-outlined text-[18px]">person_add</span>
+                <span>＋ Add Client Business</span>
+              </button>
+            )}
             
-            <nav className="flex-1 space-y-unit">
-              {navItems.map(item => (
-                <button 
-                  key={item.view}
-                  onClick={() => { setCurrentView(item.view); setSelectedBusiness(null); }}
-                  className={`w-full flex items-center gap-md p-sm font-label-caps text-label-caps rounded-lg transition-all ${
-                    currentView === item.view && !selectedBusiness
-                      ? 'bg-secondary-container text-on-secondary-container font-bold' 
-                      : 'text-on-surface-variant hover:bg-slate-200'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
-                  <span>{item.label}</span>
-                </button>
-              ))}
+            {/* NAVIGATION MENU ITEMS */}
+            <nav className={`flex-1 overflow-y-auto custom-scrollbar ${isSidebarCollapsed ? 'space-y-1.5 flex flex-col items-center py-1' : 'space-y-1 pr-1'}`}>
+              {(() => {
+                let lastCategory = null;
+                return navItems.map((item) => {
+                  const isActive = currentView === item.view && !selectedBusiness;
+                  const showCategoryHeader = !isSidebarCollapsed && item.category && item.category !== lastCategory;
+                  if (showCategoryHeader) {
+                    lastCategory = item.category;
+                  }
+
+                  return (
+                    <React.Fragment key={item.view}>
+                      {showCategoryHeader && (
+                        <div className="pt-2 pb-0.5 px-2">
+                          <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 font-label-caps">
+                            {item.category}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {isSidebarCollapsed ? (
+                        <button 
+                          type="button"
+                          onClick={() => { setCurrentView(item.view); setSelectedBusiness(null); }}
+                          title={`${item.label}\n${item.hint || ''}`}
+                          className={`relative flex items-center justify-center w-10 h-10 rounded-lg transition-all ${
+                            isActive
+                              ? 'bg-secondary-container text-teal-800 font-bold shadow-xs ring-1 ring-teal-500/30' 
+                              : 'text-on-surface-variant hover:bg-slate-200/80 hover:text-ink-900'
+                          }`}
+                        >
+                          <span className={`material-symbols-outlined text-[20px] ${isActive ? 'text-teal-700 font-bold' : 'text-slate-600'}`}>{item.icon}</span>
+                          {item.view === 'gstr2b-reconcile' && totalCriticalIssues > 0 && (
+                            <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rust-600 rounded-full border-2 border-paper-50" title={`${totalCriticalIssues} critical issues`}></span>
+                          )}
+                        </button>
+                      ) : (
+                        <button 
+                          type="button"
+                          onClick={() => { setCurrentView(item.view); setSelectedBusiness(null); }}
+                          title={item.hint || item.label}
+                          className={`w-full flex items-center justify-between p-2 font-label-caps text-label-caps rounded-lg transition-all text-left ${
+                            isActive
+                              ? 'bg-secondary-container text-on-secondary-container font-bold shadow-xs' 
+                              : 'text-on-surface-variant hover:bg-slate-200/80 hover:text-ink-900'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className={`material-symbols-outlined text-[19px] shrink-0 ${isActive ? 'text-teal-700' : 'text-slate-500'}`}>{item.icon}</span>
+                            <span className="truncate">{item.label}</span>
+                          </div>
+                          {item.view === 'gstr2b-reconcile' && totalCriticalIssues > 0 && (
+                            <span className="bg-rust-600 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full shrink-0">
+                              {totalCriticalIssues}
+                            </span>
+                          )}
+                        </button>
+                      )}
+                    </React.Fragment>
+                  );
+                });
+              })()}
             </nav>
             
-            <div className="mt-auto pt-sm space-y-unit border-t border-slate-200">
-              {/* COMPACT UTILITY ACCESS (TOUR, SANDBOX & CA BACKUP) */}
-              <div className="p-xs bg-slate-100/70 border border-slate-200/80 rounded-lg mb-xs space-y-0.5">
+            {/* BOTTOM UTILITY / FOOTER CONTROLS */}
+            <div className={`mt-auto pt-2 border-t border-slate-200 shrink-0 ${isSidebarCollapsed ? 'flex flex-col items-center space-y-1.5' : 'space-y-1'}`}>
+              
+              {/* Non-CA Testing Playbook Quick Launcher */}
+              {isSidebarCollapsed ? (
                 <button 
-                  onClick={() => { setShowWelcomeTour(true); setWelcomeTourStep(0); }}
-                  className="w-full flex items-center gap-sm px-2 py-1.5 text-xs font-bold text-teal-800 hover:bg-white rounded transition-colors text-left"
+                  type="button"
+                  onClick={() => setShowTesterGuide(true)}
+                  className="w-10 h-10 rounded-lg flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-colors"
+                  title="🧪 Non-CA Testing Playbook: Feature guide & verification checklist"
                 >
-                  <span className="material-symbols-outlined text-[16px] text-teal-600">lightbulb</span>
-                  <span>Product Tour & Guide</span>
+                  <span className="material-symbols-outlined text-[20px] text-indigo-600">help_center</span>
                 </button>
-                <button 
-                  onClick={() => setShowBillScannerModal(true)}
-                  className="w-full flex items-center gap-sm px-2 py-1.5 text-xs font-bold text-slate-700 hover:bg-white rounded transition-colors text-left"
-                >
-                  <span className="material-symbols-outlined text-[16px] text-indigo-600">document_scanner</span>
-                  <span>AI Bill Scanner Sandbox</span>
-                </button>
-                <button 
-                  onClick={handleDownloadBackup}
-                  className="w-full flex items-center gap-sm px-2 py-1.5 text-xs font-bold text-emerald-800 hover:bg-white rounded transition-colors text-left"
-                  title="Export complete client database & audit records"
-                >
-                  <span className="material-symbols-outlined text-[16px] text-emerald-600">download_for_offline</span>
-                  <span>Download CA Backup (JSON)</span>
-                </button>
-                <button 
-                  onClick={handleEmailBackup}
-                  className="w-full flex items-center gap-sm px-2 py-1.5 text-xs font-bold text-sky-800 hover:bg-white rounded transition-colors text-left"
-                  title="Dispatch encrypted database snapshot to registered CA email"
-                >
-                  <span className="material-symbols-outlined text-[16px] text-sky-600">mark_email_read</span>
-                  <span>Email Backup to {caUser?.email?.split('@')[0] || 'CA'}</span>
-                </button>
-              </div>
+              ) : (
+                <div className="p-1.5 bg-indigo-50/80 border border-indigo-200/90 rounded-lg mb-1">
+                  <button 
+                    type="button"
+                    onClick={() => setShowTesterGuide(true)}
+                    className="w-full flex items-center justify-between px-2 py-1 text-xs font-bold text-indigo-900 hover:bg-white rounded transition-colors text-left"
+                    title="Everything you need to test before presenting to a CA"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[17px] text-indigo-600">help_center</span>
+                      <span>Non-CA Test Guide</span>
+                    </div>
+                    <span className="text-[10px] bg-indigo-600 text-white px-1.5 py-0.5 rounded font-extrabold uppercase">Playbook</span>
+                  </button>
+                </div>
+              )}
 
-              <button 
-                onClick={() => setCurrentView('settings')}
-                className={`w-full flex items-center gap-md p-sm font-label-caps text-label-caps rounded-lg transition-all ${
-                  currentView === 'settings' ? 'bg-secondary-container text-on-secondary-container font-bold' : 'text-on-surface-variant hover:bg-slate-200'
-                }`}
-              >
-                <span className="material-symbols-outlined text-[20px]">settings</span>
-                <span>Firm Management</span>
-              </button>
+              {/* UTILITY ACCESS */}
+              {!isSidebarCollapsed ? (
+                <div className="p-xs bg-slate-100/70 border border-slate-200/80 rounded-lg space-y-0.5">
+                  <button 
+                    type="button"
+                    onClick={() => { setShowWelcomeTour(true); setWelcomeTourStep(0); }}
+                    className="w-full flex items-center gap-sm px-2 py-1 text-xs font-bold text-teal-800 hover:bg-white rounded transition-colors text-left"
+                  >
+                    <span className="material-symbols-outlined text-[15px] text-teal-600">lightbulb</span>
+                    <span>Product Tour & Guide</span>
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setShowBillScannerModal(true)}
+                    className="w-full flex items-center gap-sm px-2 py-1 text-xs font-bold text-slate-700 hover:bg-white rounded transition-colors text-left"
+                  >
+                    <span className="material-symbols-outlined text-[15px] text-indigo-600">document_scanner</span>
+                    <span>AI Bill Scanner Sandbox</span>
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={handleDownloadBackup}
+                    className="w-full flex items-center gap-sm px-2 py-1 text-xs font-bold text-emerald-800 hover:bg-white rounded transition-colors text-left"
+                    title="Export complete client database & audit records"
+                  >
+                    <span className="material-symbols-outlined text-[15px] text-emerald-600">download_for_offline</span>
+                    <span>Download CA Backup</span>
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <button 
+                    type="button"
+                    onClick={() => { setShowWelcomeTour(true); setWelcomeTourStep(0); }}
+                    className="w-9 h-9 flex items-center justify-center rounded-lg text-teal-700 hover:bg-slate-200 transition-colors"
+                    title="Product Tour & Guide"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">lightbulb</span>
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setShowBillScannerModal(true)}
+                    className="w-9 h-9 flex items-center justify-center rounded-lg text-indigo-600 hover:bg-slate-200 transition-colors"
+                    title="AI Bill Scanner Sandbox"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">document_scanner</span>
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={handleDownloadBackup}
+                    className="w-9 h-9 flex items-center justify-center rounded-lg text-emerald-700 hover:bg-slate-200 transition-colors"
+                    title="Download CA Backup (JSON)"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">download_for_offline</span>
+                  </button>
+                </>
+              )}
 
-              <button 
-                onClick={handleLogout}
-                className="w-full flex items-center gap-md p-sm font-label-caps text-label-caps text-rust-600 hover:bg-red-50 rounded-lg transition-all text-left"
-              >
-                <span className="material-symbols-outlined text-[20px]">logout</span>
-                <span>Log Out ({caUser?.name?.split(' ')[0] || 'CA'})</span>
-              </button>
+              {/* Settings / Firm Management */}
+              {isSidebarCollapsed ? (
+                <button 
+                  type="button"
+                  onClick={() => setCurrentView('settings')}
+                  className={`w-9 h-9 flex items-center justify-center rounded-lg transition-colors ${currentView === 'settings' ? 'bg-secondary-container text-teal-800' : 'text-slate-600 hover:bg-slate-200'}`}
+                  title="Firm Management"
+                >
+                  <span className="material-symbols-outlined text-[18px]">settings</span>
+                </button>
+              ) : (
+                <button 
+                  type="button"
+                  onClick={() => setCurrentView('settings')}
+                  className={`w-full flex items-center gap-2 p-1.5 font-label-caps text-xs rounded-lg transition-all ${
+                    currentView === 'settings' ? 'bg-secondary-container text-on-secondary-container font-bold' : 'text-on-surface-variant hover:bg-slate-200'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[18px]">settings</span>
+                  <span>Firm Management</span>
+                </button>
+              )}
 
-              <div className="pt-xs flex items-center gap-sm">
+              {/* Log Out */}
+              {isSidebarCollapsed ? (
+                <button 
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-9 h-9 flex items-center justify-center rounded-lg text-rust-600 hover:bg-red-50 transition-colors"
+                  title={`Log Out (${caUser?.name?.split(' ')[0] || 'CA'})`}
+                >
+                  <span className="material-symbols-outlined text-[18px]">logout</span>
+                </button>
+              ) : (
+                <button 
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2 p-1.5 font-label-caps text-xs text-rust-600 hover:bg-red-50 rounded-lg transition-all text-left"
+                >
+                  <span className="material-symbols-outlined text-[18px]">logout</span>
+                  <span>Log Out ({caUser?.name?.split(' ')[0] || 'CA'})</span>
+                </button>
+              )}
+
+              {/* Connection Status Indicator */}
+              <div className={`pt-1 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-1.5'}`} title={backendConnected ? 'API Connected' : 'Local Fallback'}>
                 <span className={`w-2 h-2 rounded-full ${backendConnected ? 'bg-moss-500' : 'bg-amber-500 animate-pulse'}`}></span>
-                <span className="text-[10px] font-label-caps text-on-surface-variant tracking-wider uppercase">
-                  {backendConnected ? 'API Connected' : 'Local Fallback'}
-                </span>
+                {!isSidebarCollapsed && (
+                  <span className="text-[9px] font-label-caps text-on-surface-variant tracking-wider uppercase">
+                    {backendConnected ? 'API Connected' : 'Local Fallback'}
+                  </span>
+                )}
               </div>
             </div>
           </aside>
         )}
 
         {/* --- MAIN CORE SECTION --- */}
-        <div className={`flex flex-col flex-1 min-h-0 overflow-y-auto custom-scrollbar ${!isMobileLayout ? 'ml-64' : ''}`}>
+        <div className={`flex flex-col flex-1 min-h-0 overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out ${!isMobileLayout ? (isSidebarCollapsed ? 'ml-[72px]' : 'ml-64') : ''}`}>
           
           {/* Top Bar / Header */}
           <header className={`w-full bg-surface border-b border-slate-200 flex justify-between items-center sticky top-0 z-40 shrink-0 ${
             isMobileLayout ? 'px-md h-12' : 'px-margin-desktop h-16'
           }`}>
             <div className="flex items-center gap-sm min-w-0">
+              {/* DESKTOP SIDEBAR TOGGLE BUTTON IN TOP BAR */}
+              {!isMobileLayout && (
+                <button 
+                  type="button"
+                  onClick={() => {
+                    const next = !isSidebarCollapsed;
+                    setIsSidebarCollapsed(next);
+                    localStorage.setItem('bg_sidebar_collapsed', String(next));
+                  }}
+                  className="p-1.5 text-slate-500 hover:text-ink-900 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors mr-1"
+                  title={isSidebarCollapsed ? "Expand Sidebar Drawer" : "Collapse Sidebar to Icons"}
+                >
+                  <span className="material-symbols-outlined text-[18px]">{isSidebarCollapsed ? 'menu' : 'menu_open'}</span>
+                </button>
+              )}
+
               {isMobileLayout && selectedBusiness && (
                 <button 
                   onClick={() => setSelectedBusiness(null)}
@@ -3509,6 +3910,17 @@ function doPost(e) {
             </div>
             
             <div className="flex items-center gap-md shrink-0">
+              {/* NON-CA TESTING GUIDE MODAL TRIGGER */}
+              <button 
+                type="button"
+                onClick={() => setShowTesterGuide(true)}
+                className="flex items-center gap-xs px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 rounded-full text-xs font-bold font-label-caps transition-all shadow-sm"
+                title="Non-CA Testing Playbook: Learn what every module does & test checklist"
+              >
+                <span className="material-symbols-outlined text-[15px] text-indigo-600">help_center</span>
+                <span className="hidden sm:inline">Non-CA Test Guide</span>
+                <span className="sm:hidden">Guide</span>
+              </button>
               {!isMobileLayout && currentView === 'dashboard' && (
                 <div className="relative w-48 lg:w-64">
                   <span className="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-on-surface-variant opacity-60 text-[18px]">search</span>
@@ -6410,6 +6822,229 @@ function doPost(e) {
                         </button>
                       )}
                     </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODAL: NON-CA TESTING PLAYBOOK & MODULE GUIDE */}
+            {showTesterGuide && (
+              <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-md animate-in fade-in duration-200">
+                <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
+                  {/* Header */}
+                  <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-teal-950 text-white p-lg flex justify-between items-start shrink-0">
+                    <div>
+                      <div className="flex items-center gap-xs mb-xs">
+                        <span className="px-2.5 py-0.5 bg-indigo-500/25 text-indigo-300 border border-indigo-400/30 rounded-full text-[10px] font-bold font-label-caps uppercase tracking-wider">
+                          Non-CA Builder & Tester Playbook
+                        </span>
+                        <span className="px-2 py-0.5 bg-teal-500/20 text-teal-300 rounded-full text-[10px] font-bold">
+                          Pre-CA Presentation Checklist
+                        </span>
+                      </div>
+                      <h2 className="font-headline-sm font-bold text-white text-xl md:text-2xl flex items-center gap-2">
+                        <span className="material-symbols-outlined text-indigo-400 text-[26px]">school</span>
+                        <span>What Every Menu Does & How to Test It</span>
+                      </h2>
+                      <p className="text-xs text-slate-300 mt-1 max-w-2xl">
+                        A plain-English guide for founders and non-accountants: understand the tax pain points, verify each feature with sample data, and know what to say when pitching to a Chartered Accountant.
+                      </p>
+                    </div>
+                    <button 
+                      onClick={() => setShowTesterGuide(false)}
+                      className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
+                      title="Close Guide"
+                    >
+                      <span className="material-symbols-outlined text-[22px]">close</span>
+                    </button>
+                  </div>
+
+                  {/* Search and Category Filter Bar */}
+                  <div className="p-md bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-sm shrink-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {[
+                        { id: 'all', label: 'All Modules (12)' },
+                        { id: 'CA Operations', label: 'CA Suite (5)' },
+                        { id: 'Registers', label: 'Registers (2)' },
+                        { id: 'Client Portals', label: 'Client Portals (2)' },
+                        { id: 'Tools & Simulators', label: 'Tools & Sims (3)' }
+                      ].map(cat => (
+                        <button
+                          key={cat.id}
+                          onClick={() => setTesterGuideCategory(cat.id)}
+                          className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+                            testerGuideCategory === cat.id
+                              ? 'bg-indigo-600 text-white shadow-xs'
+                              : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-200'
+                          }`}
+                        >
+                          {cat.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="relative w-full sm:w-64">
+                      <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">search</span>
+                      <input 
+                        type="text"
+                        value={testerGuideSearch}
+                        onChange={(e) => setTesterGuideSearch(e.target.value)}
+                        placeholder="Search menu or term (e.g. 2B, 180, ITC)..."
+                        className="w-full bg-white border border-slate-300 pl-8 pr-3 py-1.5 rounded-lg text-xs focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Body: Module Cards List */}
+                  <div className="p-lg overflow-y-auto custom-scrollbar space-y-md flex-1 bg-paper-50">
+                    {/* Founder Quick Orientation Alert */}
+                    <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-3">
+                      <span className="material-symbols-outlined text-amber-600 text-[22px] shrink-0 mt-0.5">lightbulb</span>
+                      <div className="text-xs text-amber-900 leading-relaxed">
+                        <strong className="font-bold block mb-0.5">The 3-Sentence CA Crash Course:</strong>
+                        CAs in India spend their lives on 3 tedious tasks: <strong>(1) Chasing paper receipts</strong> from 50+ clients, <strong>(2) Cross-matching bills with Govt GSTR-2B</strong> so clients don't lose tax credits (ITC), and <strong>(3) Tracking 180-day vendor payments (Rule 37)</strong> to prevent heavy 18% penalty notices. BillGuru AI automates these 3 exact tasks.
+                      </div>
+                    </div>
+
+                    {/* Filtered Modules */}
+                    {(() => {
+                      const filtered = MODULE_TESTING_DATA.filter(mod => {
+                        const matchesCategory = testerGuideCategory === 'all' || mod.category === testerGuideCategory;
+                        const query = testerGuideSearch.toLowerCase().trim();
+                        const matchesSearch = !query || 
+                          mod.label.toLowerCase().includes(query) ||
+                          mod.summary.toLowerCase().includes(query) ||
+                          mod.caPainPoint.toLowerCase().includes(query) ||
+                          mod.pitchLine.toLowerCase().includes(query);
+                        return matchesCategory && matchesSearch;
+                      });
+
+                      if (filtered.length === 0) {
+                        return (
+                          <div className="text-center py-12 text-slate-500">
+                            <span className="material-symbols-outlined text-[36px] text-slate-300 mb-2 block">search_off</span>
+                            <p className="text-sm font-bold">No modules match "{testerGuideSearch}"</p>
+                            <button 
+                              onClick={() => { setTesterGuideSearch(''); setTesterGuideCategory('all'); }}
+                              className="mt-2 text-xs text-indigo-600 underline font-bold"
+                            >
+                              Reset Search Filters
+                            </button>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="space-y-4">
+                          {filtered.map(mod => (
+                            <div key={mod.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs hover:border-indigo-300 transition-all">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 shrink-0">
+                                    <span className="material-symbols-outlined text-[22px]">{mod.icon}</span>
+                                  </div>
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <h3 className="font-bold text-ink-900 text-sm md:text-base">{mod.label}</h3>
+                                      <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                                        {mod.category}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-slate-500 mt-0.5">{mod.summary}</p>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCurrentView(mod.id);
+                                    setSelectedBusiness(null);
+                                    setShowTesterGuide(false);
+                                  }}
+                                  className="self-start sm:self-center px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs active:scale-95 transition-all shrink-0"
+                                >
+                                  <span>Jump to Screen</span>
+                                  <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
+                                </button>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3 text-xs">
+                                <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                  <div>
+                                    <span className="font-bold text-slate-700 uppercase text-[10px] tracking-wider block mb-0.5 text-indigo-900 flex items-center gap-1">
+                                      <span className="material-symbols-outlined text-[13px]">report_problem</span>
+                                      Why CAs Care (Pain Point):
+                                    </span>
+                                    <p className="text-slate-600 leading-relaxed">{mod.caPainPoint}</p>
+                                  </div>
+                                  <div>
+                                    <span className="font-bold text-slate-700 uppercase text-[10px] tracking-wider block mb-0.5 text-teal-900 flex items-center gap-1">
+                                      <span className="material-symbols-outlined text-[13px]">record_voice_over</span>
+                                      What to Say to a CA (Pitch Line):
+                                    </span>
+                                    <p className="text-teal-800 font-medium italic">{mod.pitchLine}</p>
+                                  </div>
+                                </div>
+
+                                <div className="bg-emerald-50/50 border border-emerald-200/60 p-3 rounded-lg">
+                                  <span className="font-bold text-emerald-900 uppercase text-[10px] tracking-wider block mb-1.5 flex items-center gap-1">
+                                    <span className="material-symbols-outlined text-[14px] text-emerald-700">fact_check</span>
+                                    How to Test Right Now:
+                                  </span>
+                                  <ul className="space-y-1.5">
+                                    {mod.testChecklist.map((step, idx) => (
+                                      <li key={idx} className="flex items-start gap-1.5 text-slate-700">
+                                        <span className="material-symbols-outlined text-[14px] text-emerald-600 shrink-0 mt-0.5">check_circle</span>
+                                        <span>{step}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Tax Jargon Mini Glossary */}
+                    <div className="mt-4 p-4 bg-white border border-slate-200 rounded-xl shadow-xs">
+                      <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700 mb-2 flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[16px] text-indigo-600">translate</span>
+                        <span>Non-CA Tax Jargon Cheat Sheet</span>
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-[11px]">
+                        <div className="p-2 bg-slate-50 rounded border border-slate-100">
+                          <strong className="text-indigo-900 block font-bold">ITC (Input Tax Credit)</strong>
+                          <span className="text-slate-600">Tax paid on purchases deducted from tax on sales. Lost ITC = lost cash.</span>
+                        </div>
+                        <div className="p-2 bg-slate-50 rounded border border-slate-100">
+                          <strong className="text-indigo-900 block font-bold">GSTR-2B</strong>
+                          <span className="text-slate-600">Govt portal statement of what suppliers reported. If not in 2B, no ITC allowed.</span>
+                        </div>
+                        <div className="p-2 bg-slate-50 rounded border border-slate-100">
+                          <strong className="text-indigo-900 block font-bold">Rule 37 (180 Days)</strong>
+                          <span className="text-slate-600">If supplier is unpaid after 180 days, buyer must reverse ITC + pay 18% penal interest.</span>
+                        </div>
+                        <div className="p-2 bg-slate-50 rounded border border-slate-100">
+                          <strong className="text-indigo-900 block font-bold">GSTR-1 vs GSTR-3B</strong>
+                          <span className="text-slate-600">GSTR-1 reports outward sales. GSTR-3B is monthly summary return where net tax is paid.</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="p-md bg-white border-t border-slate-200 flex justify-between items-center shrink-0">
+                    <span className="text-xs text-slate-500">
+                      💡 Tip: Click <strong>"⚡ Load Demo Data"</strong> in the top bar to safely populate realistic businesses & invoices!
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowTesterGuide(false)}
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
+                    >
+                      Close Playbook
+                    </button>
                   </div>
                 </div>
               </div>
