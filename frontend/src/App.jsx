@@ -342,12 +342,23 @@ export default function App() {
   const [editIneligibilityReason, setEditIneligibilityReason] = useState('Section 17(5) - Ineligible motor vehicle / conveyance');
 
   // GSTR-2B 2-Way Auto-Reconciliation State
-  const [reconcileBizId, setReconcileBizId] = useState(1);
+  const [reconcileBizId, setReconcileBizId] = useState(() => {
+    const raw = JSON.parse(localStorage.getItem('bg_custom_businesses') || '[]');
+    const clean = raw.filter(b => !isDemoBiz(b));
+    return clean[0]?.id || (typeof window !== 'undefined' && localStorage.getItem('bg_demo_mode') === 'true' ? 1 : null);
+  });
   const [reconcilePeriod, setReconcilePeriod] = useState('072026');
   const [reconcileTab, setReconcileTab] = useState('missing_in_2b');
   const [nudgedVendors, setNudgedVendors] = useState({});
   const [requestedBills, setRequestedBills] = useState({});
-  const [customGstr2bRecords, setCustomGstr2bRecords] = useState(null);
+  const [customGstr2bRecords, setCustomGstr2bRecords] = useState(() => {
+    try {
+      const saved = localStorage.getItem('bg_custom_gstr2b');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const fileInputRef2b = useRef(null);
 
   // CA Firm Operating System, Branding, Staff Roles & Rule 37
@@ -372,7 +383,11 @@ export default function App() {
     { id: 2, user_name: 'Karan Dave (Article)', user_role: 'article_assistant', action_type: 'OCR_REVIEWED', entity_type: 'invoice', entity_id: '2', description: 'Verified extracted tax rates (9% CGST + 9% SGST) on invoice #INV-4519.', created_at: new Date(Date.now() - 7200000).toISOString() },
     { id: 3, user_name: 'CA Rajesh Shah', user_role: 'partner_ca', action_type: 'ITC_TOGGLED', entity_type: 'invoice', entity_id: '4', description: 'Flagged Gupta Distributors invoice #SE-89102 as Ineligible ITC under Section 17(5).', created_at: new Date(Date.now() - 86400000).toISOString() }
   ]);
-  const [rule37BizId, setRule37BizId] = useState(1);
+  const [rule37BizId, setRule37BizId] = useState(() => {
+    const raw = JSON.parse(localStorage.getItem('bg_custom_businesses') || '[]');
+    const clean = raw.filter(b => !isDemoBiz(b));
+    return clean[0]?.id || (typeof window !== 'undefined' && localStorage.getItem('bg_demo_mode') === 'true' ? 1 : null);
+  });
   const [rule37Reminded, setRule37Reminded] = useState({});
 
   // Sovereign Data Storage Mode (Google Sheets & Local Excel as DB)
@@ -509,6 +524,26 @@ export default function App() {
   useEffect(() => {
     loadData();
   }, [token]);
+
+  // Keep Reconciler and Rule 37 client selection in sync with valid business list
+  useEffect(() => {
+    const validBizList = businesses.filter(b => isDemoMode || !isDemoBiz(b));
+    if (validBizList.length > 0) {
+      if (!reconcileBizId || !validBizList.some(b => b.id === Number(reconcileBizId))) {
+        setReconcileBizId(validBizList[0].id);
+      }
+      if (!rule37BizId || !validBizList.some(b => b.id === Number(rule37BizId))) {
+        setRule37BizId(validBizList[0].id);
+      }
+    }
+  }, [businesses, isDemoMode, reconcileBizId, rule37BizId]);
+
+  useEffect(() => {
+    if (selectedBusiness) {
+      setReconcileBizId(selectedBusiness.id);
+      setRule37BizId(selectedBusiness.id);
+    }
+  }, [selectedBusiness]);
 
   const SAMPLE_BILLS = {
     sample1: {
@@ -1761,13 +1796,42 @@ ${vouchersXml}
 
   // --- GSTR-2B 2-WAY AUTO-RECONCILIATION ENGINE HELPERS ---
   const getGstr2bReconcileData = () => {
-    const selectedBiz = businesses.find(b => b.id === Number(reconcileBizId)) || businesses[0] || { id: 1, name: 'Meena Kirana Store', gstin: '24ABCDE1234F1Z5' };
+    const validBizList = businesses.filter(b => isDemoMode || !isDemoBiz(b));
+    const selectedBiz = validBizList.find(b => b.id === Number(reconcileBizId)) || validBizList[0] || (isDemoMode ? businesses[0] : null);
+    
+    if (!selectedBiz) {
+      return {
+        selectedBiz: null,
+        booksInvoices: [],
+        gstr2bInvoices: [],
+        matched: [],
+        mismatchValue: [],
+        inBooksMissingIn2b: [],
+        in2bMissingInBooks: [],
+        summary: {
+          books_itc: 0,
+          books_count: 0,
+          gstr2b_itc: 0,
+          gstr2b_count: 0,
+          matched_itc: 0,
+          matched_count: 0,
+          at_risk_itc: 0,
+          missing_in_2b_count: 0,
+          uncaptured_itc: 0,
+          missing_in_books_count: 0,
+          mismatch_count: 0,
+          reconciliation_percentage: 100
+        }
+      };
+    }
     
     // Books invoices for this business (excluding unconfirmed needs_review items)
     const booksInvoices = invoices.filter(i => i.business_id === Number(selectedBiz.id) && i.extraction_status !== 'needs_review');
     
-    // Portal GSTR-2B invoices
-    const gstr2bInvoices = customGstr2bRecords || (localFallbackData.gstr2b_records || []).filter(r => r.business_id === Number(selectedBiz.id));
+    // Portal GSTR-2B invoices (isolated strictly by business_id; demo records used only if in demo mode for a demo business)
+    const gstr2bInvoices = customGstr2bRecords
+      ? customGstr2bRecords.filter(r => r.business_id === Number(selectedBiz.id))
+      : (isDemoMode && isDemoBiz(selectedBiz) ? (localFallbackData.gstr2b_records || []).filter(r => r.business_id === Number(selectedBiz.id)) : []);
     
     const cleanInv = (inv) => (inv || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const cleanGstin = (g) => (g || '').trim().toUpperCase();
@@ -1915,9 +1979,14 @@ ${vouchersXml}
   };
 
   const handleLoadSample2B = () => {
+    const targetId = Number(reconcileBizId || businesses[0]?.id);
+    if (!targetId) {
+      showToast('Please select or add a client business first', 'error');
+      return;
+    }
     const sampleRecords = [
       {
-        business_id: Number(reconcileBizId),
+        business_id: targetId,
         filing_period: reconcilePeriod,
         supplier_gstin: '24SHRMA1234A1Z9',
         supplier_name: 'Sharma Wholesale Traders',
@@ -1931,7 +2000,7 @@ ${vouchersXml}
         itc_availability: 'Y'
       },
       {
-        business_id: Number(reconcileBizId),
+        business_id: targetId,
         filing_period: reconcilePeriod,
         supplier_gstin: '24PARLE1111P1Z8',
         supplier_name: 'Parle Agro Products Ltd',
@@ -1945,7 +2014,7 @@ ${vouchersXml}
         itc_availability: 'Y'
       },
       {
-        business_id: Number(reconcileBizId),
+        business_id: targetId,
         filing_period: reconcilePeriod,
         supplier_gstin: '24TATAS2222T1Z3',
         supplier_name: 'Tata Consumer Products Ltd',
@@ -1959,7 +2028,7 @@ ${vouchersXml}
         itc_availability: 'Y'
       },
       {
-        business_id: Number(reconcileBizId),
+        business_id: targetId,
         filing_period: reconcilePeriod,
         supplier_gstin: '24AMUL9999M1Z1',
         supplier_name: 'Gujarat Co-op Milk Marketing Fed (Amul)',
@@ -1973,8 +2042,175 @@ ${vouchersXml}
         itc_availability: 'Y'
       }
     ];
-    setCustomGstr2bRecords(sampleRecords);
+    setCustomGstr2bRecords(prev => {
+      const filtered = (prev || []).filter(r => r.business_id !== targetId);
+      const updated = [...filtered, ...sampleRecords];
+      localStorage.setItem('bg_custom_gstr2b', JSON.stringify(updated));
+      return updated;
+    });
     showToast(`Loaded official GSTR-2B portal data for ${reconcilePeriod} (${sampleRecords.length} records)!`, 'success');
+  };
+
+  // 1-Click Simulation for CA Testing on ANY selected client (Inward Books + Portal GSTR-2B + Rule 37 Overdue)
+  const handleSimulateClientRecon = (targetBizId = null) => {
+    const targetId = Number(targetBizId || reconcileBizId || businesses[0]?.id);
+    const targetBiz = businesses.find(b => b.id === targetId);
+    if (!targetBiz) {
+      showToast('Please select or add a client business first', 'error');
+      return;
+    }
+
+    const testBooks = [
+      {
+        id: Date.now() + 1,
+        business_id: targetId,
+        business_name: targetBiz.name,
+        invoice_number: 'INV-4519',
+        vendor_name: 'Sharma Wholesale Traders',
+        vendor_gstin: '24SHRMA1234A1Z9',
+        invoice_date: '2026-07-12',
+        taxable_amount: 15000.00,
+        cgst_amount: 1350.00,
+        sgst_amount: 1350.00,
+        igst_amount: 0.00,
+        total_amount: 17700.00,
+        extraction_status: 'verified',
+        is_itc_eligible: true,
+        payment_status: 'unpaid',
+        created_at: new Date().toISOString()
+      },
+      {
+        id: Date.now() + 2,
+        business_id: targetId,
+        business_name: targetBiz.name,
+        invoice_number: 'PA-8821',
+        vendor_name: 'Parle Agro Products Ltd',
+        vendor_gstin: '24PARLE1111P1Z8',
+        invoice_date: '2026-07-18',
+        taxable_amount: 18000.00,
+        cgst_amount: 1620.00,
+        sgst_amount: 1620.00,
+        igst_amount: 0.00,
+        total_amount: 21240.00,
+        extraction_status: 'verified',
+        is_itc_eligible: true,
+        payment_status: 'paid',
+        created_at: new Date().toISOString()
+      },
+      {
+        id: Date.now() + 3,
+        business_id: targetId,
+        business_name: targetBiz.name,
+        invoice_number: 'AMB-902',
+        vendor_name: 'Ambica Trading Co',
+        vendor_gstin: '24AMBCA5555A1Z2',
+        invoice_date: '2026-07-24',
+        taxable_amount: 8000.00,
+        cgst_amount: 720.00,
+        sgst_amount: 720.00,
+        igst_amount: 0.00,
+        total_amount: 9440.00,
+        extraction_status: 'verified',
+        is_itc_eligible: true,
+        payment_status: 'unpaid',
+        created_at: new Date().toISOString()
+      },
+      {
+        id: Date.now() + 4,
+        business_id: targetId,
+        business_name: targetBiz.name,
+        invoice_number: 'REL-201',
+        vendor_name: 'Reliance Logistics Hub',
+        vendor_gstin: '24RELIA3333R1Z7',
+        invoice_date: '2026-01-10', // 195 days overdue for Rule 37 180-day interest demo!
+        taxable_amount: 20000.00,
+        cgst_amount: 1800.00,
+        sgst_amount: 1800.00,
+        igst_amount: 0.00,
+        total_amount: 23600.00,
+        extraction_status: 'verified',
+        is_itc_eligible: true,
+        payment_status: 'unpaid',
+        created_at: new Date().toISOString()
+      }
+    ];
+
+    const test2b = [
+      {
+        business_id: targetId,
+        filing_period: reconcilePeriod,
+        supplier_gstin: '24SHRMA1234A1Z9',
+        supplier_name: 'Sharma Wholesale Traders',
+        invoice_number: 'INV-4519',
+        invoice_date: '2026-07-12',
+        taxable_value: 15000.00,
+        invoice_value: 17700.00,
+        cgst_amount: 1350.00,
+        sgst_amount: 1350.00,
+        igst_amount: 0.00,
+        itc_availability: 'Y'
+      },
+      {
+        business_id: targetId,
+        filing_period: reconcilePeriod,
+        supplier_gstin: '24PARLE1111P1Z8',
+        supplier_name: 'Parle Agro Products Ltd',
+        invoice_number: 'PA-8821',
+        invoice_date: '2026-07-18',
+        taxable_value: 17700.00,
+        invoice_value: 20886.00,
+        cgst_amount: 1593.00, // ₹27 tax mismatch to showcase Value Mismatch bucket!
+        sgst_amount: 1593.00,
+        igst_amount: 0.00,
+        itc_availability: 'Y'
+      },
+      {
+        business_id: targetId,
+        filing_period: reconcilePeriod,
+        supplier_gstin: '24TATAS2222T1Z3',
+        supplier_name: 'Tata Consumer Products Ltd',
+        invoice_number: 'TC-10492',
+        invoice_date: '2026-07-25',
+        taxable_value: 8000.00,
+        invoice_value: 9440.00,
+        cgst_amount: 720.00,
+        sgst_amount: 720.00,
+        igst_amount: 0.00,
+        itc_availability: 'Y'
+      }
+    ];
+
+    setInvoices(prev => {
+      const filtered = prev.filter(i => i.business_id !== targetId);
+      const updated = [...testBooks, ...filtered];
+      localStorage.setItem('bg_custom_invoices', JSON.stringify(updated.filter(i => !isDemoBiz({ id: i.business_id, name: i.business_name }))));
+      return updated;
+    });
+
+    setCustomGstr2bRecords(prev => {
+      const filtered = (prev || []).filter(r => r.business_id !== targetId);
+      const updated = [...filtered, ...test2b];
+      localStorage.setItem('bg_custom_gstr2b', JSON.stringify(updated));
+      return updated;
+    });
+
+    showToast(`⚡ Simulation loaded for ${targetBiz.name}! 4 inward bills & 3 GSTR-2B portal records generated.`, 'success');
+  };
+
+  const handleClearClientSimulation = (targetBizId = null) => {
+    const targetId = Number(targetBizId || reconcileBizId || businesses[0]?.id);
+    const targetBiz = businesses.find(b => b.id === targetId);
+    setInvoices(prev => {
+      const filtered = prev.filter(i => i.business_id !== targetId);
+      localStorage.setItem('bg_custom_invoices', JSON.stringify(filtered.filter(i => !isDemoBiz({ id: i.business_id, name: i.business_name }))));
+      return filtered;
+    });
+    setCustomGstr2bRecords(prev => {
+      const filtered = (prev || []).filter(r => r.business_id !== targetId);
+      localStorage.setItem('bg_custom_gstr2b', JSON.stringify(filtered));
+      return filtered;
+    });
+    showToast(`Cleared test simulation data for ${targetBiz?.name || 'client'}. Workspace clean.`, 'info');
   };
 
   const handleGstr2bJsonUpload = (e) => {
@@ -1985,6 +2221,7 @@ ${vouchersXml}
       try {
         const json = JSON.parse(event.target.result);
         let records = [];
+        const currentBizId = Number(reconcileBizId || businesses[0]?.id);
         if (json.b2b && Array.isArray(json.b2b)) {
           json.b2b.forEach(supplier => {
             const ctin = supplier.ctin;
@@ -1999,7 +2236,7 @@ ${vouchersXml}
                 igst += Number(det.iamt) || 0;
               });
               records.push({
-                business_id: Number(reconcileBizId),
+                business_id: currentBizId,
                 filing_period: reconcilePeriod,
                 supplier_gstin: ctin,
                 supplier_name: cnm,
@@ -2015,9 +2252,9 @@ ${vouchersXml}
             });
           });
         } else if (Array.isArray(json)) {
-          records = json.map(r => ({ ...r, business_id: Number(reconcileBizId), filing_period: reconcilePeriod }));
+          records = json.map(r => ({ ...r, business_id: currentBizId, filing_period: reconcilePeriod }));
         } else if (Array.isArray(json.records)) {
-          records = json.records.map(r => ({ ...r, business_id: Number(reconcileBizId), filing_period: reconcilePeriod }));
+          records = json.records.map(r => ({ ...r, business_id: currentBizId, filing_period: reconcilePeriod }));
         } else {
           throw new Error('Unrecognized GSTR-2B JSON schema. Please ensure it has standard b2b array.');
         }
@@ -2027,7 +2264,12 @@ ${vouchersXml}
           return;
         }
 
-        setCustomGstr2bRecords(records);
+        setCustomGstr2bRecords(prev => {
+          const filtered = (prev || []).filter(r => r.business_id !== currentBizId);
+          const updated = [...filtered, ...records];
+          localStorage.setItem('bg_custom_gstr2b', JSON.stringify(updated));
+          return updated;
+        });
         showToast(`Successfully parsed and loaded ${records.length} GSTR-2B invoices from JSON!`, 'success');
       } catch (err) {
         showToast(`JSON Parse Error: ${err.message}`, 'error');
@@ -2137,7 +2379,21 @@ ${vouchersXml}
   };
 
   const getRule37Data = () => {
-    const selectedBiz = businesses.find(b => b.id === Number(rule37BizId)) || businesses[0] || { id: 1, name: 'Meena Kirana Store' };
+    const validBizList = businesses.filter(b => isDemoMode || !isDemoBiz(b));
+    const selectedBiz = validBizList.find(b => b.id === Number(rule37BizId)) || validBizList[0] || (isDemoMode ? businesses[0] : null);
+    if (!selectedBiz) {
+      return {
+        selectedBiz: null,
+        records: [],
+        summary: {
+          total_unpaid_invoices: 0,
+          total_unpaid_itc: 0,
+          safe_itc: 0,
+          critical_itc: 0,
+          mandated_reversal_itc: 0
+        }
+      };
+    }
     const bizInvoices = invoices.filter(i => i.business_id === Number(selectedBiz.id));
     
     // Reference date: July 28, 2026
@@ -4854,12 +5110,24 @@ function doPost(e) {
                         </button>
                         <button
                           type="button"
-                          onClick={handleLoadSample2B}
+                          onClick={() => handleSimulateClientRecon(reconData.selectedBiz?.id)}
                           className="px-md py-sm bg-teal-50 border border-teal-300 hover:bg-teal-100 text-teal-800 font-semibold text-sm rounded transition-all flex items-center gap-1.5"
+                          title="Generate 4 realistic test bills and portal records for this client"
                         >
-                          <span className="material-symbols-outlined text-sm">flash_on</span>
-                          Load Sample 2B
+                          <span className="material-symbols-outlined text-sm text-teal-700">bolt</span>
+                          ⚡ 1-Click Simulation
                         </button>
+                        {(reconData.booksInvoices.length > 0 || reconData.gstr2bInvoices.length > 0) && (
+                          <button
+                            type="button"
+                            onClick={() => handleClearClientSimulation(reconData.selectedBiz?.id)}
+                            className="px-md py-sm bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-200 font-semibold text-sm rounded transition-all flex items-center gap-1"
+                            title="Reset this client's bills and 2B records back to clean state"
+                          >
+                            <span className="material-symbols-outlined text-sm">restart_alt</span>
+                            Reset Test Data
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => exportFullReconciliationCsv(reconData)}
@@ -4877,11 +5145,11 @@ function doPost(e) {
                         <div className="flex items-center gap-2">
                           <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Client Business:</label>
                           <select
-                            value={reconcileBizId}
+                            value={reconcileBizId || ''}
                             onChange={(e) => setReconcileBizId(Number(e.target.value))}
                             className="text-sm font-semibold border border-slate-300 rounded px-3 py-1.5 bg-slate-50 text-ink-900 focus:outline-none focus:ring-1 focus:ring-teal-600"
                           >
-                            {businesses.map(b => (
+                            {businesses.filter(b => isDemoMode || !isDemoBiz(b)).map(b => (
                               <option key={b.id} value={b.id}>{b.name} ({b.gstin})</option>
                             ))}
                           </select>
@@ -4921,6 +5189,47 @@ function doPost(e) {
                       </p>
                     </div>
                   </div>
+
+                  {/* Clean State Onboarding / 1-Click Simulation Prompt */}
+                  {reconData.selectedBiz && reconData.summary.books_count === 0 && reconData.summary.gstr2b_count === 0 && (
+                    <div className="bg-gradient-to-r from-teal-50 via-slate-50 to-amber-50/60 border-2 border-teal-200/90 rounded-xl p-5 shadow-xs">
+                      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-100 text-teal-800 uppercase tracking-wider">
+                              Clean Client Workspace
+                            </span>
+                            <h4 className="text-sm font-bold text-ink-900">
+                              {reconData.selectedBiz.name} ({reconData.selectedBiz.gstin || 'GST Unregistered'}) is ready for reconciliation
+                            </h4>
+                          </div>
+                          <p className="text-xs text-slate-600 max-w-2xl leading-relaxed">
+                            This client currently has 0 purchase invoices in Books and 0 GST portal 2B records. In daily operations, bills arrive automatically via client WhatsApp photos (or Inward Queue), and GSTR-2B is pulled from the GST portal.
+                            <br className="hidden sm:inline" />
+                            Want to test the 4-bucket AI matching algorithm, Section 16(2)(aa) flags, and WhatsApp chasers on this client right now?
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleSimulateClientRecon(reconData.selectedBiz.id)}
+                            className="px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs rounded-lg shadow-sm flex items-center gap-1.5 transition-all active:scale-95"
+                          >
+                            <span className="material-symbols-outlined text-sm">bolt</span>
+                            ⚡ 1-Click Test Simulation
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef2b.current?.click()}
+                            className="px-3 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-ink-900 font-semibold text-xs rounded-lg shadow-xs flex items-center gap-1.5 transition-all"
+                          >
+                            <span className="material-symbols-outlined text-sm text-teal-700">upload_file</span>
+                            Upload Portal JSON
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* 5-Card Bento Summary Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-md">
@@ -5479,7 +5788,16 @@ function doPost(e) {
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-sm">
+                      <div className="flex flex-wrap items-center gap-sm">
+                        <button
+                          type="button"
+                          onClick={() => handleSimulateClientRecon(selectedBiz?.id)}
+                          className="px-md py-sm bg-teal-50 border border-teal-300 hover:bg-teal-100 text-teal-800 font-semibold text-sm rounded transition-all flex items-center gap-1.5 shadow-xs"
+                          title="Generate test purchase bills with 180-day aging data"
+                        >
+                          <span className="material-symbols-outlined text-sm text-teal-700">bolt</span>
+                          ⚡ Simulate Aging Test
+                        </button>
                         <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs">
                           <span className="text-slate-500 font-medium">Aging As On:</span>
                           <span className="font-bold text-ink-900">28 July 2026</span>
@@ -5492,11 +5810,11 @@ function doPost(e) {
                       <div className="flex items-center gap-2">
                         <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Client Business:</label>
                         <select
-                          value={rule37BizId}
+                          value={rule37BizId || ''}
                           onChange={(e) => setRule37BizId(Number(e.target.value))}
                           className="text-sm font-semibold border border-slate-300 rounded px-3 py-1.5 bg-slate-50 text-ink-900 focus:outline-none focus:ring-1 focus:ring-teal-600"
                         >
-                          {businesses.map(b => (
+                          {businesses.filter(b => isDemoMode || !isDemoBiz(b)).map(b => (
                             <option key={b.id} value={b.id}>{b.name} ({b.gstin})</option>
                           ))}
                         </select>
@@ -5585,10 +5903,20 @@ function doPost(e) {
                     </div>
 
                     {records.length === 0 ? (
-                      <div className="p-xl text-center">
+                      <div className="p-xl text-center space-y-3">
                         <span className="material-symbols-outlined text-moss-500 text-5xl mb-xs">verified</span>
-                        <h4 className="font-bold text-ink-900">All Vouchers Paid</h4>
-                        <p className="text-xs text-slate-500 mt-1">Zero unpaid invoices for {selectedBiz.name}. Rule 37 compliance is 100% clean!</p>
+                        <h4 className="font-bold text-ink-900">All Vouchers Paid / No Overdue Invoices</h4>
+                        <p className="text-xs text-slate-500 max-w-md mx-auto">
+                          Zero unpaid vouchers recorded for {selectedBiz?.name || 'this client'}. Want to test the 180-day aging counter, WhatsApp reminder notice, and Section 16(2) reversal interest calculator?
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => handleSimulateClientRecon(selectedBiz?.id)}
+                          className="px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs rounded-lg shadow-sm inline-flex items-center gap-1.5 transition-all active:scale-95"
+                        >
+                          <span className="material-symbols-outlined text-sm">bolt</span>
+                          Simulate Test Bills (Includes 180-Day Overdue)
+                        </button>
                       </div>
                     ) : (
                       <div className="overflow-x-auto">
