@@ -223,7 +223,11 @@ export default function App() {
   const [isMobileSim, setIsMobileSim] = useState(false);
   const [isMobileScreen, setIsMobileScreen] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
   const isMobileLayout = isMobileSim || isMobileScreen;
-  const [isEmptyState, setIsEmptyState] = useState(false);
+  const [isEmptyState, setIsEmptyState] = useState(() => {
+    const isDemo = localStorage.getItem('bg_demo_mode') === 'true';
+    const saved = JSON.parse(localStorage.getItem('bg_custom_businesses') || '[]');
+    return !isDemo && saved.length === 0;
+  });
 
   // Toast Notification System
   const [toast, setToast] = useState(null); // { message, type: 'success' | 'error' | 'info', undoAction?: () => void }
@@ -246,10 +250,25 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Data States
-  const [businesses, setBusinesses] = useState([]);
-  const [invoices, setInvoices] = useState(localFallbackData.invoices);
-  const [flags, setFlags] = useState([]);
+  // Data States (Defaults strictly to clean isolated CA workspace; sample data only on explicit demo toggle)
+  const [businesses, setBusinesses] = useState(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('bg_demo_mode') === 'true') {
+      return localFallbackData.businesses;
+    }
+    return JSON.parse(localStorage.getItem('bg_custom_businesses') || '[]');
+  });
+  const [invoices, setInvoices] = useState(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('bg_demo_mode') === 'true') {
+      return localFallbackData.invoices;
+    }
+    return JSON.parse(localStorage.getItem('bg_custom_invoices') || '[]');
+  });
+  const [flags, setFlags] = useState(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('bg_demo_mode') === 'true') {
+      return localFallbackData.flags.filter(f => !f.resolved);
+    }
+    return [];
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [ledgerBusinessFilter, setLedgerBusinessFilter] = useState('all');
   const [loading, setLoading] = useState(false);
@@ -271,7 +290,9 @@ export default function App() {
   const [editingClientBiz, setEditingClientBiz] = useState(null);
 
   // Fear-Free Demo & Practice Mode Controls
-  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [isDemoMode, setIsDemoMode] = useState(() => {
+    return typeof window !== 'undefined' && localStorage.getItem('bg_demo_mode') === 'true';
+  });
 
   // Guided Welcome Tour & Purpose Onboarding Modal
   const [showWelcomeTour, setShowWelcomeTour] = useState(() => {
@@ -460,8 +481,18 @@ export default function App() {
     } catch (err) {
       console.warn('API Server connection failed. Operating in Local Mock Mode.', err.message);
       setBackendConnected(false);
-      // Recalculate local mock data filtered to simulated Rajesh Shah CA
-      recalculateLocalStats();
+      const isDemoSaved = typeof window !== 'undefined' && localStorage.getItem('bg_demo_mode') === 'true';
+      if (isDemoSaved) {
+        setIsDemoMode(true);
+        recalculateLocalStats();
+      } else {
+        const savedCustom = JSON.parse(localStorage.getItem('bg_custom_businesses') || '[]');
+        const savedInvoices = JSON.parse(localStorage.getItem('bg_custom_invoices') || '[]');
+        setBusinesses(savedCustom);
+        setInvoices(savedInvoices);
+        setFlags([]);
+        setIsEmptyState(savedCustom.length === 0);
+      }
     } finally {
       setLoading(false);
     }
@@ -580,23 +611,28 @@ export default function App() {
 
   const handleLoadDemoData = () => {
     setIsDemoMode(true);
+    localStorage.setItem('bg_demo_mode', 'true');
     setBusinesses(localFallbackData.businesses);
     setFlags(localFallbackData.flags.filter(f => !f.resolved));
     setInvoices(localFallbackData.invoices);
     setIsEmptyState(false);
-    showToast('Demo Practice Workspace loaded! Explore safely without entering client data.', 'success');
+    showToast('🟡 Practice Sandbox Mode Activated! Sample data loaded safely.', 'info');
   };
 
   const handleClearToLiveWorkspace = () => {
     setIsDemoMode(false);
+    localStorage.removeItem('bg_demo_mode');
     if (backendConnected) {
       loadData();
     } else {
-      setBusinesses([]);
+      const savedCustom = JSON.parse(localStorage.getItem('bg_custom_businesses') || '[]');
+      const savedInvoices = JSON.parse(localStorage.getItem('bg_custom_invoices') || '[]');
+      setBusinesses(savedCustom);
+      setInvoices(savedInvoices);
       setFlags([]);
-      setIsEmptyState(true);
+      setIsEmptyState(savedCustom.length === 0);
     }
-    showToast('Switched to Clean Live Workspace.', 'info');
+    showToast('✅ Switched to your clean, private CA live workspace.', 'success');
   };
 
   const handleQuickFillDemoClient = () => {
@@ -890,8 +926,9 @@ export default function App() {
           setOnboardMessage({ text: data.error || 'Failed to onboard', type: 'error' });
         }
       } else {
+        const savedCustom = JSON.parse(localStorage.getItem('bg_custom_businesses') || '[]');
         const newBiz = {
-          id: businesses.length + 1,
+          id: Date.now(),
           name: newClientName.trim(),
           gstin: gstinToSubmit,
           whatsapp_number: newClientPhone.trim(),
@@ -902,9 +939,11 @@ export default function App() {
           medium_flags: 0,
           at_risk_amount: 0.00
         };
-        const updatedList = [...businesses, newBiz];
+        const updatedList = [...savedCustom, newBiz];
         setBusinesses(updatedList);
         localStorage.setItem('bg_custom_businesses', JSON.stringify(updatedList));
+        setIsDemoMode(false);
+        localStorage.removeItem('bg_demo_mode');
         setIsEmptyState(false);
         setOnboardMessage({ text: successMsg, type: 'success' });
         showToast(successMsg, 'success');
@@ -4217,6 +4256,34 @@ function doPost(e) {
             {/* VIEW: DASHBOARD (Active Client list / Empty state) */}
             {currentView === 'dashboard' && !selectedBusiness && (
               <>
+                {/* PERSISTENT PRACTICE MODE BANNER (When Sample Data is loaded) */}
+                {isDemoMode && (
+                  <div className="bg-amber-500/10 border-2 border-amber-400 rounded-lg p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-800 flex items-center justify-center shrink-0">
+                        <span className="material-symbols-outlined text-[20px]">science</span>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-xs text-amber-950 uppercase tracking-wide">Practice Sandbox Mode Active</span>
+                          <span className="bg-amber-200 text-amber-900 text-[10px] font-extrabold px-1.5 py-0.2 rounded uppercase">SIMULATION</span>
+                        </div>
+                        <p className="text-xs text-amber-800 mt-0.5">
+                          Viewing 3 simulated businesses (Kirana, Electronics, Textiles). Your actual CA workspace remains private, clean, and unpolluted.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleClearToLiveWorkspace}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 shrink-0 active:scale-95"
+                    >
+                      <span className="material-symbols-outlined text-[15px]">cleaning_services</span>
+                      <span>Exit & Wipe Sample Data</span>
+                    </button>
+                  </div>
+                )}
+
                 {/* Metrics Card (Desktop only) */}
                 {!isMobileLayout && !isEmptyState && (
                   <div className="bg-white p-lg border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-md shadow-sm rounded-sm">
@@ -4423,7 +4490,14 @@ function doPost(e) {
                             >
                               <div className="flex justify-between items-start">
                                 <div className="flex flex-col">
-                                  <span className="text-body-md font-bold text-ink-900">{business.name}</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-body-md font-bold text-ink-900">{business.name}</span>
+                                    {isDemoMode && (
+                                      <span className="text-[9px] bg-amber-100 text-amber-800 px-1 py-0.2 rounded font-extrabold uppercase border border-amber-300">
+                                        SAMPLE
+                                      </span>
+                                    )}
+                                  </div>
                                   <span className="text-[10px] font-data-mono text-on-surface-variant">GST: {business.gstin}</span>
                                 </div>
                                 {hasHigh ? (
@@ -4537,9 +4611,16 @@ function doPost(e) {
                                     
                                     <td className="px-md py-md">
                                       <div className="flex flex-col">
-                                        <span className="font-body-md text-body-md font-bold text-ink-900 group-hover:text-teal-600 transition-colors">
-                                          {business.name}
-                                        </span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-body-md text-body-md font-bold text-ink-900 group-hover:text-teal-600 transition-colors">
+                                            {business.name}
+                                          </span>
+                                          {isDemoMode && (
+                                            <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded font-extrabold uppercase border border-amber-300">
+                                              SAMPLE
+                                            </span>
+                                          )}
+                                        </div>
                                         <span className="text-xs font-data-mono text-on-surface-variant mt-0.5">
                                           GSTIN: {business.gstin}
                                         </span>
@@ -4597,6 +4678,57 @@ function doPost(e) {
 
             {/* VIEW: GSTR-2B TWO-WAY RECONCILER */}
             {currentView === 'gstr2b-reconcile' && (() => {
+              if (businesses.length === 0) {
+                return (
+                  <div className="space-y-lg max-w-7xl mx-auto w-full">
+                    {/* SUB-TAB SWITCHER */}
+                    <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                      <button
+                        type="button"
+                        className="px-3.5 py-1.5 bg-teal-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">compare_arrows</span>
+                        <span>GSTR-2B 2-Way Matcher (Portal vs Books)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setCurrentView('rule37-tracker'); setSelectedBusiness(null); }}
+                        className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">schedule</span>
+                        <span>Rule 37 Tracker (180-Day Aging & Interest)</span>
+                      </button>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 rounded-xl p-12 text-center max-w-2xl mx-auto space-y-4 shadow-sm my-8">
+                      <div className="w-14 h-14 rounded-full bg-teal-50 text-teal-700 flex items-center justify-center mx-auto">
+                        <span className="material-symbols-outlined text-[32px]">compare_arrows</span>
+                      </div>
+                      <h3 className="font-headline-sm text-xl font-bold text-ink-900">No Client Businesses in Live Workspace</h3>
+                      <p className="text-sm text-slate-500 max-w-md mx-auto">
+                        GSTR-2B 2-way auto-reconciliation compares your client's purchase register against government portal statements. Add a client privately or load practice demo data to test.
+                      </p>
+                      <div className="flex items-center justify-center gap-3 pt-2">
+                        <button
+                          onClick={() => { setCurrentView('onboard'); setSelectedBusiness(null); }}
+                          className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-lg shadow-sm active:scale-95 transition-all flex items-center gap-1.5"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">person_add</span>
+                          <span>＋ Add Client Business</span>
+                        </button>
+                        <button
+                          onClick={handleLoadDemoData}
+                          className="px-4 py-2 bg-paper-50 hover:bg-slate-100 text-ink-900 border border-slate-300 font-bold text-xs rounded-lg shadow-sm active:scale-95 transition-all flex items-center gap-1.5"
+                        >
+                          <span className="material-symbols-outlined text-[16px] text-amber-500">science</span>
+                          <span>⚡ Load Practice Demo Data</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
               const reconData = getGstr2bReconcileData();
               return (
                 <div className="space-y-lg max-w-7xl mx-auto w-full">
@@ -5190,6 +5322,57 @@ function doPost(e) {
 
             {/* VIEW: RULE 37 180-DAY PAYMENT & ITC AGING TRACKER */}
             {currentView === 'rule37-tracker' && (() => {
+              if (businesses.length === 0) {
+                return (
+                  <div className="space-y-lg max-w-7xl mx-auto w-full">
+                    {/* SUB-TAB SWITCHER */}
+                    <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                      <button
+                        type="button"
+                        onClick={() => { setCurrentView('gstr2b-reconcile'); setSelectedBusiness(null); }}
+                        className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">compare_arrows</span>
+                        <span>GSTR-2B 2-Way Matcher (Portal vs Books)</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="px-3.5 py-1.5 bg-rose-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">schedule</span>
+                        <span>Rule 37 Tracker (180-Day Aging & Interest)</span>
+                      </button>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 rounded-xl p-12 text-center max-w-2xl mx-auto space-y-4 shadow-sm my-8">
+                      <div className="w-14 h-14 rounded-full bg-rose-50 text-rose-700 flex items-center justify-center mx-auto">
+                        <span className="material-symbols-outlined text-[32px]">schedule</span>
+                      </div>
+                      <h3 className="font-headline-sm text-xl font-bold text-ink-900">No Client Businesses in Live Workspace</h3>
+                      <p className="text-sm text-slate-500 max-w-md mx-auto">
+                        Under GST Rule 37, vendor unpaid invoices past 180 days require reversing tax credit with 18% penal interest. Add a client business or load practice demo data to explore.
+                      </p>
+                      <div className="flex items-center justify-center gap-3 pt-2">
+                        <button
+                          onClick={() => { setCurrentView('onboard'); setSelectedBusiness(null); }}
+                          className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-lg shadow-sm active:scale-95 transition-all flex items-center gap-1.5"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">person_add</span>
+                          <span>＋ Add Client Business</span>
+                        </button>
+                        <button
+                          onClick={handleLoadDemoData}
+                          className="px-4 py-2 bg-paper-50 hover:bg-slate-100 text-ink-900 border border-slate-300 font-bold text-xs rounded-lg shadow-sm active:scale-95 transition-all flex items-center gap-1.5"
+                        >
+                          <span className="material-symbols-outlined text-[16px] text-amber-500">science</span>
+                          <span>⚡ Load Practice Demo Data</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
               const rule37Data = getRule37Data();
               const { selectedBiz, records, summary } = rule37Data;
 
