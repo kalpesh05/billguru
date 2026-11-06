@@ -416,11 +416,20 @@ export default function App() {
     setLoading(true);
     try {
       const bizRes = await authFetch(`${API_BASE_URL}/businesses`);
-      if (!bizRes.ok) throw new Error('Unauthorised or API Server down');
+      if (bizRes.status === 401 || bizRes.status === 403) {
+        console.warn('Session expired or invalid token. Refreshing authentication state.');
+        localStorage.removeItem('bg_token');
+        localStorage.removeItem('bg_user');
+        setToken(null);
+        setCaUser(null);
+        setBackendConnected(false);
+        return;
+      }
+      if (!bizRes.ok) throw new Error(`API server returned HTTP ${bizRes.status}`);
       const bizData = await bizRes.json();
       
-      const flagRes = await authFetch(`${API_BASE_URL}/ca/1/flags?resolved=false`);
-      const flagData = await flagRes.json();
+      const flagRes = await authFetch(`${API_BASE_URL}/ca/${caUser?.id || 1}/flags?resolved=false`);
+      const flagData = flagRes.ok ? await flagRes.json() : [];
       
       setBusinesses(bizData);
       setFlags(flagData);
