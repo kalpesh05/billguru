@@ -1157,6 +1157,15 @@ app.post('/api/businesses', authenticateToken, async (req, res) => {
 
   const initialStatus = send_whatsapp_invite ? 'invited' : 'active';
 
+  if (send_whatsapp_invite) {
+    let targetPhone = whatsapp_number.replace(/[^0-9]/g, '');
+    if (targetPhone.length === 10) targetPhone = `91${targetPhone}`;
+    const inviteMsg = `👋 Welcome to BillGuru AI for *${name}*!\n\nYour workspace has been connected by your CA. You can now simply snap and forward photos or PDFs of your purchase bills and sales receipts directly here.\n\n⚡ We will automatically extract vendor GSTINs, verify tax rates, and organize your ITC!`;
+    sendWhatsAppMessage(targetPhone, inviteMsg).catch(err => {
+      console.warn('[Onboarding Invite] WhatsApp message dispatch error:', err.message);
+    });
+  }
+
   if (isDbMockMode) {
     const existing = mockDb.businesses.find(b => b.gstin === gstin);
     if (existing) return res.status(400).json({ error: 'GSTIN already registered in firm' });
@@ -3183,5 +3192,14 @@ if (process.env.NODE_ENV !== 'test') {
   });
 }
 
-module.exports = { app, calculateOldRegimeTax, calculateNewRegimeTax, isValidGstinChecksum, TAX_RULES_BY_FY };
+module.exports = { 
+  app, 
+  calculateOldRegimeTax, 
+  calculateNewRegimeTax, 
+  isValidGstinChecksum, 
+  TAX_RULES_BY_FY,
+  extractInvoiceWithAI,
+  extractInvoiceWithGroq,
+  fetchMediaBuffer
+};
 
