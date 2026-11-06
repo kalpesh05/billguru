@@ -15,6 +15,12 @@ const GST_STATE_MAP = {
 };
 
 // MOCK DATA (Fallback for local offline testing if backend is down)
+const DEMO_BIZ_NAMES = ['Meena Kirana Store', 'Sharma Electronics', 'Patel Textiles'];
+const isDemoBiz = (biz) => {
+  if (!biz) return false;
+  return biz.id === 1 || biz.id === 2 || biz.id === 3 || DEMO_BIZ_NAMES.includes(biz.name);
+};
+
 const localFallbackData = {
   businesses: [
     { id: 1, name: 'Meena Kirana Store', gstin: '24ABCDE1234F1Z5', whatsapp_number: '9123456789', onboarding_status: 'active', total_invoices: 9, filed_invoices: 7, high_flags: 2, medium_flags: 1, at_risk_amount: 4200.00 },
@@ -255,13 +261,15 @@ export default function App() {
     if (typeof window !== 'undefined' && localStorage.getItem('bg_demo_mode') === 'true') {
       return localFallbackData.businesses;
     }
-    return JSON.parse(localStorage.getItem('bg_custom_businesses') || '[]');
+    const raw = JSON.parse(localStorage.getItem('bg_custom_businesses') || '[]');
+    return raw.filter(b => !isDemoBiz(b));
   });
   const [invoices, setInvoices] = useState(() => {
     if (typeof window !== 'undefined' && localStorage.getItem('bg_demo_mode') === 'true') {
       return localFallbackData.invoices;
     }
-    return JSON.parse(localStorage.getItem('bg_custom_invoices') || '[]');
+    const raw = JSON.parse(localStorage.getItem('bg_custom_invoices') || '[]');
+    return raw.filter(i => i.business_id !== 1 && i.business_id !== 2 && i.business_id !== 3);
   });
   const [flags, setFlags] = useState(() => {
     if (typeof window !== 'undefined' && localStorage.getItem('bg_demo_mode') === 'true') {
@@ -622,17 +630,35 @@ export default function App() {
   const handleClearToLiveWorkspace = () => {
     setIsDemoMode(false);
     localStorage.removeItem('bg_demo_mode');
-    if (backendConnected) {
-      loadData();
-    } else {
-      const savedCustom = JSON.parse(localStorage.getItem('bg_custom_businesses') || '[]');
-      const savedInvoices = JSON.parse(localStorage.getItem('bg_custom_invoices') || '[]');
-      setBusinesses(savedCustom);
-      setInvoices(savedInvoices);
-      setFlags([]);
-      setIsEmptyState(savedCustom.length === 0);
+    const raw = JSON.parse(localStorage.getItem('bg_custom_businesses') || '[]');
+    const cleanCustom = raw.filter(b => !isDemoBiz(b));
+    localStorage.setItem('bg_custom_businesses', JSON.stringify(cleanCustom));
+
+    setBusinesses(cleanCustom);
+    setInvoices(JSON.parse(localStorage.getItem('bg_custom_invoices') || '[]').filter(i => i.business_id !== 1 && i.business_id !== 2 && i.business_id !== 3));
+    setFlags([]);
+    setIsEmptyState(cleanCustom.length === 0);
+    showToast('✅ Purged sample data! Returned to your clean, private CA live workspace.', 'success');
+  };
+
+  const handleDeleteClient = (bizId, bizName) => {
+    if (!window.confirm(`Are you sure you want to remove ${bizName || 'this client'} from your firm's managed list?`)) {
+      return;
     }
-    showToast('✅ Switched to your clean, private CA live workspace.', 'success');
+    const updated = businesses.filter(b => b.id !== bizId);
+    setBusinesses(updated);
+    const customOnly = updated.filter(b => !isDemoBiz(b));
+    localStorage.setItem('bg_custom_businesses', JSON.stringify(customOnly));
+    setInvoices(prev => prev.filter(i => i.business_id !== bizId));
+    setFlags(prev => prev.filter(f => f.business_id !== bizId));
+    if (selectedBusiness && selectedBusiness.id === bizId) {
+      setSelectedBusiness(null);
+    }
+    if (updated.length === 0) {
+      setIsEmptyState(true);
+    }
+    showToast(`Removed client: ${bizName}`, 'info');
+    setShowEditClientModal(false);
   };
 
   const handleQuickFillDemoClient = () => {
@@ -655,7 +681,14 @@ export default function App() {
   };
 
   const recalculateLocalStats = () => {
-    const savedCustom = JSON.parse(localStorage.getItem('bg_custom_businesses') || '[]');
+    const rawCustom = JSON.parse(localStorage.getItem('bg_custom_businesses') || '[]');
+    const cleanCustom = rawCustom.filter(b => !isDemoBiz(b));
+
+    if (!isDemoMode) {
+      setBusinesses(cleanCustom);
+      setIsEmptyState(cleanCustom.length === 0);
+      return;
+    }
 
     const updated = localFallbackData.businesses.map(b => {
       const bInvoices = invoices.filter(i => i.business_id === b.id);
@@ -675,7 +708,7 @@ export default function App() {
         at_risk_amount: b.id === 1 ? 4200.00 : (b.id === 2 ? 9000.00 : 0.00)
       };
     });
-    const combined = [...updated, ...savedCustom.filter(cb => !updated.some(u => u.id === cb.id))];
+    const combined = [...updated, ...cleanCustom.filter(cb => !updated.some(u => u.id === cb.id))];
     setBusinesses(combined);
     setFlags(localFallbackData.flags.filter(f => !f.resolved));
     setIsEmptyState(false);
@@ -4500,13 +4533,23 @@ function doPost(e) {
                                   </div>
                                   <span className="text-[10px] font-data-mono text-on-surface-variant">GST: {business.gstin}</span>
                                 </div>
-                                {hasHigh ? (
-                                  <span className="px-2 py-0.5 bg-error-container text-rust-600 font-bold rounded text-[8px] font-label-caps">HIGH</span>
-                                ) : hasMed ? (
-                                  <span className="px-2 py-0.5 bg-amber-500/10 text-amber-500 font-bold rounded text-[8px] font-label-caps">MED</span>
-                                ) : (
-                                  <span className="px-2 py-0.5 bg-moss-500/10 text-moss-500 font-bold rounded text-[8px] font-label-caps">OK</span>
-                                )}
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteClient(business.id, business.name); }}
+                                    className="p-1 text-slate-400 hover:text-rust-600 rounded"
+                                    title={`Remove ${business.name}`}
+                                  >
+                                    <span className="material-symbols-outlined text-[16px]">delete</span>
+                                  </button>
+                                  {hasHigh ? (
+                                    <span className="px-2 py-0.5 bg-error-container text-rust-600 font-bold rounded text-[8px] font-label-caps">HIGH</span>
+                                  ) : hasMed ? (
+                                    <span className="px-2 py-0.5 bg-amber-500/10 text-amber-500 font-bold rounded text-[8px] font-label-caps">MED</span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 bg-moss-500/10 text-moss-500 font-bold rounded text-[8px] font-label-caps">OK</span>
+                                  )}
+                                </div>
                               </div>
 
                               <div>
@@ -4539,9 +4582,22 @@ function doPost(e) {
                       // DESKTOP LAYOUT (Dense table)
                       <div className="bg-white border border-slate-200 overflow-hidden shadow-sm rounded-sm">
                         <div className="px-md py-xs bg-paper-50 border-b border-slate-200">
-                          <div className="flex justify-between items-center mb-1">
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-1">
                             <h3 className="font-label-caps text-label-caps text-ink-900 font-bold">CLIENT LEDGER REGISTRY</h3>
-                            <span className="text-body-sm text-on-surface-variant">Showing {filteredBusinesses.length} businesses</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-body-sm text-on-surface-variant">Showing {filteredBusinesses.length} businesses</span>
+                              {businesses.some(isDemoBiz) && (
+                                <button
+                                  type="button"
+                                  onClick={handleClearToLiveWorkspace}
+                                  className="flex items-center gap-1 px-2.5 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded text-[11px] font-bold transition-all shadow-xs active:scale-95"
+                                  title="Purge sample demo clients (Meena Kirana, Sharma Electronics, Patel Textiles) and keep only your firm's real clients"
+                                >
+                                  <span className="material-symbols-outlined text-[14px] text-amber-700">cleaning_services</span>
+                                  <span>Purge Sample Clients ({businesses.filter(isDemoBiz).length})</span>
+                                </button>
+                              )}
+                            </div>
                           </div>
                           <div className="bg-teal-50/70 border border-teal-200/80 px-2 py-1 rounded text-[11px] text-teal-900 flex flex-wrap items-center justify-between gap-xs">
                             <div className="flex items-center gap-1.5">
@@ -4657,6 +4713,14 @@ function doPost(e) {
                                           title="Edit Client Name / GSTIN"
                                         >
                                           <span className="material-symbols-outlined text-[18px]">edit</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => { e.stopPropagation(); handleDeleteClient(business.id, business.name); }}
+                                          className="p-1 text-slate-400 hover:text-rust-600 hover:bg-red-50 rounded transition-colors"
+                                          title={`Remove ${business.name}`}
+                                        >
+                                          <span className="material-symbols-outlined text-[18px]">delete</span>
                                         </button>
                                         <span className="material-symbols-outlined text-on-surface-variant group-hover:text-teal-600 transition-colors">
                                           chevron_right
@@ -7773,20 +7837,31 @@ function doPost(e) {
                       </p>
                     </div>
 
-                    <div className="pt-sm flex justify-end gap-sm border-t border-slate-100">
+                    <div className="pt-sm flex justify-between items-center border-t border-slate-100">
                       <button 
                         type="button"
-                        onClick={() => setShowEditClientModal(false)}
-                        className="px-4 py-2 border border-slate-300 rounded text-xs font-bold text-slate-700 hover:bg-slate-50"
+                        onClick={() => handleDeleteClient(editingClientBiz.id, editingClientBiz.name)}
+                        className="px-3 py-1.5 text-rust-600 hover:bg-red-50 rounded text-xs font-bold transition-all flex items-center gap-1"
                       >
-                        Cancel
+                        <span className="material-symbols-outlined text-[16px]">delete</span>
+                        <span>Delete Client</span>
                       </button>
-                      <button 
-                        type="submit"
-                        className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded text-xs font-bold shadow-sm active:scale-95 transition-all"
-                      >
-                        Save Changes
-                      </button>
+
+                      <div className="flex gap-sm">
+                        <button 
+                          type="button"
+                          onClick={() => setShowEditClientModal(false)}
+                          className="px-4 py-2 border border-slate-300 rounded text-xs font-bold text-slate-700 hover:bg-slate-50"
+                        >
+                          Cancel
+                        </button>
+                        <button 
+                          type="submit"
+                          className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded text-xs font-bold shadow-sm active:scale-95 transition-all"
+                        >
+                          Save Changes
+                        </button>
+                      </div>
                     </div>
                   </form>
                 </div>
