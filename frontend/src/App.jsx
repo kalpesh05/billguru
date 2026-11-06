@@ -284,6 +284,12 @@ export default function App() {
     return localStorage.getItem('bg_sidebar_collapsed') === 'true';
   });
 
+  // Focused CA Mode (4 Core Items) vs All Tools Mode
+  const [sidebarMode, setSidebarMode] = useState(() => {
+    return localStorage.getItem('bg_sidebar_mode') || 'focused';
+  });
+  const [showPortalsAccordion, setShowPortalsAccordion] = useState(false);
+
   // Non-CA Testing Playbook & Module Guide Modal
   const [showTesterGuide, setShowTesterGuide] = useState(false);
   const [testerGuideSearch, setTesterGuideSearch] = useState('');
@@ -1246,18 +1252,56 @@ export default function App() {
     }
   ];
 
+  // 4 Core CA Daily Tasks
+  const coreNavItems = [
+    { 
+      view: 'dashboard', 
+      label: 'Client Hub', 
+      icon: 'domain', 
+      hint: 'All assigned client businesses & compliance health' 
+    },
+    { 
+      view: 'inward', 
+      label: 'Inward Bills (OCR)', 
+      icon: 'receipt_long', 
+      hint: 'WhatsApp bill queue & Tally voucher push' 
+    },
+    { 
+      view: 'gstr2b-reconcile', 
+      label: 'GST Reconciliation', 
+      icon: 'compare_arrows', 
+      hint: 'GSTR-2B 2-Way Matcher & 180-day Rule 37' 
+    },
+    { 
+      view: 'analytics', 
+      label: 'Reports & Analytics', 
+      icon: 'analytics', 
+      hint: 'Firm ITC saved & compliance score' 
+    },
+  ];
+
+  // Secondary Client Portals & Simulators (Separated from daily CA workflow)
+  const portalNavItems = [
+    { view: 'solo-business', label: 'Shop Owner Portal (DIY)', icon: 'storefront', hint: 'Simplified billing portal for dukandaars' },
+    { view: 'salaried-portal', label: 'Salaried Tax Locker', icon: 'account_balance_wallet', hint: 'Form 16 & Old vs New tax regime (July season)' },
+    { view: 'whatsapp', label: 'WhatsApp Simulator', icon: 'chat', hint: 'Interactive client bill snap demo' },
+    { view: 'sovereign-db', label: 'Sovereign Database', icon: 'table_view', hint: 'Encrypted audit ledger & raw data' },
+    { view: 'outward', label: 'Sales Ledger (GSTR-1)', icon: 'upload_file', hint: 'Outward supplies register' },
+    { view: 'rule37-tracker', label: 'Rule 37 Tracker Standalone', icon: 'schedule', hint: '180-day vendor payment aging' },
+  ];
+
   const navItems = [
-    { view: 'dashboard', label: 'CA Multi-Client', icon: 'dashboard', hint: 'All client businesses overview & filing status', category: 'CA Operations' },
-    { view: 'gstr2b-reconcile', label: 'GSTR-2B Matcher', icon: 'compare_arrows', hint: 'Match bills with Govt portal statement', category: 'CA Operations' },
-    { view: 'rule37-tracker', label: 'Rule 37 Tracker', icon: 'schedule', hint: '180-day vendor payment aging & ITC reversal', category: 'CA Operations' },
-    { view: 'firm-settings', label: 'CA Firm Profile', icon: 'domain', hint: 'Firm registration, ICAI membership & COP', category: 'CA Operations' },
-    { view: 'sovereign-db', label: 'Sovereign Sheets DB', icon: 'table_view', hint: 'Private client database & audit records', category: 'CA Operations' },
-    { view: 'inward', label: 'Inward Queue', icon: 'receipt_long', hint: 'Purchase bills uploaded via WhatsApp & OCR', category: 'Registers' },
+    { view: 'dashboard', label: 'Client Hub', icon: 'domain', hint: 'All client businesses overview & filing status', category: 'Core CA Workflow' },
+    { view: 'inward', label: 'Inward Bills (OCR)', icon: 'receipt_long', hint: 'Purchase bills uploaded via WhatsApp & OCR', category: 'Core CA Workflow' },
+    { view: 'gstr2b-reconcile', label: 'GST Reconciliation', icon: 'compare_arrows', hint: 'Match bills with Govt portal statement', category: 'Core CA Workflow' },
+    { view: 'analytics', label: 'Reports & Analytics', icon: 'analytics', hint: 'Firm-wide compliance charts & ITC savings', category: 'Core CA Workflow' },
     { view: 'outward', label: 'Sales Ledger', icon: 'upload_file', hint: 'GSTR-1 outward sales invoices & GST liability', category: 'Registers' },
+    { view: 'rule37-tracker', label: 'Rule 37 Tracker', icon: 'schedule', hint: '180-day vendor payment aging & ITC reversal', category: 'Registers' },
     { view: 'solo-business', label: 'Solo Shop (DIY)', icon: 'storefront', hint: 'Micro-merchant simplified invoicing portal', category: 'Client Portals' },
     { view: 'salaried-portal', label: 'Salaried Tax Locker', icon: 'account_balance_wallet', hint: 'Form 16, deductions & Old vs New tax regime', category: 'Client Portals' },
-    { view: 'analytics', label: 'Analytics', icon: 'analytics', hint: 'Firm-wide compliance charts & ITC savings', category: 'Tools & Simulators' },
     { view: 'whatsapp', label: 'WhatsApp Sim', icon: 'chat', hint: 'Test client WhatsApp bill capture experience', category: 'Tools & Simulators' },
+    { view: 'sovereign-db', label: 'Sovereign Sheets DB', icon: 'table_view', hint: 'Private client database & audit records', category: 'Tools & Simulators' },
+    { view: 'firm-settings', label: 'CA Firm Profile', icon: 'domain', hint: 'Firm registration, ICAI membership & COP', category: 'Tools & Simulators' },
     { view: 'guide', label: 'Guide & FAQ', icon: 'help_outline', hint: 'Documentation & non-CA tester cheat sheet', category: 'Tools & Simulators' },
   ];
 
@@ -3664,43 +3708,92 @@ function doPost(e) {
             
             {/* NAVIGATION MENU ITEMS */}
             <nav className={`flex-1 overflow-y-auto custom-scrollbar ${isSidebarCollapsed ? 'space-y-1.5 flex flex-col items-center py-1' : 'space-y-1 pr-1'}`}>
-              {(() => {
-                let lastCategory = null;
-                return navItems.map((item) => {
-                  const isActive = currentView === item.view && !selectedBusiness;
-                  const showCategoryHeader = !isSidebarCollapsed && item.category && item.category !== lastCategory;
-                  if (showCategoryHeader) {
-                    lastCategory = item.category;
-                  }
+              
+              {/* Top View Mode Switcher (Expanded mode only) */}
+              {!isSidebarCollapsed && (
+                <div className="flex items-center justify-between px-2 mb-2 pb-1 border-b border-slate-200/80">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 font-label-caps">
+                    {sidebarMode === 'focused' ? 'Core CA Suite (4)' : 'All Modules (12)'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = sidebarMode === 'focused' ? 'all' : 'focused';
+                      setSidebarMode(next);
+                      localStorage.setItem('bg_sidebar_mode', next);
+                    }}
+                    className="text-[10px] font-bold text-teal-800 hover:text-teal-950 bg-teal-50 hover:bg-teal-100 border border-teal-200/80 rounded px-1.5 py-0.5 transition-colors"
+                    title={sidebarMode === 'focused' ? 'Show all 12 modules including shopkeeper & salaried tools' : 'Switch to simplified 4-module CA view'}
+                  >
+                    {sidebarMode === 'focused' ? '＋ All Tools' : '– Focused View'}
+                  </button>
+                </div>
+              )}
 
-                  return (
-                    <React.Fragment key={item.view}>
-                      {showCategoryHeader && (
-                        <div className="pt-2 pb-0.5 px-2">
-                          <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 font-label-caps">
-                            {item.category}
-                          </span>
-                        </div>
-                      )}
-                      
-                      {isSidebarCollapsed ? (
+              {/* Collapsed Rail Rendering */}
+              {isSidebarCollapsed ? (
+                <>
+                  {/* 4 Core CA Icons */}
+                  {coreNavItems.map(item => {
+                    const isActive = currentView === item.view && !selectedBusiness;
+                    return (
+                      <button 
+                        key={item.view}
+                        type="button"
+                        onClick={() => { setCurrentView(item.view); setSelectedBusiness(null); }}
+                        title={`${item.label}\n${item.hint || ''}`}
+                        className={`relative flex items-center justify-center w-10 h-10 rounded-lg transition-all ${
+                          isActive
+                            ? 'bg-secondary-container text-teal-800 font-bold shadow-xs ring-1 ring-teal-500/30' 
+                            : 'text-on-surface-variant hover:bg-slate-200/80 hover:text-ink-900'
+                        }`}
+                      >
+                        <span className={`material-symbols-outlined text-[20px] ${isActive ? 'text-teal-700 font-bold' : 'text-slate-600'}`}>{item.icon}</span>
+                        {item.view === 'gstr2b-reconcile' && totalCriticalIssues > 0 && (
+                          <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rust-600 rounded-full border-2 border-paper-50" title={`${totalCriticalIssues} critical issues`}></span>
+                        )}
+                        {item.view === 'inward' && invoices.filter(i => i.extraction_status === 'needs_review').length > 0 && (
+                          <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-amber-500 rounded-full border-2 border-paper-50" title="Review queue pending"></span>
+                        )}
+                      </button>
+                    );
+                  })}
+
+                  <div className="w-6 h-px bg-slate-300 my-1"></div>
+
+                  {/* Portal & Demo Icons */}
+                  {portalNavItems.slice(0, 3).map(item => {
+                    const isActive = currentView === item.view && !selectedBusiness;
+                    return (
+                      <button 
+                        key={item.view}
+                        type="button"
+                        onClick={() => { setCurrentView(item.view); setSelectedBusiness(null); }}
+                        title={`${item.label}\n${item.hint || ''}`}
+                        className={`relative flex items-center justify-center w-9 h-9 rounded-lg transition-all opacity-85 hover:opacity-100 ${
+                          isActive
+                            ? 'bg-indigo-100 text-indigo-900 font-bold shadow-xs' 
+                            : 'text-slate-500 hover:bg-slate-200/80 hover:text-ink-900'
+                        }`}
+                      >
+                        <span className={`material-symbols-outlined text-[18px] ${isActive ? 'text-indigo-700' : 'text-slate-500'}`}>{item.icon}</span>
+                      </button>
+                    );
+                  })}
+                </>
+              ) : (
+                /* Expanded Sidebar Rendering */
+                sidebarMode === 'focused' ? (
+                  /* --- FOCUSED CA MODE (ONLY 4 CLEAN ESSENTIAL ITEMS) --- */
+                  <div className="space-y-1">
+                    {coreNavItems.map(item => {
+                      const isActive = currentView === item.view && !selectedBusiness;
+                      const isNeedsReview = item.view === 'inward' && invoices.filter(i => i.extraction_status === 'needs_review').length > 0;
+                      const hasFlags = item.view === 'gstr2b-reconcile' && totalCriticalIssues > 0;
+
+                      return (
                         <button 
-                          type="button"
-                          onClick={() => { setCurrentView(item.view); setSelectedBusiness(null); }}
-                          title={`${item.label}\n${item.hint || ''}`}
-                          className={`relative flex items-center justify-center w-10 h-10 rounded-lg transition-all ${
-                            isActive
-                              ? 'bg-secondary-container text-teal-800 font-bold shadow-xs ring-1 ring-teal-500/30' 
-                              : 'text-on-surface-variant hover:bg-slate-200/80 hover:text-ink-900'
-                          }`}
-                        >
-                          <span className={`material-symbols-outlined text-[20px] ${isActive ? 'text-teal-700 font-bold' : 'text-slate-600'}`}>{item.icon}</span>
-                          {item.view === 'gstr2b-reconcile' && totalCriticalIssues > 0 && (
-                            <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rust-600 rounded-full border-2 border-paper-50" title={`${totalCriticalIssues} critical issues`}></span>
-                          )}
-                        </button>
-                      ) : (
-                        <button 
+                          key={item.view}
                           type="button"
                           onClick={() => { setCurrentView(item.view); setSelectedBusiness(null); }}
                           title={item.hint || item.label}
@@ -3711,20 +3804,109 @@ function doPost(e) {
                           }`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <span className={`material-symbols-outlined text-[19px] shrink-0 ${isActive ? 'text-teal-700' : 'text-slate-500'}`}>{item.icon}</span>
+                            <span className={`material-symbols-outlined text-[19px] shrink-0 ${isActive ? 'text-teal-700 font-bold' : 'text-slate-500'}`}>{item.icon}</span>
                             <span className="truncate">{item.label}</span>
                           </div>
-                          {item.view === 'gstr2b-reconcile' && totalCriticalIssues > 0 && (
+                          {hasFlags && (
                             <span className="bg-rust-600 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full shrink-0">
                               {totalCriticalIssues}
                             </span>
                           )}
+                          {isNeedsReview && !hasFlags && (
+                            <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full shrink-0">
+                              {invoices.filter(i => i.extraction_status === 'needs_review').length} Review
+                            </span>
+                          )}
                         </button>
+                      );
+                    })}
+
+                    {/* Secondary Accordion: Client Portals & Simulators */}
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowPortalsAccordion(!showPortalsAccordion)}
+                        className="w-full flex items-center justify-between p-1.5 text-[11px] font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 rounded-lg transition-colors border border-dashed border-slate-300"
+                        title="Shopkeeper DIY portal, Salaried Tax Locker, and WhatsApp Demo"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[15px] text-slate-400">apps</span>
+                          <span>Client Portals & Demos</span>
+                        </span>
+                        <span className="material-symbols-outlined text-[16px] text-slate-400">
+                          {showPortalsAccordion ? 'expand_less' : 'expand_more'}
+                        </span>
+                      </button>
+
+                      {showPortalsAccordion && (
+                        <div className="mt-1 space-y-0.5 pl-2 border-l-2 border-slate-200">
+                          {portalNavItems.map(item => {
+                            const isActive = currentView === item.view && !selectedBusiness;
+                            return (
+                              <button
+                                key={item.view}
+                                type="button"
+                                onClick={() => { setCurrentView(item.view); setSelectedBusiness(null); }}
+                                title={item.hint}
+                                className={`w-full flex items-center gap-2 p-1.5 text-xs rounded-md transition-all text-left ${
+                                  isActive ? 'bg-secondary-container text-teal-800 font-bold' : 'text-slate-600 hover:bg-slate-200/80'
+                                }`}
+                              >
+                                <span className="material-symbols-outlined text-[16px] text-slate-500">{item.icon}</span>
+                                <span className="truncate">{item.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       )}
-                    </React.Fragment>
-                  );
-                });
-              })()}
+                    </div>
+                  </div>
+                ) : (
+                  /* --- ALL TOOLS MODE (CATEGORIZED 12 MODULES) --- */
+                  (() => {
+                    let lastCategory = null;
+                    return navItems.map((item) => {
+                      const isActive = currentView === item.view && !selectedBusiness;
+                      const showCategoryHeader = item.category && item.category !== lastCategory;
+                      if (showCategoryHeader) {
+                        lastCategory = item.category;
+                      }
+
+                      return (
+                        <React.Fragment key={item.view}>
+                          {showCategoryHeader && (
+                            <div className="pt-2 pb-0.5 px-2">
+                              <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 font-label-caps">
+                                {item.category}
+                              </span>
+                            </div>
+                          )}
+                          <button 
+                            type="button"
+                            onClick={() => { setCurrentView(item.view); setSelectedBusiness(null); }}
+                            title={item.hint || item.label}
+                            className={`w-full flex items-center justify-between p-2 font-label-caps text-label-caps rounded-lg transition-all text-left ${
+                              isActive
+                                ? 'bg-secondary-container text-on-secondary-container font-bold shadow-xs' 
+                                : 'text-on-surface-variant hover:bg-slate-200/80 hover:text-ink-900'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className={`material-symbols-outlined text-[19px] shrink-0 ${isActive ? 'text-teal-700' : 'text-slate-500'}`}>{item.icon}</span>
+                              <span className="truncate">{item.label}</span>
+                            </div>
+                            {item.view === 'gstr2b-reconcile' && totalCriticalIssues > 0 && (
+                              <span className="bg-rust-600 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full shrink-0">
+                                {totalCriticalIssues}
+                              </span>
+                            )}
+                          </button>
+                        </React.Fragment>
+                      );
+                    });
+                  })()
+                )
+              )}
             </nav>
             
             {/* BOTTOM UTILITY / FOOTER CONTROLS */}
@@ -4427,6 +4609,25 @@ function doPost(e) {
                     className="hidden"
                   />
 
+                  {/* SUB-TAB SWITCHER: GSTR-2B 2-WAY MATCH VS RULE 37 180-DAY AGING */}
+                  <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                    <button
+                      type="button"
+                      className="px-3.5 py-1.5 bg-teal-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">compare_arrows</span>
+                      <span>GSTR-2B 2-Way Matcher (Portal vs Books)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setCurrentView('rule37-tracker'); setSelectedBusiness(null); }}
+                      className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">schedule</span>
+                      <span>Rule 37 Tracker (180-Day Aging & Interest)</span>
+                    </button>
+                  </div>
+
                   {/* Header & Controls Bar */}
                   <div className="bg-white border border-slate-200 rounded p-lg shadow-sm">
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-md mb-md">
@@ -4994,6 +5195,25 @@ function doPost(e) {
 
               return (
                 <div className="space-y-lg max-w-7xl mx-auto w-full">
+                  {/* SUB-TAB SWITCHER: GSTR-2B 2-WAY MATCH VS RULE 37 180-DAY AGING */}
+                  <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                    <button
+                      type="button"
+                      onClick={() => { setCurrentView('gstr2b-reconcile'); setSelectedBusiness(null); }}
+                      className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">compare_arrows</span>
+                      <span>GSTR-2B 2-Way Matcher (Portal vs Books)</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="px-3.5 py-1.5 bg-rose-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">schedule</span>
+                      <span>Rule 37 Tracker (180-Day Aging & Interest)</span>
+                    </button>
+                  </div>
+
                   {/* Header & Controls Bar */}
                   <div className="bg-white border border-slate-200 rounded p-lg shadow-sm">
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-md mb-md">
@@ -5597,6 +5817,25 @@ function doPost(e) {
             {/* VIEW: INWARD QUEUE (Invoice Review Queue) */}
             {currentView === 'inward' && (
               <div className="space-y-lg max-w-7xl mx-auto w-full">
+                {/* SUB-TAB SWITCHER: INWARD (PURCHASE) VS OUTWARD (SALES) */}
+                <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                  <button
+                    type="button"
+                    className="px-3.5 py-1.5 bg-teal-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">receipt_long</span>
+                    <span>Inward Purchases (WhatsApp OCR Queue)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setCurrentView('outward'); setSelectedBusiness(null); }}
+                    className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">upload_file</span>
+                    <span>Sales Ledger (GSTR-1 Outward)</span>
+                  </button>
+                </div>
+
                 <div>
                   <h3 className="font-headline-md text-headline-sm md:text-headline-md text-ink-900 mb-xs">Invoice Review Queue</h3>
                   <p className="text-on-surface-variant text-body-md">Confirm extraction results for low confidence captures from WhatsApp.</p>
@@ -5834,6 +6073,25 @@ function doPost(e) {
 
               return (
                 <div className="space-y-lg">
+                  {/* SUB-TAB SWITCHER: INWARD (PURCHASE) VS OUTWARD (SALES) */}
+                  <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                    <button
+                      type="button"
+                      onClick={() => { setCurrentView('inward'); setSelectedBusiness(null); }}
+                      className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">receipt_long</span>
+                      <span>Inward Purchases (WhatsApp OCR Queue)</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="px-3.5 py-1.5 bg-teal-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">upload_file</span>
+                      <span>Sales Ledger (GSTR-1 Outward)</span>
+                    </button>
+                  </div>
+
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-md">
                     <div>
                       <h3 className="font-headline-md text-headline-sm md:text-headline-md text-ink-900 mb-xs">Sales Outward Register</h3>
