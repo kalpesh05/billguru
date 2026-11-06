@@ -594,12 +594,18 @@ export default function App() {
   };
 
   const recalculateLocalStats = () => {
+    const savedCustom = JSON.parse(localStorage.getItem('bg_custom_businesses') || '[]');
     // Show mock items if user is in Demo Mode or activeCaId is default
     const activeCaId = caUser ? caUser.id : 1;
     if (activeCaId !== 1 && !isDemoMode) {
-      setBusinesses([]);
+      if (savedCustom.length > 0) {
+        setBusinesses(savedCustom);
+        setIsEmptyState(false);
+      } else {
+        setBusinesses([]);
+        setIsEmptyState(true);
+      }
       setFlags([]);
-      setIsEmptyState(true);
       return;
     }
 
@@ -621,7 +627,8 @@ export default function App() {
         at_risk_amount: b.id === 1 ? 4200.00 : (b.id === 2 ? 9000.00 : 0.00)
       };
     });
-    setBusinesses(updated);
+    const combined = [...updated, ...savedCustom.filter(cb => !updated.some(u => u.id === cb.id))];
+    setBusinesses(combined);
     setFlags(localFallbackData.flags.filter(f => !f.resolved));
     setIsEmptyState(false);
   };
@@ -883,7 +890,9 @@ export default function App() {
           medium_flags: 0,
           at_risk_amount: 0.00
         };
-        setBusinesses(prev => [...prev, newBiz]);
+        const updatedList = [...businesses, newBiz];
+        setBusinesses(updatedList);
+        localStorage.setItem('bg_custom_businesses', JSON.stringify(updatedList));
         setIsEmptyState(false);
         setOnboardMessage({ text: successMsg, type: 'success' });
         showToast(successMsg, 'success');
@@ -934,7 +943,9 @@ export default function App() {
         }
       }
 
-      setBusinesses(prev => prev.map(b => b.id === editingClientBiz.id ? { ...b, ...updatedData } : b));
+      const updatedList = businesses.map(b => b.id === editingClientBiz.id ? { ...b, ...updatedData } : b);
+      setBusinesses(updatedList);
+      localStorage.setItem('bg_custom_businesses', JSON.stringify(updatedList));
       if (selectedBusiness && selectedBusiness.id === editingClientBiz.id) {
         setSelectedBusiness(prev => ({ ...prev, ...updatedData }));
       }
