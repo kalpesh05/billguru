@@ -912,6 +912,43 @@ app.put('/api/businesses/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// 2b. GET All Invoices across CA clients
+app.get('/api/invoices', authenticateToken, async (req, res) => {
+  const caId = req.ca?.id || req.user?.id || 1;
+  const businessId = req.query.business_id;
+
+  if (isDbMockMode) {
+    let list = mockDb.invoices;
+    if (businessId) {
+      list = list.filter(i => i.business_id === parseInt(businessId, 10));
+    }
+    return res.json(list);
+  }
+
+  try {
+    let query = `
+      SELECT i.*, b.name as business_name, b.gstin as business_gstin 
+      FROM invoices i
+      JOIN businesses b ON i.business_id = b.id
+      WHERE (b.ca_id = ? OR b.ca_id = 1 OR b.ca_id IS NULL)
+    `;
+    const params = [caId];
+
+    if (businessId) {
+      query += ' AND i.business_id = ?';
+      params.push(parseInt(businessId, 10));
+    }
+
+    query += ' ORDER BY i.id DESC';
+
+    const [rows] = await dbPool.query(query, params);
+    res.json(rows);
+  } catch (err) {
+    console.error('Error fetching invoices:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 3. GET Invoices for a Business
 app.get('/api/businesses/:id/invoices', authenticateToken, async (req, res) => {
   const businessId = parseInt(req.params.id, 10);

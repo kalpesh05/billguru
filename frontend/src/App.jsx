@@ -280,6 +280,7 @@ export default function App() {
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [ledgerBusinessFilter, setLedgerBusinessFilter] = useState('all');
+  const [inwardFilter, setInwardFilter] = useState('all'); // 'all', 'needs_review', 'eligible', 'kaccha'
   const [loading, setLoading] = useState(false);
   const [backendConnected, setBackendConnected] = useState(false);
 
@@ -653,11 +654,24 @@ export default function App() {
       
       const flagRes = await authFetch(`${API_BASE_URL}/ca/${caUser?.id || 1}/flags?resolved=false`);
       const flagData = flagRes.ok ? await flagRes.json() : [];
+
+      let fetchedInvoices = [];
+      try {
+        const invRes = await authFetch(`${API_BASE_URL}/invoices`);
+        if (invRes.ok) {
+          fetchedInvoices = await invRes.json();
+        }
+      } catch (invErr) {
+        console.warn('Could not fetch backend invoices:', invErr.message);
+      }
       
       const isDemoSaved = typeof window !== 'undefined' && localStorage.getItem('bg_demo_mode') === 'true';
       const cleanBizData = isDemoSaved ? bizData : bizData.filter(b => !isDemoBiz(b));
       setBusinesses(cleanBizData);
       setFlags(flagData);
+      if (fetchedInvoices && fetchedInvoices.length > 0) {
+        setInvoices(fetchedInvoices);
+      }
       setBackendConnected(true);
       
       // If a newly registered CA has 0 clients, trigger Empty State automatically
@@ -8129,42 +8143,119 @@ function doPost(e) {
             {/* VIEW: SOVEREIGN DATABASE (GOOGLE SHEETS & LOCAL EXCEL) */}
             {currentView === 'sovereign-db' && renderSovereignDbDesk()}
 
-            {/* VIEW: INWARD QUEUE (Invoice Review Queue) */}
-            {currentView === 'inward' && (
+            {/* VIEW: INWARD QUEUE (Invoice Review Queue & Purchases) */}
+            {currentView === 'inward' && (() => {
+              const needsReviewList = invoices.filter(i => i.extraction_status === 'needs_review');
+              const eligibleList = invoices.filter(i => i.is_itc_eligible !== false && i.extraction_status !== 'needs_review');
+              const kacchaList = invoices.filter(i => i.is_itc_eligible === false && i.extraction_status !== 'needs_review');
+
+              let displayedList = invoices;
+              if (inwardFilter === 'needs_review') displayedList = needsReviewList;
+              else if (inwardFilter === 'eligible') displayedList = eligibleList;
+              else if (inwardFilter === 'kaccha') displayedList = kacchaList;
+
+              return (
               <div className="space-y-lg max-w-7xl mx-auto w-full">
                 {/* SUB-TAB SWITCHER: INWARD (PURCHASE) VS OUTWARD (SALES) */}
-                <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="px-3.5 py-1.5 bg-teal-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">receipt_long</span>
+                      <span>Inward Purchases (WhatsApp OCR Queue)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setCurrentView('outward'); setSelectedBusiness(null); }}
+                      className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">upload_file</span>
+                      <span>Sales Ledger (GSTR-1 Outward)</span>
+                    </button>
+                  </div>
+
                   <button
                     type="button"
-                    className="px-3.5 py-1.5 bg-teal-700 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5"
+                    onClick={async () => {
+                      await loadData();
+                      showToast('🔄 Synchronized latest invoices from database!', 'success');
+                    }}
+                    className="px-3 py-1.5 bg-white border border-teal-600/30 hover:bg-teal-50 text-teal-800 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all self-start sm:self-auto cursor-pointer"
+                    title="Fetch newly uploaded invoices from WhatsApp & MySQL"
                   >
-                    <span className="material-symbols-outlined text-[16px]">receipt_long</span>
-                    <span>Inward Purchases (WhatsApp OCR Queue)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setCurrentView('outward'); setSelectedBusiness(null); }}
-                    className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">upload_file</span>
-                    <span>Sales Ledger (GSTR-1 Outward)</span>
+                    <span className="material-symbols-outlined text-[16px] text-teal-600">sync</span>
+                    <span>Sync Live DB</span>
                   </button>
                 </div>
 
-                <div>
-                  <h3 className="font-headline-md text-headline-sm md:text-headline-md text-ink-900 mb-xs">Invoice Review Queue</h3>
-                  <p className="text-on-surface-variant text-body-md">Confirm extraction results for low confidence captures from WhatsApp.</p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="font-headline-md text-headline-sm md:text-headline-md text-ink-900 mb-xs">Inward Purchases & Bills</h3>
+                    <p className="text-on-surface-variant text-body-md">All purchase invoices, WhatsApp captures, and expense slips logged into your CA portal.</p>
+                  </div>
+
+                  {/* Filter Pills */}
+                  <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() => setInwardFilter('all')}
+                      className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                        inwardFilter === 'all'
+                          ? 'bg-white text-teal-800 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      All Bills ({invoices.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInwardFilter('needs_review')}
+                      className={`px-3 py-1 text-xs font-bold rounded-md transition-all flex items-center gap-1 cursor-pointer ${
+                        inwardFilter === 'needs_review'
+                          ? 'bg-white text-rust-700 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      {needsReviewList.length > 0 && <span className="w-2 h-2 rounded-full bg-rust-600"></span>}
+                      Needs Review ({needsReviewList.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInwardFilter('eligible')}
+                      className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                        inwardFilter === 'eligible'
+                          ? 'bg-white text-emerald-800 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      ITC Eligible ({eligibleList.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInwardFilter('kaccha')}
+                      className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                        inwardFilter === 'kaccha'
+                          ? 'bg-white text-amber-900 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Kaccha / Expense ({kacchaList.length})
+                    </button>
+                  </div>
                 </div>
 
+                {inwardFilter === 'needs_review' ? (
                 <div className="space-y-gutter">
-                  {invoices.filter(i => i.extraction_status === 'needs_review').length === 0 ? (
+                  {needsReviewList.length === 0 ? (
                     <div className="bg-white border border-slate-200 p-xl text-center rounded-sm">
                       <span className="material-symbols-outlined text-moss-500 text-[48px] mb-sm">task_alt</span>
                       <h4 className="font-headline-sm font-bold text-ink-900 mb-xs">Review Queue Clean</h4>
-                      <p className="text-on-surface-variant text-body-md">All WhatsApp uploads successfully reconciled.</p>
+                      <p className="text-on-surface-variant text-body-md">All WhatsApp uploads successfully reconciled. Switch to "All Bills" above to view processed purchases.</p>
                     </div>
                   ) : (
-                    invoices.filter(i => i.extraction_status === 'needs_review').map(invoice => {
+                    needsReviewList.map(invoice => {
                       const client = businesses.find(b => b.id === invoice.business_id);
                       const isEditing = editingInvoiceId === invoice.id;
 
@@ -8370,8 +8461,120 @@ function doPost(e) {
                     })
                   )}
                 </div>
+                ) : (
+                  /* COMPREHENSIVE PURCHASE BILLS TABLE */
+                  <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+                    {displayedList.length === 0 ? (
+                      <div className="p-xl text-center text-slate-500">
+                        <span className="material-symbols-outlined text-[44px] text-slate-300 mb-2">receipt_long</span>
+                        <p className="text-sm font-semibold">No bills match the selected filter ({inwardFilter}).</p>
+                        <p className="text-xs text-slate-400 mt-1">Upload a bill via WhatsApp or click "Sync Live DB" to refresh.</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
+                              <th className="p-3">Date / Inv #</th>
+                              <th className="p-3">Client Firm</th>
+                              <th className="p-3">Vendor / Supplier</th>
+                              <th className="p-3">Buyer (Recipient)</th>
+                              <th className="p-3 text-right">Taxable</th>
+                              <th className="p-3 text-right">GST (C+S+I)</th>
+                              <th className="p-3 text-right">Total Amount</th>
+                              <th className="p-3 text-center">ITC Status</th>
+                              <th className="p-3 text-center">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 font-sans">
+                            {displayedList.map((inv, idx) => {
+                              const client = businesses.find(b => b.id === inv.business_id);
+                              const cgst = Number(inv.cgst_amount || 0);
+                              const sgst = Number(inv.sgst_amount || 0);
+                              const igst = Number(inv.igst_amount || 0);
+                              const totalGst = cgst + sgst + igst;
+                              const isEligible = inv.is_itc_eligible !== false;
+
+                              return (
+                                <tr key={inv.id || idx} className="hover:bg-teal-50/20 transition-colors">
+                                  <td className="p-3 whitespace-nowrap">
+                                    <div className="font-bold text-ink-900">{inv.invoice_number || `INV-${inv.id}`}</div>
+                                    <div className="text-[11px] text-slate-500">{inv.invoice_date || 'N/A'}</div>
+                                  </td>
+                                  <td className="p-3 whitespace-nowrap">
+                                    <div className="font-semibold text-ink-900">{client?.name || inv.business_name || 'Client Firm'}</div>
+                                    <div className="text-[10px] font-mono text-slate-500">{client?.gstin || inv.business_gstin || 'N/A'}</div>
+                                  </td>
+                                  <td className="p-3">
+                                    <div className="font-bold text-ink-900">{inv.vendor_name || 'Vendor'}</div>
+                                    <div className="text-[10px] font-mono text-slate-600 font-semibold">{inv.vendor_gstin || 'No GSTIN (Kaccha/Cash)'}</div>
+                                  </td>
+                                  <td className="p-3">
+                                    <div className="text-slate-800 font-medium">{inv.recipient_name || client?.name || '—'}</div>
+                                    {inv.recipient_gstin && (
+                                      <div className="text-[10px] font-mono text-teal-700 font-semibold">{inv.recipient_gstin}</div>
+                                    )}
+                                  </td>
+                                  <td className="p-3 text-right font-mono font-medium text-slate-700">
+                                    ₹{Number(inv.taxable_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                  </td>
+                                  <td className="p-3 text-right font-mono text-slate-700">
+                                    <div>₹{totalGst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                                    {totalGst > 0 && (
+                                      <div className="text-[9px] text-slate-400">
+                                        {igst > 0 ? `IGST` : `C+S: ₹${(cgst + sgst).toFixed(2)}`}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="p-3 text-right font-mono font-bold text-ink-900">
+                                    ₹{Number(inv.total_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    {isEligible ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                                        Eligible ITC
+                                      </span>
+                                    ) : (
+                                      <span 
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200"
+                                        title={inv.ineligibility_reason || 'Blocked ITC'}
+                                      >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
+                                        {inv.ineligibility_reason ? (inv.ineligibility_reason.length > 22 ? inv.ineligibility_reason.substring(0, 22) + '...' : inv.ineligibility_reason) : 'Blocked ITC'}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="p-3 text-center whitespace-nowrap">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      {inv.file_url ? (
+                                        <a
+                                          href={inv.file_url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-semibold text-[11px] flex items-center gap-1 shadow-2xs"
+                                          title="View bill photo / document"
+                                        >
+                                          <span className="material-symbols-outlined text-[13px]">image</span>
+                                          <span>Bill</span>
+                                        </a>
+                                      ) : (
+                                        <span className="text-[10px] text-slate-400 italic">No file</span>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-            )}
+            );
+          })()}
 
             {/* VIEW: OUTWARD REGISTER (Sales Ledger) */}
             {currentView === 'outward' && (() => {
