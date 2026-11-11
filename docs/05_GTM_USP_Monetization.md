@@ -18,12 +18,13 @@ Three pillars that differentiate this from existing tools:
 
 | Competitor Type | Examples | Gap We Fill |
 |---|---|---|
+| CA Tally Automation / OCR | **Suvit (Vyapar TaxOne)** | Suvit is a retrospective month-end Tally bridge without point-of-sale fraud prevention. BillGuru catches cancelled GSTINs and HSN slab errors in real-time on WhatsApp *before* payment, while adding a complete Salaried ITR & Form 16 Tax Locker. |
 | Full accounting suites | Tally, Zoho Books, QuickBooks | Too complex, requires trained staff, not WhatsApp-native |
 | Generic invoice OCR | Various scanner apps | No GST-specific validation logic, no reconciliation |
 | GST filing software | ClearTax, Cleartax GST, Zoho GST | Focused on filing mechanics, not proactive error prevention at capture time |
 | Manual (status quo) | Shoebox of paper invoices to CA monthly | What most small businesses actually do today |
 
-**Positioning**: Not a replacement for Tally or ClearTax — a proactive error-catching layer that sits *before* filing software, feeding it clean, validated data.
+**Positioning vs Suvit**: While Suvit automates retrospective month-end bookkeeping into Tally, BillGuru AI acts as a **proactive pre-accounting compliance guardrail** that prevents ITC loss at the point of invoice capture, backed by an integrated **Bank Statement AI Narration Parser** and a dual **GST + Salaried ITR ecosystem**.
 
 ## 3. Target Market Sizing (India)
 
