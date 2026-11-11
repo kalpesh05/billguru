@@ -324,6 +324,7 @@ async function initializeDatabase() {
         file_url VARCHAR(500),
         vendor_name VARCHAR(255),
         vendor_gstin VARCHAR(15),
+        recipient_gstin VARCHAR(15) NULL,
         invoice_number VARCHAR(100),
         invoice_date DATE,
         taxable_amount DECIMAL(12,2),
@@ -331,14 +332,32 @@ async function initializeDatabase() {
         sgst_rate DECIMAL(5,2), sgst_amount DECIMAL(12,2),
         igst_rate DECIMAL(5,2), igst_amount DECIMAL(12,2),
         total_amount DECIMAL(12,2),
+        round_off_amount DECIMAL(12,2) DEFAULT 0.00,
         hsn_sac_code VARCHAR(10),
         extraction_confidence DECIMAL(3,2),
         extraction_status ENUM('pending','extracted','needs_review','confirmed') DEFAULT 'pending',
+        is_itc_eligible BOOLEAN DEFAULT TRUE,
+        ineligibility_reason VARCHAR(255) NULL,
+        tax_slabs_json JSON NULL,
         raw_llm_response JSON,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
       );
     `);
+
+    // Resilient hot migrations for invoices table
+    const invoiceMigrations = [
+      "ALTER TABLE invoices ADD COLUMN recipient_gstin VARCHAR(15) NULL AFTER vendor_gstin;",
+      "ALTER TABLE invoices ADD COLUMN round_off_amount DECIMAL(12,2) DEFAULT 0.00 AFTER total_amount;",
+      "ALTER TABLE invoices ADD COLUMN is_itc_eligible BOOLEAN DEFAULT TRUE AFTER extraction_status;",
+      "ALTER TABLE invoices ADD COLUMN ineligibility_reason VARCHAR(255) NULL AFTER is_itc_eligible;",
+      "ALTER TABLE invoices ADD COLUMN tax_slabs_json JSON NULL AFTER ineligibility_reason;"
+    ];
+    for (const q of invoiceMigrations) {
+      try {
+        await dbPool.query(q);
+      } catch (e) {}
+    }
 
     await dbPool.query(`
       CREATE TABLE IF NOT EXISTS gstin_validations (
@@ -360,6 +379,28 @@ async function initializeDatabase() {
         resolved BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
+      );
+    `);
+
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS gstr_filings (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        business_id INT NOT NULL,
+        return_type ENUM('GSTR1','GSTR3B') NOT NULL,
+        period VARCHAR(7) NOT NULL,
+        filed_data JSON NOT NULL,
+        filed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE,
+        UNIQUE KEY uq_business_period (business_id, return_type, period)
+      );
+    `);
+
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS hsn_sac_rates (
+        hsn_sac_code VARCHAR(10) PRIMARY KEY,
+        description VARCHAR(255),
+        expected_gst_rate DECIMAL(5,2) NOT NULL,
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       );
     `);
 
@@ -432,6 +473,75 @@ async function initializeDatabase() {
         itr_json_payload JSON,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES salaried_users(id) ON DELETE CASCADE
+      );
+    `);
+
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS gstr2b_uploads (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        business_id INT NOT NULL,
+        filing_period VARCHAR(10) NOT NULL,
+        total_records INT DEFAULT 0,
+        total_itc_available DECIMAL(15,2) DEFAULT 0.00,
+        raw_json_data LONGTEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
+      );
+    `);
+
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS gstr2b_invoices (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        upload_id INT NOT NULL,
+        supplier_gstin VARCHAR(15) NOT NULL,
+        supplier_name VARCHAR(255) NULL,
+        invoice_number VARCHAR(100) NOT NULL,
+        invoice_date DATE NOT NULL,
+        invoice_value DECIMAL(15,2) NOT NULL,
+        taxable_value DECIMAL(15,2) NOT NULL,
+        cgst_amount DECIMAL(15,2) DEFAULT 0.00,
+        sgst_amount DECIMAL(15,2) DEFAULT 0.00,
+        igst_amount DECIMAL(15,2) DEFAULT 0.00,
+        itc_availability VARCHAR(10) DEFAULT 'Y',
+        match_status ENUM('matched', 'in_books_missing_in_2b', 'in_2b_missing_in_books', 'mismatch_value') DEFAULT 'in_2b_missing_in_books',
+        matched_invoice_id INT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (upload_id) REFERENCES gstr2b_uploads(id) ON DELETE CASCADE
+      );
+    `);
+
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS ca_firm_settings (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        accountant_id INT NOT NULL UNIQUE,
+        firm_name VARCHAR(255) DEFAULT 'Shah & Associates, Chartered Accountants',
+        icai_frn VARCHAR(50) DEFAULT '109283W',
+        partner_name VARCHAR(255) DEFAULT 'CA Rajesh Shah, FCA',
+        partner_membership_no VARCHAR(50) DEFAULT '048921',
+        contact_phone VARCHAR(20) DEFAULT '+91 98200 12345',
+        contact_email VARCHAR(255) DEFAULT 'tax@shahassociates.in',
+        custom_whatsapp_signature TEXT NULL,
+        tally_purchase_ledger VARCHAR(100) DEFAULT 'Purchase Account',
+        tally_cgst_ledger VARCHAR(100) DEFAULT 'Input CGST @ 9%',
+        tally_sgst_ledger VARCHAR(100) DEFAULT 'Input SGST @ 9%',
+        tally_igst_ledger VARCHAR(100) DEFAULT 'Input IGST @ 18%',
+        tally_roundoff_ledger VARCHAR(100) DEFAULT 'Round Off Account',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (accountant_id) REFERENCES accountants(id) ON DELETE CASCADE
+      );
+    `);
+
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        user_id INT NULL,
+        user_name VARCHAR(100) NOT NULL,
+        user_role ENUM('partner_ca', 'article_assistant') NOT NULL DEFAULT 'partner_ca',
+        action_type VARCHAR(100) NOT NULL,
+        entity_type VARCHAR(50) NOT NULL,
+        entity_id VARCHAR(50) NULL,
+        description TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
@@ -3244,29 +3354,39 @@ async function extractInvoiceWithGroq(buffer, mimeType) {
   try {
     console.log(`[Groq AI] Calling Groq Vision API (qwen/qwen3.8-27b, Size: ${buffer.length} bytes)...`);
     const base64Data = buffer.toString('base64');
-    const prompt = `Identify the tax invoice details from this image. Return strictly as a valid JSON object matching this schema. Do not wrap in markdown or backticks:
+    const prompt = `You are an expert Indian tax and accounting AI. Analyze this image/document, which may be ANY Indian commercial or financial document:
+1. Standard Printed Tax Invoice (Tally/Busy/Vyapar) with GST breakdown
+2. Handwritten "Kaccha" Bill / Rough Estimate / Cash Memo / Parchi (कच्चा बिल / पर्ची)
+3. Thermal Slip / POS Receipt / Petrol Pump Fuel Bill / Restaurant Bill
+4. Bill of Supply (Composition Dealer / Exempted Goods)
+5. Multi-lingual invoice (English, Hindi, Gujarati, Tamil, etc.)
+
+Extract details accurately even if handwritten, tilted, faint, stamped, or crumpled.
+Return strictly as a valid JSON object matching this schema. Do not wrap in markdown or backticks:
     {
-      "vendor_name": "string (Legal name of the vendor/supplier)",
-      "vendor_gstin": "string (15-character GSTIN of the vendor)",
-      "recipient_name": "string (Legal name of buyer/recipient if present)",
-      "recipient_gstin": "string (15-character GSTIN of buyer/recipient if present)",
-      "invoice_number": "string (invoice number)",
+      "document_type": "tax_invoice | kaccha_bill | thermal_receipt | bill_of_supply",
+      "is_handwritten": false,
+      "vendor_name": "string (Legal or trade name of vendor, shop, or 'Cash Vendor')",
+      "vendor_gstin": "string (15-character GSTIN if clearly present, else null)",
+      "recipient_name": "string (Legal name of buyer/recipient if present, else null)",
+      "recipient_gstin": "string (15-character GSTIN of buyer/recipient if present, else null)",
+      "invoice_number": "string (invoice/bill/memo number, or null)",
       "invoice_date": "string (YYYY-MM-DD format)",
-      "taxable_amount": number (overall taxable value),
-      "cgst_amount": number,
-      "sgst_amount": number,
-      "igst_amount": number,
-      "total_amount": number (invoice total),
-      "round_off": number (round-off adjustment if present),
-      "hsn_sac_code": "string (primary HSN or SAC code)",
+      "taxable_amount": 0,
+      "cgst_amount": 0,
+      "sgst_amount": 0,
+      "igst_amount": 0,
+      "total_amount": 0,
+      "round_off": 0,
+      "hsn_sac_code": "string",
       "tax_slabs": [
         {
-          "rate": number (GST tax percentage rate, e.g. 0, 5, 12, 18, 28),
-          "taxable_amount": number,
-          "cgst_amount": number,
-          "sgst_amount": number,
-          "igst_amount": number,
-          "items": "string (items or product category under this slab)"
+          "rate": 0,
+          "taxable_amount": 0,
+          "cgst_amount": 0,
+          "sgst_amount": 0,
+          "igst_amount": 0,
+          "items": "string"
         }
       ]
     }`;
@@ -3320,29 +3440,39 @@ async function extractInvoiceWithGemini(buffer, mimeType) {
     const { GoogleGenAI } = await import('@google/genai');
     const aiClient = new GoogleGenAI({ apiKey });
 
-    const prompt = `Identify the tax invoice details. Return strictly as a JSON object matching this schema. Do not wrap the JSON inside markdown codeblocks (do not write \`\`\`json):
+    const prompt = `You are an expert Indian tax and accounting AI. Analyze this image/document, which may be ANY Indian commercial or financial document:
+1. Standard Printed Tax Invoice (Tally/Busy/Vyapar) with GST breakdown
+2. Handwritten "Kaccha" Bill / Rough Estimate / Cash Memo / Parchi (कच्चा बिल / पर्ची)
+3. Thermal Slip / POS Receipt / Petrol Pump Fuel Bill / Restaurant Bill
+4. Bill of Supply (Composition Dealer / Exempted Goods)
+5. Multi-lingual invoice (English, Hindi, Gujarati, Tamil, etc.)
+
+Extract details accurately even if handwritten, tilted, faint, stamped, or crumpled.
+Return strictly as a JSON object matching this schema. Do not wrap the JSON inside markdown codeblocks (do not write \`\`\`json):
     {
-      "vendor_name": "string (Legal name of the vendor/supplier)",
-      "vendor_gstin": "string (15-character GSTIN of the vendor)",
-      "recipient_name": "string (Legal name of buyer/recipient if present)",
-      "recipient_gstin": "string (15-character GSTIN of buyer/recipient if present)",
-      "invoice_number": "string (invoice number)",
+      "document_type": "tax_invoice" | "kaccha_bill" | "thermal_receipt" | "bill_of_supply",
+      "is_handwritten": boolean,
+      "vendor_name": "string (Legal or trade name of vendor, shop, or 'Cash Vendor')",
+      "vendor_gstin": "string (15-character GSTIN if clearly present, else null)",
+      "recipient_name": "string (Legal name of buyer/recipient if present, else null)",
+      "recipient_gstin": "string (15-character GSTIN of buyer/recipient if present, else null)",
+      "invoice_number": "string (invoice/bill/memo number, or null)",
       "invoice_date": "string (YYYY-MM-DD format)",
-      "taxable_amount": number (overall taxable value),
-      "cgst_amount": number,
-      "sgst_amount": number,
-      "igst_amount": number,
-      "total_amount": number (invoice total),
-      "round_off": number (round-off adjustment if present),
-      "hsn_sac_code": "string (primary HSN or SAC code)",
+      "taxable_amount": number (taxable value, or total amount if no tax breakdown),
+      "cgst_amount": number (0 if no CGST),
+      "sgst_amount": number (0 if no SGST),
+      "igst_amount": number (0 if no IGST),
+      "total_amount": number (grand total payable),
+      "round_off": number (round-off adjustment, else 0),
+      "hsn_sac_code": "string",
       "tax_slabs": [
         {
-          "rate": number (GST tax percentage rate, e.g. 0, 5, 12, 18, 28),
+          "rate": number (GST rate e.g. 0, 5, 12, 18, 28),
           "taxable_amount": number,
           "cgst_amount": number,
           "sgst_amount": number,
           "igst_amount": number,
-          "items": "string (items or product category under this slab)"
+          "items": "string"
         }
       ]
     }`;
@@ -3556,8 +3686,6 @@ app.post('/webhooks/whatsapp', async (req, res) => {
         console.log('[Gemini AI] Successfully parsed data in Mock mode:', extractedData);
         const vendorGstin = (extractedData.vendor_gstin || '').toUpperCase().trim();
         const hasGstin = !!vendorGstin && isValidGstinChecksum(vendorGstin);
-        const confidence = hasGstin ? 0.95 : 0.42;
-        const status = hasGstin ? 'extracted' : 'needs_review';
 
         // Check Buyer / Recipient GSTIN against client business GSTIN
         const recipientGstin = (extractedData.recipient_gstin || '').toUpperCase().trim();
@@ -3587,16 +3715,31 @@ app.post('/webhooks/whatsapp', async (req, res) => {
           if (!totalAmount) totalAmount = taxableAmount + cgstAmount + sgstAmount + igstAmount + (parseFloat(extractedData.round_off) || 0);
         }
 
-        // Determine Section 17(5) / Section 10(4) / Section 16(2) eligibility
+        const docType = (extractedData.document_type || '').toLowerCase();
+        const isKacchaOrSlip = !hasGstin && (
+          docType.includes('kaccha') || 
+          docType.includes('receipt') || 
+          docType.includes('thermal') || 
+          docType.includes('supply') ||
+          extractedData.is_handwritten || 
+          !vendorGstin
+        );
+
         let isEligible = true;
         let ineligibilityReason = null;
         if (isBuyerMismatch) {
           isEligible = false;
           ineligibilityReason = `Recipient GSTIN Mismatch: Billed to ${recipientGstin}, expected ${clientGstin}`;
-        } else if (isCompositionVendor) {
+        } else if (isCompositionVendor || docType.includes('supply')) {
           isEligible = false;
-          ineligibilityReason = 'Section 10(4) - Composition Dealer charged GST';
+          ineligibilityReason = 'Section 10(4) - Composition Dealer / Bill of Supply';
+        } else if (isKacchaOrSlip) {
+          isEligible = false;
+          ineligibilityReason = 'Section 16(2) - Non-GST / Kaccha Bill (No Supplier GSTIN)';
         }
+
+        const confidence = hasGstin ? 0.95 : (isKacchaOrSlip ? 0.90 : 0.42);
+        const status = hasGstin ? 'extracted' : (isKacchaOrSlip ? 'confirmed' : 'needs_review');
 
         const invId = mockDb.invoices.length + 1;
         mockDb.invoices.push({
@@ -3604,10 +3747,10 @@ app.post('/webhooks/whatsapp', async (req, res) => {
           business_id: biz.id,
           source_type: 'whatsapp',
           file_url: media_url,
-          vendor_name: extractedData.vendor_name || 'Gemini Parsed Vendor',
-          vendor_gstin: vendorGstin,
+          vendor_name: extractedData.vendor_name || 'Cash Vendor',
+          vendor_gstin: vendorGstin || null,
           recipient_gstin: recipientGstin || null,
-          invoice_number: extractedData.invoice_number || `GEM-${Math.floor(1000 + Math.random()*9000)}`,
+          invoice_number: extractedData.invoice_number || `EXP-${Math.floor(1000 + Math.random()*9000)}`,
           invoice_date: extractedData.invoice_date || new Date().toISOString().split('T')[0],
           taxable_amount: taxableAmount,
           cgst_rate: (taxableAmount > 0 && cgstAmount > 0) ? Number(((cgstAmount / taxableAmount) * 100).toFixed(1)) : 0.00,
@@ -3628,11 +3771,14 @@ app.post('/webhooks/whatsapp', async (req, res) => {
 
         if (isBuyerMismatch) {
           await sendWhatsAppMessage(from, `⚠️ Alert for ${biz.name}: Invoice is addressed to Buyer GSTIN ${recipientGstin}, which does not match your registered GSTIN (${clientGstin}). Under GST Section 16(2)(a), ITC cannot be claimed.`);
-        } else if (isCompositionVendor) {
-          await sendWhatsAppMessage(from, `🚨 Tax Notice Alert: Supplier ${extractedData.vendor_name} is registered as a Composition Dealer. Under Section 10(4), they cannot charge GST. ITC is blocked.`);
+        } else if (isCompositionVendor || docType.includes('supply')) {
+          await sendWhatsAppMessage(from, `ℹ️ Bill of Supply / Composition Bill recorded for ${biz.name}:\n• Vendor: ${extractedData.vendor_name || 'Vendor'}\n• Total: ₹${totalAmount.toLocaleString('en-IN')}\n• Note: Composition dealers cannot charge GST. Logged as Business Expense (0 ITC).`);
         } else if (hasGstin) {
           const slabMsg = taxSlabs && taxSlabs.length > 1 ? ` (${taxSlabs.length} tax slabs extracted)` : '';
-          await sendWhatsAppMessage(from, `✅ Received! Invoice from ${extractedData.vendor_name || 'Vendor'} logged${slabMsg}. Total: ₹${totalAmount.toLocaleString('en-IN')}. Vendor GSTIN verified.`);
+          await sendWhatsAppMessage(from, `✅ Received! Tax Invoice from ${extractedData.vendor_name || 'Vendor'} logged${slabMsg}. Total: ₹${totalAmount.toLocaleString('en-IN')}. Vendor GSTIN verified.`);
+        } else if (isKacchaOrSlip) {
+          const docLabel = docType.includes('thermal') ? 'Thermal / Fuel Receipt' : 'Kaccha / Cash Memo';
+          await sendWhatsAppMessage(from, `📝 ${docLabel} recorded for ${biz.name}!\n• Vendor: ${extractedData.vendor_name || 'Cash Vendor'}\n• Amount: ₹${totalAmount.toLocaleString('en-IN')}\n• Note: Saved as Business Expense for P&L. (No GSTIN — 0 ITC claimed under Section 16).`);
         } else {
           await sendWhatsAppMessage(from, `Couldn't verify the GSTIN on this invoice from ${extractedData.vendor_name || 'Vendor'}. Please reply with the 15-character GSTIN directly.`);
         }
@@ -3772,8 +3918,6 @@ app.post('/webhooks/whatsapp', async (req, res) => {
         console.log('[Gemini AI] Successfully parsed data in Live DB mode:', extractedData);
         const vendorGstin = (extractedData.vendor_gstin || '').toUpperCase().trim();
         const hasGstin = !!vendorGstin && isValidGstinChecksum(vendorGstin);
-        const confidence = hasGstin ? 0.95 : 0.42;
-        const status = hasGstin ? 'extracted' : 'needs_review';
 
         // Check Buyer / Recipient GSTIN against client business GSTIN
         const recipientGstin = (extractedData.recipient_gstin || '').toUpperCase().trim();
@@ -3804,15 +3948,31 @@ app.post('/webhooks/whatsapp', async (req, res) => {
           if (!totalAmount) totalAmount = taxableAmount + cgstAmount + sgstAmount + igstAmount + (parseFloat(extractedData.round_off) || 0);
         }
 
+        const docType = (extractedData.document_type || '').toLowerCase();
+        const isKacchaOrSlip = !hasGstin && (
+          docType.includes('kaccha') || 
+          docType.includes('receipt') || 
+          docType.includes('thermal') || 
+          docType.includes('supply') ||
+          extractedData.is_handwritten || 
+          !vendorGstin
+        );
+
         let isEligible = true;
         let ineligibilityReason = null;
         if (isBuyerMismatch) {
           isEligible = false;
           ineligibilityReason = `Recipient GSTIN Mismatch: Billed to ${recipientGstin}, expected ${clientGstin}`;
-        } else if (isCompositionVendor) {
+        } else if (isCompositionVendor || docType.includes('supply')) {
           isEligible = false;
-          ineligibilityReason = 'Section 10(4) - Composition Dealer charged GST';
+          ineligibilityReason = 'Section 10(4) - Composition Dealer / Bill of Supply';
+        } else if (isKacchaOrSlip) {
+          isEligible = false;
+          ineligibilityReason = 'Section 16(2) - Non-GST / Kaccha Bill (No Supplier GSTIN)';
         }
+
+        const confidence = hasGstin ? 0.95 : (isKacchaOrSlip ? 0.90 : 0.42);
+        const status = hasGstin ? 'extracted' : (isKacchaOrSlip ? 'confirmed' : 'needs_review');
 
         await dbPool.query(`
           INSERT INTO invoices (business_id, source_type, file_url, vendor_name, vendor_gstin, recipient_gstin, invoice_number, invoice_date, taxable_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount, total_amount, round_off_amount, hsn_sac_code, extraction_confidence, extraction_status, is_itc_eligible, ineligibility_reason, tax_slabs_json)
@@ -3820,10 +3980,10 @@ app.post('/webhooks/whatsapp', async (req, res) => {
         `, [
           businessId,
           media_url,
-          extractedData.vendor_name || 'Gemini Parsed Vendor',
-          vendorGstin,
+          extractedData.vendor_name || 'Cash Vendor',
+          vendorGstin || null,
           recipientGstin || null,
-          extractedData.invoice_number || `GEM-${Math.floor(1000 + Math.random()*9000)}`,
+          extractedData.invoice_number || `EXP-${Math.floor(1000 + Math.random()*9000)}`,
           extractedData.invoice_date || new Date().toISOString().split('T')[0],
           taxableAmount,
           (taxableAmount > 0 && cgstAmount > 0) ? Number(((cgstAmount / taxableAmount) * 100).toFixed(1)) : 0.00,
@@ -3844,11 +4004,14 @@ app.post('/webhooks/whatsapp', async (req, res) => {
 
         if (isBuyerMismatch) {
           await sendWhatsAppMessage(from, `⚠️ Alert for ${businessName}: Invoice is addressed to Buyer GSTIN ${recipientGstin}, which does not match your registered GSTIN (${clientGstin}). Under GST Section 16(2)(a), ITC cannot be claimed.`);
-        } else if (isCompositionVendor) {
-          await sendWhatsAppMessage(from, `🚨 Tax Notice Alert: Supplier ${extractedData.vendor_name} is registered as a Composition Dealer. Under Section 10(4), they cannot charge GST. ITC is blocked.`);
+        } else if (isCompositionVendor || docType.includes('supply')) {
+          await sendWhatsAppMessage(from, `ℹ️ Bill of Supply / Composition Bill recorded for ${businessName}:\n• Vendor: ${extractedData.vendor_name || 'Vendor'}\n• Total: ₹${totalAmount.toLocaleString('en-IN')}\n• Note: Composition dealers cannot charge GST. Logged as Business Expense (0 ITC).`);
         } else if (hasGstin) {
           const slabMsg = taxSlabs && taxSlabs.length > 1 ? ` (${taxSlabs.length} tax slabs extracted)` : '';
-          await sendWhatsAppMessage(from, `✅ Received! Invoice from ${extractedData.vendor_name || 'Vendor'} logged${slabMsg}. Total: ₹${totalAmount.toLocaleString('en-IN')}. Vendor GSTIN is valid.`);
+          await sendWhatsAppMessage(from, `✅ Received! Tax Invoice from ${extractedData.vendor_name || 'Vendor'} logged${slabMsg}. Total: ₹${totalAmount.toLocaleString('en-IN')}. Vendor GSTIN verified.`);
+        } else if (isKacchaOrSlip) {
+          const docLabel = docType.includes('thermal') ? 'Thermal / Fuel Receipt' : 'Kaccha / Cash Memo';
+          await sendWhatsAppMessage(from, `📝 ${docLabel} recorded for ${businessName}!\n• Vendor: ${extractedData.vendor_name || 'Cash Vendor'}\n• Amount: ₹${totalAmount.toLocaleString('en-IN')}\n• Note: Saved as Business Expense for P&L. (No GSTIN — 0 ITC claimed under Section 16).`);
         } else {
           await sendWhatsAppMessage(from, `Couldn't verify the GSTIN on this invoice from ${extractedData.vendor_name || 'Vendor'}. Please reply with the 15-character GSTIN directly.`);
         }
