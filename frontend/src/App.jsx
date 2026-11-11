@@ -134,6 +134,19 @@ const FAQ_ITEMS = [
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api';
 
+const resolveFileUrl = (url) => {
+  if (!url) return null;
+  if (url.startsWith('meta-media-id:')) {
+    const id = url.replace('meta-media-id:', '').trim();
+    return `${API_BASE_URL}/media/${id}`;
+  }
+  if (url.startsWith('/api/media/')) {
+    const base = API_BASE_URL.replace(/\/api$/, '');
+    return `${base}${url}`;
+  }
+  return url;
+};
+
 const TAX_RULES_BY_FY = {
   '2026-2027': {
     fy: '2026-2027',
@@ -337,6 +350,9 @@ export default function App() {
 
   // CA Data Sovereignty & Security Vault Modal
   const [showSecurityCenterModal, setShowSecurityCenterModal] = useState(false);
+
+  // Real WhatsApp Bill Photo & Invoice Inspector Modal
+  const [previewBill, setPreviewBill] = useState(null);
 
   // Form States (Review Queue Editing)
   const [editingInvoiceId, setEditingInvoiceId] = useState(null);
@@ -8267,9 +8283,10 @@ function doPost(e) {
                           <div className="w-full md:w-1/4 h-48 md:h-full bg-slate-50 border-r border-slate-100 flex items-center justify-center p-md relative overflow-hidden">
                             {invoice.file_url ? (
                               <img 
-                                src={invoice.file_url} 
+                                src={resolveFileUrl(invoice.file_url)} 
                                 alt="raw invoice" 
-                                className="w-full h-full object-contain filter group-hover:scale-105 transition-transform duration-500"
+                                className="w-full h-full object-contain filter group-hover:scale-105 transition-transform duration-500 cursor-pointer"
+                                onClick={() => setPreviewBill(invoice)}
                               />
                             ) : (
                               <div className="text-center text-on-surface-variant">
@@ -8548,16 +8565,15 @@ function doPost(e) {
                                   <td className="p-3 text-center whitespace-nowrap">
                                     <div className="flex items-center justify-center gap-1.5">
                                       {inv.file_url ? (
-                                        <a
-                                          href={inv.file_url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-semibold text-[11px] flex items-center gap-1 shadow-2xs"
-                                          title="View bill photo / document"
+                                        <button
+                                          type="button"
+                                          onClick={() => setPreviewBill(inv)}
+                                          className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded font-bold text-[11px] flex items-center gap-1 shadow-2xs cursor-pointer transition-all active:scale-95"
+                                          title="Inspect bill photo and extracted numbers"
                                         >
-                                          <span className="material-symbols-outlined text-[13px]">image</span>
-                                          <span>Bill</span>
-                                        </a>
+                                          <span className="material-symbols-outlined text-[13px] text-teal-700">visibility</span>
+                                          <span>View Bill</span>
+                                        </button>
                                       ) : (
                                         <span className="text-[10px] text-slate-400 italic">No file</span>
                                       )}
@@ -8572,6 +8588,176 @@ function doPost(e) {
                     )}
                   </div>
                 )}
+              </div>
+            );
+          })()}
+
+          {/* REAL BILL PHOTO & INVOICE INSPECTOR MODAL */}
+          {previewBill && (() => {
+            const fileUrl = resolveFileUrl(previewBill.file_url);
+            const cgst = Number(previewBill.cgst_amount || 0);
+            const sgst = Number(previewBill.sgst_amount || 0);
+            const igst = Number(previewBill.igst_amount || 0);
+            const totalGst = cgst + sgst + igst;
+            const client = businesses.find(b => b.id === previewBill.business_id);
+
+            return (
+              <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-fadeIn">
+                <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
+                  
+                  {/* Modal Header */}
+                  <div className="p-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-2.5">
+                      <span className="material-symbols-outlined text-teal-400 text-[24px]">receipt_long</span>
+                      <div>
+                        <h3 className="font-bold text-sm">
+                          Bill #{previewBill.invoice_number || previewBill.id} — {previewBill.vendor_name || 'Vendor'}
+                        </h3>
+                        <p className="text-[11px] text-slate-300">
+                          Ingested via WhatsApp • Date: {previewBill.invoice_date || 'N/A'} • Total: ₹{Number(previewBill.total_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {fileUrl && (
+                        <a
+                          href={fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-teal-300 rounded text-xs font-semibold flex items-center gap-1 border border-slate-700"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                          <span>Open Tab</span>
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setPreviewBill(null)}
+                        className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Modal Content */}
+                  <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-12 gap-4 bg-slate-50">
+                    
+                    {/* Left side: Bill Image / Document */}
+                    <div className="md:col-span-7 bg-white p-3 rounded-lg border border-slate-200 flex flex-col items-center justify-center min-h-[320px]">
+                      {fileUrl ? (
+                        fileUrl.toLowerCase().endsWith('.pdf') ? (
+                          <iframe src={fileUrl} title="Invoice PDF" className="w-full h-[450px] rounded border border-slate-200" />
+                        ) : (
+                          <div className="w-full flex flex-col items-center">
+                            <img
+                              src={fileUrl}
+                              alt="Uploaded Bill"
+                              className="max-h-[500px] w-auto max-w-full object-contain rounded shadow-xs"
+                              onError={(e) => {
+                                e.currentTarget.onerror = null;
+                                e.currentTarget.style.display = 'none';
+                                const el = document.getElementById('bill-img-fallback');
+                                if (el) el.style.display = 'block';
+                              }}
+                            />
+                            <div id="bill-img-fallback" className="hidden p-6 text-center text-slate-500">
+                              <span className="material-symbols-outlined text-[44px] text-amber-500 mb-1">warning</span>
+                              <p className="font-semibold text-xs text-slate-700">Preview loading or streaming via WhatsApp API.</p>
+                              <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-teal-700 text-xs font-bold underline mt-1 inline-block">Download / Open File directly</a>
+                            </div>
+                          </div>
+                        )
+                      ) : (
+                        <div className="text-center p-6 text-slate-400">
+                          <span className="material-symbols-outlined text-[48px] mb-2">image_not_supported</span>
+                          <p className="text-xs">No media attachment URL recorded for this voucher.</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right side: Extracted Data Breakdown */}
+                    <div className="md:col-span-5 flex flex-col gap-3">
+                      <div className="bg-white p-4 rounded-lg border border-slate-200 space-y-3 shadow-2xs">
+                        <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-2">
+                          Extracted Voucher Details
+                        </h4>
+
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <span className="text-[10px] text-slate-400 font-bold uppercase block">Supplier / Vendor</span>
+                            <span className="font-bold text-ink-900">{previewBill.vendor_name || 'Vendor'}</span>
+                            <span className="font-mono text-[10px] text-slate-600 block">{previewBill.vendor_gstin || 'No GSTIN'}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-slate-400 font-bold uppercase block">Client Business</span>
+                            <span className="font-bold text-ink-900">{client?.name || previewBill.business_name || 'Client'}</span>
+                            <span className="font-mono text-[10px] text-slate-600 block">{client?.gstin || previewBill.business_gstin || 'N/A'}</span>
+                          </div>
+                        </div>
+
+                        {previewBill.recipient_gstin && (
+                          <div className="p-2 bg-teal-50 border border-teal-200 rounded text-xs">
+                            <span className="text-[10px] font-bold text-teal-800 uppercase block">Buyer on Invoice</span>
+                            <span className="font-medium text-slate-800">{previewBill.recipient_name || '—'}</span>
+                            <span className="font-mono font-bold text-teal-900 block">{previewBill.recipient_gstin}</span>
+                          </div>
+                        )}
+
+                        <div className="border-t border-slate-100 pt-2 space-y-1.5 text-xs font-mono">
+                          <div className="flex justify-between text-slate-600">
+                            <span>Taxable Subtotal:</span>
+                            <span className="font-semibold text-slate-900">₹{Number(previewBill.taxable_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                          </div>
+                          {cgst > 0 && (
+                            <div className="flex justify-between text-slate-600">
+                              <span>CGST:</span>
+                              <span>₹{cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                          )}
+                          {sgst > 0 && (
+                            <div className="flex justify-between text-slate-600">
+                              <span>SGST:</span>
+                              <span>₹{sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                          )}
+                          {igst > 0 && (
+                            <div className="flex justify-between text-slate-600">
+                              <span>IGST:</span>
+                              <span>₹{igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                          )}
+                          {Number(previewBill.round_off_amount || 0) !== 0 && (
+                            <div className="flex justify-between text-slate-600">
+                              <span>Round Off:</span>
+                              <span>₹{Number(previewBill.round_off_amount || 0).toFixed(2)}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between text-sm font-bold text-ink-900 border-t border-slate-200 pt-1.5">
+                            <span>Grand Total:</span>
+                            <span className="text-teal-700">₹{Number(previewBill.total_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-slate-100 pt-2">
+                          <span className="text-[10px] text-slate-400 font-bold uppercase block mb-1">ITC Compliance Status</span>
+                          {previewBill.is_itc_eligible !== false ? (
+                            <div className="p-2 bg-emerald-50 border border-emerald-200 rounded text-emerald-800 text-xs font-bold flex items-center gap-1.5">
+                              <span className="material-symbols-outlined text-[16px] text-emerald-600">verified</span>
+                              <span>Eligible for Input Tax Credit in GSTR-3B</span>
+                            </div>
+                          ) : (
+                            <div className="p-2 bg-amber-50 border border-amber-200 rounded text-amber-900 text-xs font-semibold flex items-center gap-1.5">
+                              <span className="material-symbols-outlined text-[16px] text-amber-600">block</span>
+                              <span>{previewBill.ineligibility_reason || 'ITC Ineligible / Kaccha bill'}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
               </div>
             );
           })()}

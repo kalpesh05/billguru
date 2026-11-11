@@ -949,6 +949,24 @@ app.get('/api/invoices', authenticateToken, async (req, res) => {
   }
 });
 
+// 3b. GET /api/media/:mediaId — Stream WhatsApp media / bill photo to browser
+app.get('/api/media/:mediaId', async (req, res) => {
+  const rawId = req.params.mediaId.replace('meta-media-id:', '').trim();
+  try {
+    const downloaded = await downloadMetaMedia(rawId);
+    if (!downloaded || !downloaded.buffer) {
+      return res.status(404).send('Media file not found or expired');
+    }
+    res.setHeader('Content-Type', downloaded.mimeType || 'image/jpeg');
+    res.setHeader('Content-Disposition', `inline; filename="bill_${rawId}.jpg"`);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.end(downloaded.buffer);
+  } catch (err) {
+    console.error(`[Media Route Error for ${rawId}]`, err.message);
+    return res.status(500).send(`Unable to load bill image: ${err.message}`);
+  }
+});
+
 // 3. GET Invoices for a Business
 app.get('/api/businesses/:id/invoices', authenticateToken, async (req, res) => {
   const businessId = parseInt(req.params.id, 10);
@@ -3314,8 +3332,14 @@ function detectBufferMimeType(buffer) {
   return 'image/jpeg';
 }
 
+const mediaMemoryCache = new Map();
+
 // Helper to query Meta Graph API and download binary media (Phase 1.2)
 async function downloadMetaMedia(mediaId) {
+  if (mediaMemoryCache.has(mediaId)) {
+    return mediaMemoryCache.get(mediaId);
+  }
+
   const token = process.env.META_ACCESS_TOKEN;
   if (!token) {
     throw new Error('META_ACCESS_TOKEN not configured to fetch Meta media');
@@ -3349,7 +3373,14 @@ async function downloadMetaMedia(mediaId) {
   const buffer = Buffer.from(arrayBuffer);
   const mimeType = declaredMime || detectBufferMimeType(buffer);
 
-  return { buffer, mimeType };
+  const result = { buffer, mimeType };
+  // Cache the last 150 media files in memory
+  if (mediaMemoryCache.size > 150) {
+    const firstKey = mediaMemoryCache.keys().next().value;
+    mediaMemoryCache.delete(firstKey);
+  }
+  mediaMemoryCache.set(mediaId, result);
+  return result;
 }
 
 // Helper to download image or document buffer from Meta or URL
