@@ -1627,7 +1627,7 @@ export default function App() {
   const portalNavItems = [
     { view: 'cfo-advisory', label: 'Virtual CFO Desk', icon: 'trending_up', hint: 'Runway stress-testing & Promoter Advisory Briefs' },
     { view: 'solo-business', label: 'Shop Owner Portal (DIY)', icon: 'storefront', hint: 'Simplified billing portal for dukandaars' },
-    { view: 'salaried-portal', label: 'Director Tax Vault', icon: 'shield_person', hint: 'Form 16 & Personal Tax for Client Promoters & HNIs' },
+    { view: 'salaried-portal', label: 'Director Tax Vault (Salaried)', icon: 'shield_person', hint: 'Form 16, deductions & Old vs New Regime for Salaried & Promoters' },
     { view: 'whatsapp', label: 'WhatsApp Simulator', icon: 'chat', hint: 'Interactive client bill snap demo' },
     { view: 'sovereign-db', label: 'Sovereign Database', icon: 'table_view', hint: 'Encrypted audit ledger & raw data' },
     { view: 'outward', label: 'Sales Ledger (GSTR-1)', icon: 'upload_file', hint: 'Outward supplies register' },
@@ -1645,7 +1645,7 @@ export default function App() {
     { view: 'rule37-tracker', label: 'Rule 37 Tracker', icon: 'schedule', hint: '180-day vendor payment aging & ITC reversal', category: 'Registers' },
     { view: 'solo-business', label: 'Solo Shop (DIY)', icon: 'storefront', hint: 'Micro-merchant simplified invoicing portal', category: 'Client Portals' },
     { view: 'cfo-advisory', label: 'Virtual CFO Desk', icon: 'trending_up', hint: 'Cash runway stress-testing & Promoter Advisory Briefs', category: 'Executive & Advisory' },
-    { view: 'salaried-portal', label: 'Director Tax Vault', icon: 'shield_person', hint: 'Form 16 & Personal Tax for Client Promoters & HNIs', category: 'Executive & Advisory' },
+    { view: 'salaried-portal', label: 'Director Tax (Salaried)', icon: 'shield_person', hint: 'Form 16, deductions & Old vs New Regime for Salaried & Promoters', category: 'Executive & Advisory' },
     { view: 'whatsapp', label: 'WhatsApp Sim', icon: 'chat', hint: 'Test client WhatsApp bill capture experience', category: 'Tools & Simulators' },
     { view: 'sovereign-db', label: 'Sovereign Sheets DB', icon: 'table_view', hint: 'Private client database & audit records', category: 'Tools & Simulators' },
     { view: 'firm-settings', label: 'CA Firm Profile', icon: 'domain', hint: 'Firm registration, ICAI membership & COP', category: 'Tools & Simulators' },
@@ -4886,7 +4886,7 @@ function doPost(e) {
                   <div className="w-6 h-px bg-slate-300 my-1"></div>
 
                   {/* Portal & Demo Icons */}
-                  {portalNavItems.slice(0, 3).map(item => {
+                  {portalNavItems.slice(0, 4).map(item => {
                     const isActive = currentView === item.view && !selectedBusiness;
                     return (
                       <button 
