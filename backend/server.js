@@ -52,6 +52,15 @@ app.use('/webhooks/whatsapp', webhookLimiter);
 
 // --- IN-MEMORY DATABASE FALLBACK (Conforming to DESIGN.md specs) ---
 const mockDb = {
+  users: [
+    { id: 1, name: 'Super Admin (Product Owner)', email: 'admin@billguru.ai', phone: '9999900000', role: 'super_admin', organization: 'BillGuru AI HQ', password_plain: 'admin123', must_change_password: false, status: 'active', created_at: '2026-01-01', last_login: 'Just now' },
+    { id: 2, name: 'CA Rajesh Shah, FCA', email: 'rajesh@shah.com', phone: '9876543210', role: 'partner_ca', organization: 'Shah & Associates (Chartered Accountants)', password_plain: 'rajesh123', must_change_password: false, status: 'active', created_at: '2026-01-15', last_login: '2 hours ago' },
+    { id: 3, name: 'Karan Dave', email: 'karan@shah.com', phone: '9876543211', role: 'article_assistant', organization: 'Shah & Associates', password_plain: 'karan123', must_change_password: false, status: 'active', created_at: '2026-02-01', last_login: 'Yesterday' },
+    { id: 4, name: 'Ramesh Patel (Mall Owner)', email: 'ramesh@apexmall.in', phone: '9825011223', role: 'mall_owner', organization: 'Apex Supermall & Hypermarket', password_plain: 'ramesh123', must_change_password: false, status: 'active', created_at: '2026-03-10', last_login: '3 days ago' },
+    { id: 5, name: 'Meena Devi (Shop Owner)', email: 'meena@kirana.in', phone: '9123456789', role: 'shop_owner', organization: 'Meena Kirana Store', password_plain: 'temp123', must_change_password: true, status: 'pending_pw_change', created_at: '2026-04-12', last_login: 'Never' },
+    { id: 6, name: 'Suresh Munshi (Mehtaji)', email: 'suresh@munshi.in', phone: '9345678901', role: 'mehtaji', organization: 'Ganesh Wholesale & Staples', password_plain: 'temp123', must_change_password: true, status: 'pending_pw_change', created_at: '2026-05-05', last_login: 'Never' },
+    { id: 7, name: 'Ananya Sharma', email: 'ananya.s@techcorp.in', phone: '9876500001', role: 'salaried', organization: 'TechCorp India Pvt Ltd', password_plain: 'ananya123', must_change_password: false, status: 'active', created_at: '2026-06-01', last_login: '1 week ago' }
+  ],
   accountants: [
     // Password for Rajesh Shah is: rajesh123 (hashed value will be stored in MySQL, plaintext checked in mock fallback)
     { id: 1, name: 'Rajesh Shah', firm_name: 'Shah & Associates', email: 'rajesh@shah.com', phone: '9876543210', password_plain: 'rajesh123', plan_tier: 'pro' }
@@ -656,6 +665,21 @@ function authenticateToken(req, res, next) {
       req.role = 'salaried';
       return next();
     }
+    if (token.startsWith('mock-jwt-user-')) {
+      const uId = parseInt(token.replace('mock-jwt-user-', '')) || 1;
+      const u = mockDb.users.find(user => user.id === uId) || mockDb.users[0];
+      req.user = u;
+      req.role = u.role;
+      req.ca = u;
+      return next();
+    }
+    if (token === 'mock-jwt-admin' || token === 'mock-jwt-super-admin') {
+      const admin = mockDb.users.find(u => u.role === 'super_admin') || mockDb.users[0];
+      req.user = admin;
+      req.role = 'super_admin';
+      req.ca = admin;
+      return next();
+    }
     if (token.startsWith('mock-jwt-')) {
       const caId = parseInt(token.replace('mock-jwt-', '')) || 1;
       const acc = mockDb.accountants.find(a => a.id === caId) || mockDb.accountants[0];
@@ -748,7 +772,7 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// B. POST Login CA Accountant
+// B. POST Unified Login (Super Admin, CAs, Mall Owners, Shop Owners, Staff)
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
 
@@ -756,29 +780,178 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(400).json({ error: 'Email and password are required' });
   }
 
+  const cleanEmail = email.trim().toLowerCase();
+
   if (isDbMockMode) {
-    const ca = mockDb.accountants.find(a => a.email === email);
+    // 1. Search in mockDb.users first
+    const userMatch = mockDb.users.find(u => 
+      u.email.toLowerCase() === cleanEmail || u.phone === cleanEmail
+    );
+
+    if (userMatch) {
+      if (userMatch.password_plain !== password) {
+        return res.status(401).json({ error: 'Invalid password. Please check credentials or contact Super Admin.' });
+      }
+
+      userMatch.last_login = 'Just now';
+      const mockToken = userMatch.role === 'super_admin' ? 'mock-jwt-admin' : `mock-jwt-user-${userMatch.id}`;
+      return res.json({
+        success: true,
+        token: mockToken,
+        user: {
+          id: userMatch.id,
+          name: userMatch.name,
+          email: userMatch.email,
+          phone: userMatch.phone,
+          role: userMatch.role,
+          organization: userMatch.organization,
+          firm_name: userMatch.organization,
+          must_change_password: !!userMatch.must_change_password,
+          status: userMatch.status
+        }
+      });
+    }
+
+    // 2. Fallback to accountants
+    const ca = mockDb.accountants.find(a => a.email.toLowerCase() === cleanEmail);
     if (!ca || ca.password_plain !== password) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
     const mockToken = `mock-jwt-${ca.id}`;
-    return res.json({ success: true, token: mockToken, user: { id: ca.id, name: ca.name, firm_name: ca.firm_name, email: ca.email, plan_tier: ca.plan_tier } });
+    return res.json({
+      success: true,
+      token: mockToken,
+      user: {
+        id: ca.id,
+        name: ca.name,
+        firm_name: ca.firm_name,
+        organization: ca.firm_name,
+        email: ca.email,
+        role: 'partner_ca',
+        must_change_password: false,
+        plan_tier: ca.plan_tier
+      }
+    });
   }
 
   try {
-    const [rows] = await dbPool.query('SELECT * FROM accountants WHERE email = ?', [email]);
+    const [rows] = await dbPool.query('SELECT * FROM accountants WHERE email = ?', [cleanEmail]);
     if (rows.length === 0) return res.status(401).json({ error: 'Invalid email or password' });
 
     const ca = rows[0];
     const isPwMatch = bcrypt.compareSync(password, ca.password_hash);
     if (!isPwMatch) return res.status(401).json({ error: 'Invalid email or password' });
 
-    const token = jwt.sign({ id: ca.id, name: ca.name, email: ca.email, firm_name: ca.firm_name, role: 'ca' }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ success: true, token, user: { id: ca.id, name: ca.name, firm_name: ca.firm_name, email: ca.email, plan_tier: ca.plan_tier } });
+    const token = jwt.sign({ id: ca.id, name: ca.name, email: ca.email, firm_name: ca.firm_name, role: ca.role || 'partner_ca' }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ success: true, token, user: { id: ca.id, name: ca.name, firm_name: ca.firm_name, organization: ca.firm_name, email: ca.email, role: ca.role || 'partner_ca', must_change_password: false, plan_tier: ca.plan_tier } });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// C. POST Change Password (Self-service upon first login or profile security)
+app.post('/api/auth/change-password', authenticateToken, async (req, res) => {
+  const { current_password, new_password } = req.body;
+  if (!new_password || new_password.length < 6) {
+    return res.status(400).json({ error: 'New password must be at least 6 characters long' });
+  }
+
+  if (isDbMockMode) {
+    const u = mockDb.users.find(user => user.id === req.user?.id) || mockDb.users.find(user => user.email === req.user?.email);
+    if (u) {
+      u.password_plain = new_password;
+      u.must_change_password = false;
+      u.status = 'active';
+      return res.json({ success: true, message: 'Password updated successfully! Welcome to your dashboard.' });
+    }
+    return res.json({ success: true, message: 'Password updated successfully.' });
+  }
+
+  try {
+    const passwordHash = bcrypt.hashSync(new_password, 10);
+    await dbPool.query('UPDATE accountants SET password_hash = ? WHERE id = ?', [passwordHash, req.user.id]);
+    res.json({ success: true, message: 'Password updated successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- SUPER ADMIN PLATFORM ROUTES ---
+
+// 1. GET All Users across the entire platform (Super Admin only)
+app.get('/api/admin/users', authenticateToken, (req, res) => {
+  if (req.role !== 'super_admin' && req.user?.role !== 'super_admin') {
+    return res.status(403).json({ error: 'Access denied: Super Admin privilege required.' });
+  }
+  return res.json({ success: true, users: mockDb.users });
+});
+
+// 2. POST Create User & Assign Role (Super Admin only)
+app.post('/api/admin/users', authenticateToken, (req, res) => {
+  if (req.role !== 'super_admin' && req.user?.role !== 'super_admin') {
+    return res.status(403).json({ error: 'Access denied: Super Admin privilege required.' });
+  }
+
+  const { name, email, phone, role, organization, password } = req.body;
+  if (!name || !email || !organization) {
+    return res.status(400).json({ error: 'Name, email, and organization are required' });
+  }
+
+  const existing = mockDb.users.find(u => u.email.toLowerCase() === email.trim().toLowerCase());
+  if (existing) {
+    return res.status(400).json({ error: 'A user with this email already exists' });
+  }
+
+  const newUser = {
+    id: mockDb.users.length + 1,
+    name: name.trim(),
+    email: email.trim().toLowerCase(),
+    phone: phone ? phone.trim() : '9800000000',
+    role: role || 'shop_owner',
+    organization: organization.trim(),
+    password_plain: password || 'Temp@2026#',
+    must_change_password: true,
+    status: 'pending_pw_change',
+    created_at: new Date().toISOString().split('T')[0],
+    last_login: 'Never'
+  };
+
+  mockDb.users.unshift(newUser);
+  return res.json({ success: true, user: newUser, message: `User "${newUser.name}" created with role "${newUser.role}".` });
+});
+
+// 3. PUT Update User Role (Super Admin only)
+app.put('/api/admin/users/:id/role', authenticateToken, (req, res) => {
+  if (req.role !== 'super_admin' && req.user?.role !== 'super_admin') {
+    return res.status(403).json({ error: 'Access denied: Super Admin privilege required.' });
+  }
+
+  const userId = parseInt(req.params.id);
+  const { role } = req.body;
+  const user = mockDb.users.find(u => u.id === userId);
+
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  user.role = role;
+  return res.json({ success: true, user, message: `Role for ${user.name} updated to ${role}.` });
+});
+
+// 4. POST Reset User Password (Super Admin only)
+app.post('/api/admin/users/:id/reset-password', authenticateToken, (req, res) => {
+  if (req.role !== 'super_admin' && req.user?.role !== 'super_admin') {
+    return res.status(403).json({ error: 'Access denied: Super Admin privilege required.' });
+  }
+
+  const userId = parseInt(req.params.id);
+  const { temp_password } = req.body;
+  const user = mockDb.users.find(u => u.id === userId);
+
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  user.password_plain = temp_password || `Temp@${Math.floor(1000 + Math.random() * 9000)}#`;
+  user.must_change_password = true;
+  user.status = 'pending_pw_change';
+
+  return res.json({ success: true, temp_password: user.password_plain, message: `Password reset for ${user.name}. Client must change on next login.` });
 });
 
 // --- SECURED BUSINESS & INVOICE API ROUTES ---

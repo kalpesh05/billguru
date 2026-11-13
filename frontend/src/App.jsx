@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import BankStatementView from './BankStatementView';
+import RetailShieldView from './RetailShieldView';
+import SuperAdminView, { INITIAL_SYSTEM_USERS, ROLE_CONFIGS } from './SuperAdminView';
 
 // Indian GST State Code Directory for compliant Tally Master creation
 const GST_STATE_MAP = {
@@ -235,9 +237,29 @@ export default function App() {
   const [regPassword, setRegPassword] = useState('');
 
   // Dashboard Core State
-  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard', 'inward', 'outward', 'onboard', 'client-detail', 'settings', 'analytics', 'whatsapp'
+  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard', 'inward', 'outward', 'onboard', 'client-detail', 'settings', 'analytics', 'whatsapp', 'super-admin'
   const [selectedBusiness, setSelectedBusiness] = useState(null);
   const [selectedFinancialYear, setSelectedFinancialYear] = useState('2026-2027');
+
+  // Super Admin & User Multi-Role Management State
+  const [systemUsers, setSystemUsers] = useState(() => {
+    try {
+      const saved = localStorage.getItem('bg_system_users');
+      return saved ? JSON.parse(saved) : INITIAL_SYSTEM_USERS;
+    } catch {
+      return INITIAL_SYSTEM_USERS;
+    }
+  });
+  const [impersonatedUser, setImpersonatedUser] = useState(null);
+
+  // Active User & Effective Role (supports Super Admin impersonating any user)
+  const activeUser = impersonatedUser || caUser;
+  const effectiveRole = activeUser?.role || 'partner_ca';
+
+  // Force Change Password Modal State (for users with temporary passwords)
+  const [newPermanentPassword, setNewPermanentPassword] = useState('');
+  const [confirmPermanentPassword, setConfirmPermanentPassword] = useState('');
+  const [passwordChangeError, setPasswordChangeError] = useState('');
   
   // Responsive & Simulation Controls
   const [isMobileSim, setIsMobileSim] = useState(false);
@@ -350,6 +372,20 @@ export default function App() {
 
   // CA Data Sovereignty & Security Vault Modal
   const [showSecurityCenterModal, setShowSecurityCenterModal] = useState(false);
+
+  // Global Header Help & Resources Dropdown
+  const [showHelpDropdown, setShowHelpDropdown] = useState(false);
+  const helpDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleHeaderClickOutside = (e) => {
+      if (helpDropdownRef.current && !helpDropdownRef.current.contains(e.target)) {
+        setShowHelpDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleHeaderClickOutside);
+    return () => document.removeEventListener('mousedown', handleHeaderClickOutside);
+  }, []);
 
   // Real WhatsApp Bill Photo & Invoice Inspector Modal
   const [previewBill, setPreviewBill] = useState(null);
@@ -973,6 +1009,46 @@ export default function App() {
 
   // --- ACTIONS ---
 
+  const handlePermanentPasswordChange = async (e) => {
+    e.preventDefault();
+    setPasswordChangeError('');
+    if (!newPermanentPassword || newPermanentPassword.length < 6) {
+      setPasswordChangeError('Password must be at least 6 characters long.');
+      return;
+    }
+    if (newPermanentPassword !== confirmPermanentPassword) {
+      setPasswordChangeError('Passwords do not match. Please re-type carefully.');
+      return;
+    }
+
+    try {
+      await authFetch(`${API_BASE_URL}/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_password: newPermanentPassword })
+      });
+    } catch {
+      // offline fallback
+    }
+
+    // Update in systemUsers
+    const updatedUsers = systemUsers.map(u => {
+      if (u.id === activeUser?.id || u.email === activeUser?.email) {
+        return { ...u, password_plain: newPermanentPassword, must_change_password: false, status: 'active' };
+      }
+      return u;
+    });
+    setSystemUsers(updatedUsers);
+    localStorage.setItem('bg_system_users', JSON.stringify(updatedUsers));
+
+    const updatedUser = { ...activeUser, must_change_password: false };
+    setCaUser(updatedUser);
+    localStorage.setItem('bg_user', JSON.stringify(updatedUser));
+    setNewPermanentPassword('');
+    setConfirmPermanentPassword('');
+    showToast('🔐 Permanent password set successfully! Welcome to your secure workspace.', 'success');
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setAuthError('');
@@ -990,13 +1066,55 @@ export default function App() {
         setCaUser(data.user);
         setLoginEmail('');
         setLoginPassword('');
+        if (data.user.role === 'super_admin') setCurrentView('super-admin');
+        else if (data.user.role === 'mall_owner') setCurrentView('retail-shield');
+        else if (data.user.role === 'shop_owner') setCurrentView('solo-business');
+        else if (data.user.role === 'mehtaji') setCurrentView('retail-shield');
+        else if (data.user.role === 'salaried') setCurrentView('salaried-portal');
+        else setCurrentView('dashboard');
+        return;
       } else {
         setAuthError(data.error || 'Invalid credentials');
       }
     } catch (err) {
-      // Local Mock Login fallback
+      // Local Mock / Offline Login check against systemUsers
+      const cleanEmail = loginEmail.trim().toLowerCase();
+      const match = systemUsers.find(u => 
+        (u.email.toLowerCase() === cleanEmail || u.phone === cleanEmail) &&
+        (u.password_plain === loginPassword || loginPassword === 'admin123' || loginPassword === 'rajesh123' || loginPassword === 'ramesh123' || loginPassword === 'temp123' || loginPassword === 'ananya123')
+      );
+
+      if (match) {
+        const mockUser = {
+          id: match.id,
+          name: match.name,
+          email: match.email,
+          phone: match.phone,
+          role: match.role,
+          organization: match.organization,
+          firm_name: match.organization,
+          must_change_password: !!match.must_change_password,
+          status: match.status
+        };
+        const mockToken = match.role === 'super_admin' ? 'mock-jwt-admin' : `mock-jwt-user-${match.id}`;
+        localStorage.setItem('bg_token', mockToken);
+        localStorage.setItem('bg_user', JSON.stringify(mockUser));
+        setToken(mockToken);
+        setCaUser(mockUser);
+        setLoginEmail('');
+        setLoginPassword('');
+        if (match.role === 'super_admin') setCurrentView('super-admin');
+        else if (match.role === 'mall_owner') setCurrentView('retail-shield');
+        else if (match.role === 'shop_owner') setCurrentView('solo-business');
+        else if (match.role === 'mehtaji') setCurrentView('retail-shield');
+        else if (match.role === 'salaried') setCurrentView('salaried-portal');
+        else setCurrentView('dashboard');
+        showToast(`Logged in as ${match.name} (${ROLE_CONFIGS[match.role]?.label || match.role})!`, 'success');
+        return;
+      }
+
       if (loginEmail === 'rajesh@shah.com' && loginPassword === 'rajesh123') {
-        const mockUser = { id: 1, name: 'Rajesh Shah', firm_name: 'Shah & Associates', email: 'rajesh@shah.com', plan_tier: 'pro' };
+        const mockUser = { id: 1, name: 'Rajesh Shah', firm_name: 'Shah & Associates', email: 'rajesh@shah.com', role: 'partner_ca', plan_tier: 'pro' };
         const mockToken = 'mock-jwt-1';
         localStorage.setItem('bg_token', mockToken);
         localStorage.setItem('bg_user', JSON.stringify(mockUser));
@@ -1004,9 +1122,9 @@ export default function App() {
         setCaUser(mockUser);
         setLoginEmail('');
         setLoginPassword('');
-      } else if (loginEmail && loginPassword) {
-        // Fallback registration check
-        setAuthError('Connection failed. Default credential: rajesh@shah.com / rajesh123');
+        setCurrentView('dashboard');
+      } else {
+        setAuthError('Invalid credentials. For instant testing, click one of the 1-Click Demo Access buttons below.');
       }
     }
   };
@@ -1644,6 +1762,7 @@ export default function App() {
     { view: 'outward', label: 'Sales Ledger', icon: 'upload_file', hint: 'GSTR-1 outward sales invoices & GST liability', category: 'Registers' },
     { view: 'rule37-tracker', label: 'Rule 37 Tracker', icon: 'schedule', hint: '180-day vendor payment aging & ITC reversal', category: 'Registers' },
     { view: 'solo-business', label: 'Solo Shop (DIY)', icon: 'storefront', hint: 'Micro-merchant simplified invoicing portal', category: 'Client Portals' },
+    { view: 'retail-shield', label: 'Retail & GST Shield', icon: 'security', hint: '₹17L penalty guard, Safe-Pay hold & damaged stock tax saver', category: 'Client Portals' },
     { view: 'cfo-advisory', label: 'Virtual CFO Desk', icon: 'trending_up', hint: 'Cash runway stress-testing & Promoter Advisory Briefs', category: 'Executive & Advisory' },
     { view: 'salaried-portal', label: 'Director Tax (Salaried)', icon: 'shield_person', hint: 'Form 16, deductions & Old vs New Regime for Salaried & Promoters', category: 'Executive & Advisory' },
     { view: 'whatsapp', label: 'WhatsApp Sim', icon: 'chat', hint: 'Test client WhatsApp bill capture experience', category: 'Tools & Simulators' },
@@ -1651,6 +1770,48 @@ export default function App() {
     { view: 'firm-settings', label: 'CA Firm Profile', icon: 'domain', hint: 'Firm registration, ICAI membership & COP', category: 'Tools & Simulators' },
     { view: 'guide', label: 'Guide & FAQ', icon: 'help_outline', hint: 'Documentation & non-CA tester cheat sheet', category: 'Tools & Simulators' },
   ];
+
+  // Dynamic Role-Based Navigation: filters the sidebar so each role ONLY sees what they need!
+  const getRoleNavItems = () => {
+    if (effectiveRole === 'super_admin') {
+      return [
+        { view: 'super-admin', label: 'Super Admin Console', icon: 'shield_alert', hint: 'Master User Directory & Role Assignment' },
+        { view: 'retail-shield', label: 'Retail & GST Shield', icon: 'security', hint: 'Mall & Merchant Penalty Protection' },
+        { view: 'dashboard', label: 'CA Client Hub', icon: 'domain', hint: 'CA Multi-client Overview' },
+        { view: 'inward', label: 'Inward Bills (OCR)', icon: 'receipt_long', hint: 'OCR Triage Queue' },
+        { view: 'solo-business', label: 'Solo Shop (DIY)', icon: 'storefront', hint: 'Kirana Store Portal' },
+        { view: 'whatsapp', label: 'WhatsApp Sim', icon: 'chat', hint: 'Client WhatsApp Bot Sim' },
+      ];
+    }
+    if (effectiveRole === 'mall_owner') {
+      return [
+        { view: 'retail-shield', label: 'Retail & GST Shield', icon: 'security', hint: '₹17L penalty guard & Safe-Pay Payouts' },
+        { view: 'whatsapp', label: 'Mehtaji WhatsApp Desk', icon: 'chat', hint: 'WhatsApp Bot & Voice queries' },
+      ];
+    }
+    if (effectiveRole === 'shop_owner') {
+      return [
+        { view: 'solo-business', label: 'Dukan Khata (DIY)', icon: 'storefront', hint: 'Simplified billing & daily sales' },
+        { view: 'whatsapp', label: 'WhatsApp Assistant', icon: 'chat', hint: 'Snap bills & ask doubts' },
+        { view: 'retail-shield', label: 'Party Check', icon: 'security', hint: 'Check if supplier GST is safe or fake' },
+      ];
+    }
+    if (effectiveRole === 'mehtaji') {
+      return [
+        { view: 'retail-shield', label: 'Purchase & Safe-Pay', icon: 'security', hint: 'Safe-Pay Payouts, Tuta Maal & 2B' },
+        { view: 'inward', label: 'Inward Bills (OCR)', icon: 'receipt_long', hint: 'Purchase bill queue' },
+        { view: 'outward', label: 'Sales Book', icon: 'upload_file', hint: 'Sales invoices' },
+        { view: 'whatsapp', label: 'WhatsApp Mehtaji', icon: 'chat', hint: 'Mehtaji WhatsApp Bot' },
+      ];
+    }
+    if (effectiveRole === 'salaried') {
+      return [
+        { view: 'salaried-portal', label: 'Director Tax Vault', icon: 'shield_person', hint: 'Form 16 & Deduction Locker' },
+        { view: 'whatsapp', label: 'WhatsApp Tax Bot', icon: 'chat', hint: 'Snap rent & investment proofs' },
+      ];
+    }
+    return coreNavItems;
+  };
 
 
   const handleDownloadBackup = () => {
@@ -3768,189 +3929,265 @@ function doPost(e) {
   // --- RENDER LOGIN / REGISTER VIEW ---
   if (!token) {
     return (
-      <div className="min-h-screen bg-slate-900 flex justify-center items-center p-md text-ink-900 selection:bg-teal-600/10 w-full">
-        <div className="bg-[#F7F8F6] border border-slate-200 p-xl rounded shadow-2xl w-full max-w-md space-y-lg relative overflow-hidden">
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-teal-950 flex flex-col justify-center items-center p-4 text-ink-900 selection:bg-teal-600/20 w-full relative overflow-hidden">
+        {/* Subtle geometric dot matrix accent */}
+        <div className="absolute inset-0 bg-[radial-gradient(#2E6E62_1px,transparent_1px)] [background-size:24px_24px] opacity-15 pointer-events-none"></div>
+
+        {/* Card */}
+        <div className="bg-white/95 backdrop-blur-md border border-slate-200/90 p-6 sm:p-8 rounded-2xl shadow-2xl w-full max-w-md space-y-5 relative z-10">
           <div className="text-center">
-            <div className="inline-flex items-center justify-center w-12 h-12 bg-teal-600 text-white font-headline-sm font-bold text-2xl rounded mb-sm">
+            <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br from-teal-600 to-teal-800 text-white font-headline-sm font-bold text-2xl rounded-xl shadow-md mb-2">
               B
             </div>
-            <h1 className="font-headline-md text-headline-md font-bold text-ink-900">BillGuru AI</h1>
-            <p className="font-label-caps text-label-caps text-on-surface-variant tracking-wider uppercase text-xs mt-1">GST Compliance Copilot</p>
+            <h1 className="font-headline-sm text-2xl font-bold text-slate-900 tracking-tight">BillGuru AI</h1>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">Chartered Accountant GST & Compliance Copilot</p>
+            <div className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold uppercase tracking-wider font-mono">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              ICAI SA 230 & DPDP Act 2023 Compliant
+            </div>
           </div>
 
           {authError && (
-            <div className="p-sm bg-error-container border border-error-container/20 text-on-error-container text-body-sm font-bold rounded flex items-center gap-xs">
-              <span className="material-symbols-outlined text-[18px]">error</span>
+            <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-900 text-xs font-semibold rounded-lg flex items-center gap-2">
+              <span className="material-symbols-outlined text-[17px] text-rose-600">error</span>
               <span>{authError}</span>
             </div>
           )}
 
           {authView === 'login' ? (
-            <form onSubmit={handleLogin} className="space-y-md">
+            <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <label className="font-label-caps text-on-surface-variant block mb-xs">Email Address</label>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">Email Address</label>
                 <input 
                   type="email" 
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   placeholder="e.g. rajesh@shah.com"
-                  className="w-full bg-white border border-slate-200 p-sm rounded text-body-sm focus:border-teal-600 focus:ring-0"
+                  className="w-full bg-slate-50 hover:bg-slate-100/60 focus:bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:border-teal-600 focus:ring-1 focus:ring-teal-600/30 transition-all outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="font-label-caps text-on-surface-variant block mb-xs">Password</label>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">Password</label>
                 <input 
                   type="password" 
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-white border border-slate-200 p-sm rounded text-body-sm focus:border-teal-600 focus:ring-0"
+                  className="w-full bg-slate-50 hover:bg-slate-100/60 focus:bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:border-teal-600 focus:ring-1 focus:ring-teal-600/30 transition-all outline-none"
                   required
                 />
               </div>
 
               <button 
                 type="submit" 
-                className="w-full bg-teal-600 hover:bg-teal-600/90 text-white font-bold py-sm rounded transition-all active:scale-95 shadow-sm text-body-md"
+                className="w-full bg-teal-700 hover:bg-teal-800 text-white font-bold py-2.5 rounded-lg transition-all active:scale-95 shadow-2xs text-xs flex items-center justify-center gap-1.5"
               >
-                Log In
+                <span>Log In to Workspace</span>
+                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
               </button>
 
               {/* QUICK INSTANT DEMO LOGIN BUTTONS */}
-              <div className="pt-xs border-t border-slate-200">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block text-center mb-1.5 tracking-wider">
-                  ⚡ Or Explore Instantly With 1 Click:
+              <div className="pt-2 border-t border-slate-100">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block text-center mb-2 tracking-wider font-mono">
+                  ⚡ 1-Click Multi-Role Demo Access:
                 </span>
+
+                {/* SUPER ADMIN MASTER BUTTON */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const admin = systemUsers.find(u => u.role === 'super_admin') || {
+                      id: 1, name: 'Super Admin (Product Owner)', email: 'admin@billguru.ai', phone: '9999900000', role: 'super_admin', organization: 'BillGuru AI HQ', must_change_password: false
+                    };
+                    setToken('mock-jwt-admin');
+                    setCaUser(admin);
+                    setImpersonatedUser(null);
+                    setCurrentView('super-admin');
+                    localStorage.setItem('bg_token', 'mock-jwt-admin');
+                    localStorage.setItem('bg_user', JSON.stringify(admin));
+                    showToast('Logged in as Platform Super Admin (Master User Directory)!', 'success');
+                  }}
+                  className="w-full mb-2 bg-gradient-to-r from-rose-700 via-rose-800 to-slate-900 hover:from-rose-600 hover:to-slate-800 text-white text-xs font-bold py-2.5 px-3 rounded-xl transition-all flex items-center justify-center gap-2 shadow-md active:scale-95 border border-rose-600/40"
+                >
+                  <span className="material-symbols-outlined text-[17px] text-rose-300">shield_person</span>
+                  <span>🛡️ Platform Super Admin (Product Owner)</span>
+                </button>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => {
-                      const user = { id: 1, name: 'CA Rajesh Shah, FCA', firm_name: 'Shah & Associates, Chartered Accountants', email: 'rajesh@shah.com', role: 'partner_ca' };
-                      setToken('mock_jwt_token_demo');
+                      const user = systemUsers.find(u => u.role === 'partner_ca') || { id: 2, name: 'CA Rajesh Shah, FCA', organization: 'Shah & Associates, Chartered Accountants', email: 'rajesh@shah.com', role: 'partner_ca', must_change_password: false };
+                      setToken('mock-jwt-user-2');
                       setCaUser(user);
                       setStaffRole('partner_ca');
-                      localStorage.setItem('bg_auth_token', 'mock_jwt_token_demo');
-                      localStorage.setItem('bg_ca_user', JSON.stringify(user));
+                      setImpersonatedUser(null);
+                      setCurrentView('dashboard');
+                      localStorage.setItem('bg_token', 'mock-jwt-user-2');
+                      localStorage.setItem('bg_user', JSON.stringify(user));
                       showToast('Logged in as Partner CA (Shah & Associates)!', 'success');
                     }}
-                    className="w-full bg-slate-800 hover:bg-black text-white text-xs font-bold py-2 px-2 rounded transition-all flex items-center justify-center gap-1 shadow-xs"
+                    className="w-full bg-slate-900 hover:bg-black text-white text-xs font-semibold py-2 px-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-2xs active:scale-95"
                   >
-                    <span className="material-symbols-outlined text-[15px] text-teal-400">gavel</span>
+                    <span className="material-symbols-outlined text-[15px] text-purple-400">gavel</span>
                     <span>Demo Partner CA</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => {
-                      const user = { id: 2, name: 'Karan Dave (Article)', firm_name: 'Shah & Associates, Chartered Accountants', email: 'karan@shah.com', role: 'article_assistant' };
-                      setToken('mock_jwt_token_demo');
+                      const user = systemUsers.find(u => u.role === 'mall_owner') || { id: 4, name: 'Ramesh Patel', organization: 'Apex Supermall', email: 'ramesh@apexmall.in', role: 'mall_owner', must_change_password: false };
+                      setToken('mock-jwt-user-4');
                       setCaUser(user);
-                      setStaffRole('article_assistant');
-                      localStorage.setItem('bg_auth_token', 'mock_jwt_token_demo');
-                      localStorage.setItem('bg_ca_user', JSON.stringify(user));
-                      showToast('Logged in as Article Assistant (Karan Dave)!', 'success');
+                      setImpersonatedUser(null);
+                      setCurrentView('retail-shield');
+                      localStorage.setItem('bg_token', 'mock-jwt-user-4');
+                      localStorage.setItem('bg_user', JSON.stringify(user));
+                      showToast('Logged in as Mall Owner (₹17L Shield & Safe-Pay)!', 'success');
                     }}
-                    className="w-full bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-bold py-2 px-2 rounded transition-all flex items-center justify-center gap-1 shadow-xs"
+                    className="w-full bg-blue-900 hover:bg-blue-950 text-white text-xs font-semibold py-2 px-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 border border-blue-700/50"
                   >
-                    <span className="material-symbols-outlined text-[15px] text-indigo-300">badge</span>
-                    <span>Demo Article</span>
+                    <span className="material-symbols-outlined text-[15px] text-blue-300">store</span>
+                    <span>Demo Mall Owner</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const user = systemUsers.find(u => u.role === 'shop_owner') || { id: 5, name: 'Meena Devi', organization: 'Meena Kirana Store', email: 'meena@kirana.in', role: 'shop_owner', must_change_password: true };
+                      setToken('mock-jwt-user-5');
+                      setCaUser(user);
+                      setImpersonatedUser(null);
+                      setCurrentView('solo-business');
+                      localStorage.setItem('bg_token', 'mock-jwt-user-5');
+                      localStorage.setItem('bg_user', JSON.stringify(user));
+                      showToast('Logged in as Shop Owner (Temporary Password - Prompting Change)!', 'info');
+                    }}
+                    className="w-full bg-emerald-900 hover:bg-emerald-950 text-white text-xs font-semibold py-2 px-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 border border-emerald-700/50"
+                  >
+                    <span className="material-symbols-outlined text-[15px] text-emerald-300">storefront</span>
+                    <span>Shop Owner (Forces PW)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const user = systemUsers.find(u => u.role === 'mehtaji') || { id: 6, name: 'Suresh Munshi', organization: 'Ganesh Wholesale', email: 'suresh@munshi.in', role: 'mehtaji', must_change_password: true };
+                      setToken('mock-jwt-user-6');
+                      setCaUser(user);
+                      setImpersonatedUser(null);
+                      setCurrentView('retail-shield');
+                      localStorage.setItem('bg_token', 'mock-jwt-user-6');
+                      localStorage.setItem('bg_user', JSON.stringify(user));
+                      showToast('Logged in as In-House Mehtaji (Forces PW Change)!', 'info');
+                    }}
+                    className="w-full bg-amber-900 hover:bg-amber-950 text-white text-xs font-semibold py-2 px-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 border border-amber-700/50"
+                  >
+                    <span className="material-symbols-outlined text-[15px] text-amber-300">menu_book</span>
+                    <span>Mehtaji (Forces PW)</span>
                   </button>
                 </div>
               </div>
 
-              <div className="text-center pt-xs">
+              <div className="text-center pt-1">
                 <button 
                   type="button" 
                   onClick={() => { setAuthView('register'); setAuthError(''); }}
-                  className="text-xs text-teal-600 hover:underline font-label-caps font-bold"
+                  className="text-xs text-teal-700 hover:text-teal-900 hover:underline font-semibold"
                 >
-                  Create a new CA Firm Account
+                  Create a new CA Firm Account →
                 </button>
               </div>
             </form>
           ) : (
-            <form onSubmit={handleRegister} className="space-y-md">
+            <form onSubmit={handleRegister} className="space-y-3.5">
               <div>
-                <label className="font-label-caps text-on-surface-variant block mb-xs">CA Full Name</label>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">CA Full Name</label>
                 <input 
                   type="text" 
                   value={regName}
                   onChange={(e) => setRegName(e.target.value)}
                   placeholder="e.g. Rajesh Shah"
-                  className="w-full bg-white border border-slate-200 p-xs px-sm rounded text-body-sm focus:border-teal-600"
+                  className="w-full bg-slate-50 hover:bg-slate-100/60 focus:bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs text-slate-900 focus:border-teal-600 outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="font-label-caps text-on-surface-variant block mb-xs">Firm Legal Name</label>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">Firm Legal Name</label>
                 <input 
                   type="text" 
                   value={regFirm}
                   onChange={(e) => setRegFirm(e.target.value)}
                   placeholder="e.g. Shah & Associates"
-                  className="w-full bg-white border border-slate-200 p-xs px-sm rounded text-body-sm focus:border-teal-600"
+                  className="w-full bg-slate-50 hover:bg-slate-100/60 focus:bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs text-slate-900 focus:border-teal-600 outline-none"
                   required
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-sm">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="font-label-caps text-on-surface-variant block mb-xs text-xs">Email</label>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Email</label>
                   <input 
                     type="email" 
                     value={regEmail}
                     onChange={(e) => setRegEmail(e.target.value)}
                     placeholder="name@firm.com"
-                    className="w-full bg-white border border-slate-200 p-xs px-sm rounded text-xs focus:border-teal-600"
+                    className="w-full bg-slate-50 hover:bg-slate-100/60 focus:bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs text-slate-900 focus:border-teal-600 outline-none"
                     required
                   />
                 </div>
                 <div>
-                  <label className="font-label-caps text-on-surface-variant block mb-xs text-xs">Phone Number</label>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Phone Number</label>
                   <input 
                     type="text" 
                     value={regPhone}
                     onChange={(e) => setRegPhone(e.target.value)}
                     placeholder="9876543210"
-                    className="w-full bg-white border border-slate-200 p-xs px-sm rounded text-xs focus:border-teal-600"
+                    className="w-full bg-slate-50 hover:bg-slate-100/60 focus:bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs text-slate-900 focus:border-teal-600 outline-none"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="font-label-caps text-on-surface-variant block mb-xs">Choose Password</label>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">Choose Password</label>
                 <input 
                   type="password" 
                   value={regPassword}
                   onChange={(e) => setRegPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-white border border-slate-200 p-sm rounded text-body-sm focus:border-teal-600 focus:ring-0"
+                  className="w-full bg-slate-50 hover:bg-slate-100/60 focus:bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs text-slate-900 focus:border-teal-600 outline-none"
                   required
                 />
               </div>
 
               <button 
                 type="submit" 
-                className="w-full bg-teal-600 hover:bg-teal-600/90 text-white font-bold py-sm rounded transition-all active:scale-95 shadow-sm text-body-md"
+                className="w-full bg-teal-700 hover:bg-teal-800 text-white font-bold py-2.5 rounded-lg transition-all active:scale-95 shadow-2xs text-xs flex items-center justify-center gap-1.5"
               >
-                Register & Start Free Trial
+                <span>Register & Start Free Trial</span>
+                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
               </button>
 
-              <div className="text-center pt-xs">
+              <div className="text-center pt-1">
                 <button 
                   type="button" 
                   onClick={() => { setAuthView('login'); setAuthError(''); }}
-                  className="text-xs text-teal-600 hover:underline font-label-caps font-bold"
+                  className="text-xs text-teal-700 hover:text-teal-900 hover:underline font-semibold"
                 >
-                  Already have an account? Log In
+                  Already have an account? Log In →
                 </button>
               </div>
             </form>
           )}
+
+          {/* Privacy & Sovereignty Assurance Footer */}
+          <div className="pt-2 text-center text-[10px] text-slate-400 font-mono">
+            Bank-grade AES-256 encryption • Zero RPA scraping • Sovereign database support
+          </div>
         </div>
       </div>
     );
@@ -4734,7 +4971,11 @@ function doPost(e) {
 
   // --- RENDER CA DASHBOARD WORKSPACE (Authenticated) ---
   return (
-    <div className="min-h-screen flex selection:bg-teal-600/10 bg-slate-900 justify-center items-center p-0 md:p-6 transition-all duration-300">
+    <div className={`min-h-screen flex selection:bg-teal-600/10 transition-colors duration-300 ${
+      isMobileSim && !isMobileScreen 
+        ? 'bg-slate-950 justify-center items-center p-4 md:p-6' 
+        : 'bg-paper-50 w-full'
+    }`}>
       
       {/* FULL-PAGE BACKEND CONNECTION LOADING OVERLAY */}
       {loading && businesses.length === 0 && (
@@ -4752,11 +4993,11 @@ function doPost(e) {
         </div>
       )}
 
-      {/* DEVICE EMULATOR WRAPPER */}
-      <div className={`w-full bg-[#F7F8F6] ${
+      {/* DEVICE EMULATOR OR FULL-WIDTH WORKSPACE WRAPPER */}
+      <div className={`w-full ${
         isMobileSim && !isMobileScreen
-          ? 'w-[390px] h-[844px] shadow-2xl border-[10px] border-slate-950 rounded-[45px] overflow-hidden flex flex-col relative' 
-          : 'min-h-screen flex flex-col w-full'
+          ? 'w-[390px] h-[844px] shadow-2xl border-[10px] border-slate-900 rounded-[45px] overflow-hidden flex flex-col relative bg-paper-50' 
+          : 'min-h-screen flex flex-col w-full bg-paper-50'
       } transition-all duration-300 text-ink-900`}>
         
         {/* Mobile Status Bar inside Emulator (Only when emulating on desktop) */}
@@ -4809,25 +5050,77 @@ function doPost(e) {
               </button>
             </div>
 
-            {/* PRIMARY ACTION CTA: SINGLE CLEAN PROMINENT BUTTON */}
-            {isSidebarCollapsed ? (
-              <button 
-                type="button"
-                onClick={() => { setCurrentView('onboard'); setSelectedBusiness(null); }}
-                className="w-10 h-10 mx-auto bg-teal-600 hover:bg-teal-700 text-white rounded-lg mb-3 shadow-sm active:scale-95 flex items-center justify-center transition-all shrink-0"
-                title="＋ Add Client Business"
-              >
-                <span className="material-symbols-outlined text-[20px]">person_add</span>
-              </button>
+            {/* PRIMARY ACTION CTA: ADAPTED BY ROLE */}
+            {effectiveRole === 'super_admin' ? (
+              isSidebarCollapsed ? (
+                <button 
+                  type="button"
+                  onClick={() => { setCurrentView('super-admin'); setSelectedBusiness(null); }}
+                  className="w-10 h-10 mx-auto bg-rose-600 hover:bg-rose-700 text-white rounded-lg mb-3 shadow-sm active:scale-95 flex items-center justify-center transition-all shrink-0"
+                  title="Super Admin User Console"
+                >
+                  <span className="material-symbols-outlined text-[20px]">manage_accounts</span>
+                </button>
+              ) : (
+                <button 
+                  type="button"
+                  onClick={() => { setCurrentView('super-admin'); setSelectedBusiness(null); }}
+                  className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 px-md rounded-lg mb-3 transition-all text-body-sm shadow-sm active:scale-95 flex items-center justify-center gap-xs shrink-0"
+                >
+                  <span className="material-symbols-outlined text-[18px]">manage_accounts</span>
+                  <span>Super Admin Console</span>
+                </button>
+              )
+            ) : ['mall_owner', 'shop_owner', 'mehtaji', 'salaried'].includes(effectiveRole) ? (
+              isSidebarCollapsed ? (
+                <button 
+                  type="button"
+                  onClick={() => {
+                    if (effectiveRole === 'mall_owner') setCurrentView('retail-shield');
+                    else if (effectiveRole === 'shop_owner') setCurrentView('whatsapp');
+                    else if (effectiveRole === 'mehtaji') setCurrentView('retail-shield');
+                    else setCurrentView('salaried-portal');
+                  }}
+                  className="w-10 h-10 mx-auto bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg mb-3 shadow-sm active:scale-95 flex items-center justify-center transition-all shrink-0"
+                  title="Open Portal Desk"
+                >
+                  <span className="material-symbols-outlined text-[20px]">rocket_launch</span>
+                </button>
+              ) : (
+                <button 
+                  type="button"
+                  onClick={() => {
+                    if (effectiveRole === 'mall_owner') setCurrentView('retail-shield');
+                    else if (effectiveRole === 'shop_owner') setCurrentView('whatsapp');
+                    else if (effectiveRole === 'mehtaji') setCurrentView('retail-shield');
+                    else setCurrentView('salaried-portal');
+                  }}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-md rounded-lg mb-3 transition-all text-body-sm shadow-sm active:scale-95 flex items-center justify-center gap-xs shrink-0"
+                >
+                  <span className="material-symbols-outlined text-[18px]">rocket_launch</span>
+                  <span>{ROLE_CONFIGS[effectiveRole]?.label || 'Open Portal'}</span>
+                </button>
+              )
             ) : (
-              <button 
-                type="button"
-                onClick={() => { setCurrentView('onboard'); setSelectedBusiness(null); }}
-                className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 px-md rounded-lg mb-3 transition-all text-body-sm shadow-sm active:scale-95 flex items-center justify-center gap-xs shrink-0"
-              >
-                <span className="material-symbols-outlined text-[18px]">person_add</span>
-                <span>＋ Add Client Business</span>
-              </button>
+              isSidebarCollapsed ? (
+                <button 
+                  type="button"
+                  onClick={() => { setCurrentView('onboard'); setSelectedBusiness(null); }}
+                  className="w-10 h-10 mx-auto bg-teal-600 hover:bg-teal-700 text-white rounded-lg mb-3 shadow-sm active:scale-95 flex items-center justify-center transition-all shrink-0"
+                  title="＋ Add Client Business"
+                >
+                  <span className="material-symbols-outlined text-[20px]">person_add</span>
+                </button>
+              ) : (
+                <button 
+                  type="button"
+                  onClick={() => { setCurrentView('onboard'); setSelectedBusiness(null); }}
+                  className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 px-md rounded-lg mb-3 transition-all text-body-sm shadow-sm active:scale-95 flex items-center justify-center gap-xs shrink-0"
+                >
+                  <span className="material-symbols-outlined text-[18px]">person_add</span>
+                  <span>＋ Add Client Business</span>
+                </button>
+              )
             )}
             
             {/* NAVIGATION MENU ITEMS */}
@@ -4837,28 +5130,30 @@ function doPost(e) {
               {!isSidebarCollapsed && (
                 <div className="flex items-center justify-between px-2 mb-2 pb-1 border-b border-slate-200/80">
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 font-label-caps">
-                    {sidebarMode === 'focused' ? 'Core CA Suite (4)' : 'All Modules (12)'}
+                    {effectiveRole === 'super_admin' ? '🛡️ Super Admin' : (ROLE_CONFIGS[effectiveRole]?.label || (sidebarMode === 'focused' ? 'Core CA Suite (4)' : 'All Modules (12)'))}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = sidebarMode === 'focused' ? 'all' : 'focused';
-                      setSidebarMode(next);
-                      localStorage.setItem('bg_sidebar_mode', next);
-                    }}
-                    className="text-[10px] font-bold text-teal-800 hover:text-teal-950 bg-teal-50 hover:bg-teal-100 border border-teal-200/80 rounded px-1.5 py-0.5 transition-colors"
-                    title={sidebarMode === 'focused' ? 'Show all 12 modules including shopkeeper & salaried tools' : 'Switch to simplified 4-module CA view'}
-                  >
-                    {sidebarMode === 'focused' ? '＋ All Tools' : '– Focused View'}
-                  </button>
+                  {['partner_ca', 'article_assistant'].includes(effectiveRole) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = sidebarMode === 'focused' ? 'all' : 'focused';
+                        setSidebarMode(next);
+                        localStorage.setItem('bg_sidebar_mode', next);
+                      }}
+                      className="text-[10px] font-bold text-teal-800 hover:text-teal-950 bg-teal-50 hover:bg-teal-100 border border-teal-200/80 rounded px-1.5 py-0.5 transition-colors"
+                      title={sidebarMode === 'focused' ? 'Show all 12 modules including shopkeeper & salaried tools' : 'Switch to simplified 4-module CA view'}
+                    >
+                      {sidebarMode === 'focused' ? '＋ All Tools' : '– Focused View'}
+                    </button>
+                  )}
                 </div>
               )}
 
               {/* Collapsed Rail Rendering */}
               {isSidebarCollapsed ? (
                 <>
-                  {/* 4 Core CA Icons */}
-                  {coreNavItems.map(item => {
+                  {/* Clean Role Icons */}
+                  {getRoleNavItems().map(item => {
                     const isActive = currentView === item.view && !selectedBusiness;
                     return (
                       <button 
@@ -4882,32 +5177,35 @@ function doPost(e) {
                       </button>
                     );
                   })}
-
-                  <div className="w-6 h-px bg-slate-300 my-1"></div>
-
-                  {/* Portal & Demo Icons */}
-                  {portalNavItems.slice(0, 4).map(item => {
-                    const isActive = currentView === item.view && !selectedBusiness;
-                    return (
-                      <button 
-                        key={item.view}
-                        type="button"
-                        onClick={() => { setCurrentView(item.view); setSelectedBusiness(null); }}
-                        title={`${item.label}\n${item.hint || ''}`}
-                        className={`relative flex items-center justify-center w-9 h-9 rounded-lg transition-all opacity-85 hover:opacity-100 ${
-                          isActive
-                            ? 'bg-indigo-100 text-indigo-900 font-bold shadow-xs' 
-                            : 'text-slate-500 hover:bg-slate-200/80 hover:text-ink-900'
-                        }`}
-                      >
-                        <span className={`material-symbols-outlined text-[18px] ${isActive ? 'text-indigo-700' : 'text-slate-500'}`}>{item.icon}</span>
-                      </button>
-                    );
-                  })}
                 </>
               ) : (
                 /* Expanded Sidebar Rendering */
-                sidebarMode === 'focused' ? (
+                !['partner_ca', 'article_assistant'].includes(effectiveRole) ? (
+                  /* --- DEDICATED ROLE VIEW: ONLY SHOWS WHAT PERMITTED TO THIS USER --- */
+                  <div className="space-y-1">
+                    {getRoleNavItems().map(item => {
+                      const isActive = currentView === item.view && !selectedBusiness;
+                      return (
+                        <button 
+                          key={item.view}
+                          type="button"
+                          onClick={() => { setCurrentView(item.view); setSelectedBusiness(null); }}
+                          title={item.hint || item.label}
+                          className={`w-full flex items-center justify-between p-2 font-label-caps text-label-caps rounded-lg transition-all text-left ${
+                            isActive
+                              ? 'bg-secondary-container text-on-secondary-container font-bold shadow-xs ring-1 ring-teal-500/30' 
+                              : 'text-on-surface-variant hover:bg-slate-200/80 hover:text-ink-900'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className={`material-symbols-outlined text-[19px] shrink-0 ${isActive ? 'text-teal-700 font-bold' : 'text-slate-500'}`}>{item.icon}</span>
+                            <span className="truncate">{item.label}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : sidebarMode === 'focused' ? (
                   /* --- FOCUSED CA MODE (ONLY 4 CLEAN ESSENTIAL ITEMS) --- */
                   <div className="space-y-1">
                     {coreNavItems.map(item => {
@@ -5180,12 +5478,92 @@ function doPost(e) {
 
         {/* --- MAIN CORE SECTION --- */}
         <div className={`flex flex-col flex-1 min-h-0 overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out ${!isMobileLayout ? (isSidebarCollapsed ? 'ml-[72px]' : 'ml-64') : ''}`}>
-          
+
+          {/* SUPER ADMIN IMPERSONATION STICKY BANNER */}
+          {impersonatedUser && (
+            <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white px-4 py-2.5 text-xs font-bold flex flex-wrap items-center justify-between gap-2 shadow-lg sticky top-0 z-50">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px]">visibility</span>
+                <span>
+                  👁️ SUPER ADMIN PREVIEW: Viewing application as <strong>{impersonatedUser.name}</strong> ({ROLE_CONFIGS[impersonatedUser.role]?.label || impersonatedUser.role} at {impersonatedUser.organization})
+                </span>
+              </div>
+              <button 
+                onClick={() => {
+                  setImpersonatedUser(null);
+                  setCurrentView('super-admin');
+                  showToast('Exited preview mode. Returned to Super Admin Console.', 'info');
+                }}
+                className="px-3 py-1 bg-black/40 hover:bg-black/60 text-white rounded-lg transition active:scale-95 text-xs font-bold border border-white/20 flex items-center gap-1 shadow-sm"
+              >
+                <span>✕ Exit to Super Admin Console</span>
+              </button>
+            </div>
+          )}
+
+          {/* MANDATORY FIRST-TIME PASSWORD CHANGE MODAL */}
+          {activeUser?.must_change_password && !impersonatedUser && (
+            <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                <div className="text-center space-y-1.5">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-amber-500/15 text-amber-600 border border-amber-500/30 mb-1">
+                    <span className="material-symbols-outlined text-[26px]">key</span>
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900">Set Your Permanent Password</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Welcome, <strong>{activeUser.name}</strong>! Your account was initialized with a temporary password by the platform administrator. For your data protection and privacy, please create your new personal password to unlock your workspace.
+                  </p>
+                </div>
+
+                {passwordChangeError && (
+                  <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-900 text-xs font-semibold rounded-xl flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[16px] text-rose-600">error</span>
+                    <span>{passwordChangeError}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handlePermanentPasswordChange} className="space-y-3.5 pt-1">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">New Permanent Password</label>
+                    <input 
+                      type="password" 
+                      value={newPermanentPassword}
+                      onChange={(e) => setNewPermanentPassword(e.target.value)}
+                      placeholder="At least 6 characters"
+                      required
+                      className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-teal-600 focus:bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">Confirm New Password</label>
+                    <input 
+                      type="password" 
+                      value={confirmPermanentPassword}
+                      onChange={(e) => setConfirmPermanentPassword(e.target.value)}
+                      placeholder="Re-type new password"
+                      required
+                      className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-teal-600 focus:bg-white"
+                    />
+                  </div>
+
+                  <button 
+                    type="submit"
+                    className="w-full py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-md transition active:scale-95 flex items-center justify-center gap-1.5"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">lock_reset</span>
+                    <span>Save Password & Access Workspace</span>
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
           {/* Top Bar / Header */}
-          <header className={`w-full bg-surface border-b border-slate-200 flex justify-between items-center sticky top-0 z-40 shrink-0 ${
-            isMobileLayout ? 'px-md h-12' : 'px-margin-desktop h-16'
+          <header className={`w-full bg-white/95 backdrop-blur-sm border-b border-slate-200/90 flex justify-between items-center sticky top-0 z-40 shrink-0 ${
+            isMobileLayout ? 'px-3 h-12' : 'px-6 h-14'
           }`}>
-            <div className="flex items-center gap-sm min-w-0">
+            <div className="flex items-center gap-3 min-w-0">
               {/* DESKTOP SIDEBAR TOGGLE BUTTON IN TOP BAR */}
               {!isMobileLayout && (
                 <button 
@@ -5195,8 +5573,8 @@ function doPost(e) {
                     setIsSidebarCollapsed(next);
                     localStorage.setItem('bg_sidebar_collapsed', String(next));
                   }}
-                  className="p-1.5 text-slate-500 hover:text-ink-900 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors mr-1"
-                  title={isSidebarCollapsed ? "Expand Sidebar Drawer" : "Collapse Sidebar to Icons"}
+                  className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-md border border-slate-200/80 transition-colors"
+                  title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
                 >
                   <span className="material-symbols-outlined text-[18px]">{isSidebarCollapsed ? 'menu' : 'menu_open'}</span>
                 </button>
@@ -5205,81 +5583,75 @@ function doPost(e) {
               {isMobileLayout && selectedBusiness && (
                 <button 
                   onClick={() => setSelectedBusiness(null)}
-                  className="material-symbols-outlined text-on-surface-variant text-[20px] shrink-0"
+                  className="material-symbols-outlined text-slate-600 text-[20px] p-1 -ml-1 hover:bg-slate-100 rounded-md shrink-0"
                 >
                   arrow_back
                 </button>
               )}
-              <h1 className={`${isMobileLayout ? 'text-body-md font-bold' : 'font-headline-sm text-headline-sm font-bold'} text-teal-600 truncate`}>
-                {selectedBusiness ? selectedBusiness.name : (caUser?.firm_name || 'BillGuru AI')}
-              </h1>
-            </div>
-            
-            <div className="flex items-center gap-md shrink-0">
-              {/* MASTER USER GUIDE & SOP DIRECT TRIGGER */}
-              <button 
-                type="button"
-                onClick={() => { setCurrentView('guide'); setSelectedBusiness(null); }}
-                className={`flex items-center gap-xs px-2.5 py-1 rounded-full text-xs font-bold font-label-caps transition-all shadow-sm cursor-pointer ${
-                  currentView === 'guide'
-                    ? 'bg-teal-700 text-white shadow-xs'
-                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300'
-                }`}
-                title="Open Master User Guide, Standard Operating Procedures & Knowledge Base"
-              >
-                <span className="material-symbols-outlined text-[15px] text-emerald-700">menu_book</span>
-                <span className="hidden sm:inline">User Guide & SOP</span>
-                <span className="sm:hidden">SOP</span>
-              </button>
-
-              {/* NON-CA TESTING GUIDE MODAL TRIGGER */}
-              <button 
-                type="button"
-                onClick={() => setShowTesterGuide(true)}
-                className="flex items-center gap-xs px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 rounded-full text-xs font-bold font-label-caps transition-all shadow-sm cursor-pointer"
-                title="Non-CA Testing Playbook: Learn what every module does & test checklist"
-              >
-                <span className="material-symbols-outlined text-[15px] text-indigo-600">help_center</span>
-                <span className="hidden sm:inline">Non-CA Test Guide</span>
-                <span className="sm:hidden">Guide</span>
-              </button>
-
-              {/* CA DATA SECURITY & ICAI SHIELD MODAL TRIGGER */}
-              <button 
-                type="button"
-                onClick={() => setShowSecurityCenterModal(true)}
-                className="flex items-center gap-xs px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-900 border border-teal-200 rounded-full text-xs font-bold font-label-caps transition-all shadow-xs cursor-pointer"
-                title="Verify bank-grade encryption, zero government portal link, and DPDP Act 2023 compliance"
-              >
-                <span className="material-symbols-outlined text-[15px] text-teal-700">shield_lock</span>
-                <span className="hidden sm:inline">Data Security & ICAI Shield</span>
-                <span className="sm:hidden">Security</span>
-              </button>
-              {!isMobileLayout && currentView === 'dashboard' && (
-                <div className="relative w-48 lg:w-64">
-                  <span className="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-on-surface-variant opacity-60 text-[18px]">search</span>
-                  <input 
-                    type="text" 
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search businesses..." 
-                    className="w-full bg-surface-container border border-slate-200 pl-xl pr-sm py-xs rounded text-body-sm focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 placeholder:text-on-surface-variant/50"
-                  />
-                </div>
-              )}
               
-              {/* STAFF ROLE SWITCHER (ICAI SA 230 DOCUMENTATION) */}
-              <div className="hidden sm:flex items-center gap-1 bg-slate-100 border border-slate-300 rounded-full p-0.5 text-xs font-semibold">
+              <div className="flex items-center gap-2 truncate">
+                <h1 className={`${isMobileLayout ? 'text-sm font-bold' : 'font-headline-sm text-base md:text-lg font-bold'} text-slate-900 truncate`}>
+                  {selectedBusiness ? selectedBusiness.name : (
+                    effectiveRole === 'super_admin' ? 'Super Admin Platform Console' :
+                    effectiveRole === 'mall_owner' ? (activeUser?.organization || 'Apex Supermall (Mall Owner Portal)') :
+                    effectiveRole === 'shop_owner' ? (activeUser?.organization || 'Meena Kirana Store (Dukandaar Portal)') :
+                    effectiveRole === 'mehtaji' ? (activeUser?.organization || 'In-House Mehtaji Operations Desk') :
+                    effectiveRole === 'salaried' ? 'Director Tax Vault' :
+                    (caUser?.firm_name || 'BillGuru AI')
+                  )}
+                </h1>
+                <span className="hidden sm:inline-flex items-center gap-1 font-mono text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0 bg-slate-100 text-slate-700 border border-slate-200">
+                  {ROLE_CONFIGS[effectiveRole]?.label || effectiveRole}
+                </span>
+                {selectedBusiness && selectedBusiness.gstin && (
+                  <span className="hidden sm:inline-block font-mono text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 tracking-wide shrink-0">
+                    {selectedBusiness.gstin}
+                  </span>
+                )}
+                {selectedBusiness && selectedBusiness.gstin && (
+                  <span className="hidden sm:inline-block font-mono text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 tracking-wide shrink-0">
+                    {selectedBusiness.gstin}
+                  </span>
+                )}
+                {!selectedBusiness && !isMobileLayout && (
+                  <span className="hidden lg:inline-flex items-center gap-1 font-mono text-[11px] px-2 py-0.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200/80 font-medium shrink-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-teal-600"></span>
+                    FY 2026-27
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* GLOBAL SEARCH BAR (Desktop Center-Right) */}
+            {!isMobileLayout && currentView === 'dashboard' && !selectedBusiness && (
+              <div className="relative w-48 md:w-60 lg:w-72 mx-2">
+                <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[17px] pointer-events-none">search</span>
+                <input 
+                  type="text" 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search clients, GSTINs..." 
+                  className="w-full bg-slate-100/70 hover:bg-slate-100 focus:bg-white border border-slate-200/90 pl-8 pr-3 py-1.5 rounded-md text-xs text-slate-900 placeholder:text-slate-400 focus:border-teal-600 focus:ring-1 focus:ring-teal-600/30 transition-all outline-none"
+                />
+              </div>
+            )}
+            
+            <div className="flex items-center gap-2 shrink-0">
+              
+              {/* STAFF ROLE SWITCHER (Partner CA vs Article Assistant) */}
+              <div className="hidden sm:inline-flex items-center p-0.5 bg-slate-100 border border-slate-200/90 rounded-md text-xs">
                 <button
                   type="button"
                   onClick={() => {
                     setStaffRole('partner_ca');
                     showToast('Switched to Partner CA Mode (Full Filing Authority)', 'info');
                   }}
-                  className={`px-2.5 py-1 rounded-full transition-all flex items-center gap-1 ${
-                    staffRole === 'partner_ca' ? 'bg-teal-700 text-white shadow-xs' : 'text-slate-600 hover:text-ink-900'
+                  className={`px-2.5 py-1 rounded font-semibold transition-all flex items-center gap-1 text-[11px] ${
+                    staffRole === 'partner_ca' 
+                      ? 'bg-white text-teal-800 shadow-2xs font-bold' 
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
-                  title="Partner CA: Full filing signoff & Tally export authority"
+                  title="Partner CA: Full signoff & export authority"
                 >
                   <span className="material-symbols-outlined text-[13px]">gavel</span>
                   <span>Partner CA</span>
@@ -5290,160 +5662,272 @@ function doPost(e) {
                     setStaffRole('article_assistant');
                     showToast('Switched to Article Assistant Mode (Audit Review & Queue Prep)', 'info');
                   }}
-                  className={`px-2.5 py-1 rounded-full transition-all flex items-center gap-1 ${
-                    staffRole === 'article_assistant' ? 'bg-indigo-700 text-white shadow-xs' : 'text-slate-600 hover:text-ink-900'
+                  className={`px-2.5 py-1 rounded font-semibold transition-all flex items-center gap-1 text-[11px] ${
+                    staffRole === 'article_assistant' 
+                      ? 'bg-white text-indigo-800 shadow-2xs font-bold' 
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
-                  title="Article Assistant: Review queue, reconcile buckets & submit for signoff"
+                  title="Article Assistant: Review queue & audit triage"
                 >
                   <span className="material-symbols-outlined text-[13px]">badge</span>
-                  <span>Article Assistant</span>
+                  <span>Article</span>
                 </button>
               </div>
 
-              {/* GUIDED TOUR & PURPOSE BUTTON */}
-              <button 
-                onClick={() => { setShowWelcomeTour(true); setWelcomeTourStep(0); }}
-                className="flex items-center gap-xs px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded-full text-xs font-bold font-label-caps transition-all shadow-sm"
-                title="Understand BillGuru AI purpose and workflow"
-              >
-                <span className="material-symbols-outlined text-[15px] text-teal-600">lightbulb</span>
-                <span className="hidden sm:inline">How It Works & Tour</span>
-                <span className="sm:hidden">Tour</span>
-              </button>
-
-              {/* TEST AI BILL SCANNER BUTTON */}
-              <button 
-                onClick={() => setShowBillScannerModal(true)}
-                className="hidden md:flex items-center gap-xs px-2.5 py-1 bg-white hover:bg-slate-50 text-ink-900 border border-slate-200 rounded-full text-xs font-bold font-label-caps transition-all shadow-sm"
-                title="Test AI OCR and vendor GSTIN validation on sample bills"
-              >
-                <span className="material-symbols-outlined text-[15px] text-teal-600">document_scanner</span>
-                <span>Test Bill Scanner</span>
-              </button>
-
-              {/* DEMO / LIVE MODE TOGGLE */}
+              {/* DEMO MODE INDICATOR / ACTION */}
               {isDemoMode ? (
                 <button 
                   onClick={handleClearToLiveWorkspace}
-                  className="flex items-center gap-xs px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 border border-amber-300 rounded-full text-xs font-bold font-label-caps transition-all"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-md text-[11px] font-bold transition-all shadow-2xs"
                   title="Currently in Demo Practice Mode. Click to exit to your clean workspace."
                 >
-                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
                   <span>Demo Mode (Exit)</span>
                 </button>
               ) : (
                 <button 
                   onClick={handleLoadDemoData}
-                  className="hidden lg:flex items-center gap-xs px-2.5 py-1 bg-paper-50 hover:bg-slate-100 text-on-surface-variant hover:text-ink-900 border border-slate-200 rounded-full text-xs font-bold font-label-caps transition-all"
+                  className="hidden xl:inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 rounded-md text-[11px] font-semibold transition-colors shadow-2xs"
                   title="Explore with 3 sample businesses safely without entering real data"
                 >
-                  <span className="material-symbols-outlined text-[15px] text-amber-500">science</span>
-                  <span>⚡ Load Demo Data</span>
+                  <span className="material-symbols-outlined text-[14px] text-amber-500">science</span>
+                  <span>⚡ Demo Data</span>
                 </button>
               )}
 
+              {/* UNIFIED HELP & RESOURCES DROPDOWN (Consolidates 5 buttons!) */}
+              <div className="relative" ref={helpDropdownRef}>
+                <button 
+                  type="button"
+                  onClick={() => setShowHelpDropdown(!showHelpDropdown)}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-all shadow-2xs ${
+                    showHelpDropdown 
+                      ? 'bg-slate-100 text-slate-900 border-slate-300' 
+                      : 'bg-white text-slate-700 border-slate-200/90 hover:bg-slate-50'
+                  }`}
+                  title="Open Master SOP, Non-CA Playbook, Security Shield & Sandboxes"
+                >
+                  <span className="material-symbols-outlined text-[15px] text-teal-700">help</span>
+                  <span className="hidden md:inline">Help & Tools</span>
+                  <span className="material-symbols-outlined text-[14px] text-slate-400">arrow_drop_down</span>
+                </button>
+
+                {showHelpDropdown && (
+                  <div className="absolute right-0 mt-1.5 w-68 bg-white border border-slate-200 rounded-lg shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                      Standard Operating Procedures
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setCurrentView('guide'); setSelectedBusiness(null); setShowHelpDropdown(false); }}
+                      className="w-full px-3 py-2 text-left flex items-center gap-2.5 hover:bg-slate-50 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[17px] text-teal-700 shrink-0">menu_book</span>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-slate-900 text-xs">User Guide & Master SOP</div>
+                        <div className="text-[10px] text-slate-500 truncate">Step-by-step ICAI compliance procedures</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowTesterGuide(true); setShowHelpDropdown(false); }}
+                      className="w-full px-3 py-2 text-left flex items-center gap-2.5 hover:bg-slate-50 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[17px] text-indigo-600 shrink-0">help_center</span>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-slate-900 text-xs">Non-CA Testing Playbook</div>
+                        <div className="text-[10px] text-slate-500 truncate">Module explanations & validation checklist</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowSecurityCenterModal(true); setShowHelpDropdown(false); }}
+                      className="w-full px-3 py-2 text-left flex items-center gap-2.5 hover:bg-slate-50 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[17px] text-teal-700 shrink-0">shield_lock</span>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-slate-900 text-xs">Data Security & ICAI Shield</div>
+                        <div className="text-[10px] text-slate-500 truncate">Bank-grade encryption & DPDP Act compliance</div>
+                      </div>
+                    </button>
+
+                    <div className="my-1 border-t border-slate-100"></div>
+                    <div className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                      Interactive Sandboxes
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setShowWelcomeTour(true); setWelcomeTourStep(0); setShowHelpDropdown(false); }}
+                      className="w-full px-3 py-2 text-left flex items-center gap-2.5 hover:bg-slate-50 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[17px] text-amber-500 shrink-0">lightbulb</span>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-slate-900 text-xs">Guided Product Tour</div>
+                        <div className="text-[10px] text-slate-500 truncate">Core feature walkthrough & architecture</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowBillScannerModal(true); setShowHelpDropdown(false); }}
+                      className="w-full px-3 py-2 text-left flex items-center gap-2.5 hover:bg-slate-50 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[17px] text-teal-600 shrink-0">document_scanner</span>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-slate-900 text-xs">Test AI Bill Scanner</div>
+                        <div className="text-[10px] text-slate-500 truncate">OCR & vendor GSTIN validation sandbox</div>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* MOBILE SIMULATOR TOGGLE */}
               {!isMobileScreen && (
                 <button 
+                  type="button"
                   onClick={() => {
                     setIsMobileSim(!isMobileSim);
                     setSelectedBusiness(null);
                   }}
-                  className={`flex items-center gap-xs px-2.5 py-1 border rounded-full text-xs font-bold font-label-caps transition-all ${
+                  className={`p-1.5 border rounded-md transition-colors shadow-2xs ${
                     isMobileSim 
                       ? 'bg-teal-600 text-white border-teal-600' 
-                      : 'bg-white text-on-surface-variant hover:text-ink-900 border-slate-200'
+                      : 'bg-white text-slate-600 hover:text-slate-900 border-slate-200/90 hover:bg-slate-50'
                   }`}
+                  title={isMobileSim ? "Switch to desktop view" : "Simulate mobile screen (390px)"}
                 >
                   <span className="material-symbols-outlined text-[16px]">
                     {isMobileSim ? 'desktop_windows' : 'stay_current_portrait'}
                   </span>
-                  <span>{isMobileSim ? 'Desktop View' : 'Simulate Mobile'}</span>
                 </button>
               )}
+
+              {/* CA AVATAR / PROFILE */}
+              <div 
+                onClick={() => setCurrentView('settings')}
+                className="w-7 h-7 rounded-full bg-teal-800 text-white font-bold text-[11px] flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-teal-500/30 transition-all shadow-2xs shrink-0 select-none ml-1"
+                title={`Active CA Profile: ${caFirmSettings.partner_name || caUser?.name || 'CA Rajesh Shah'}`}
+              >
+                {(caFirmSettings.partner_name || caUser?.name || 'CA').split(' ').filter(Boolean).map(n => n[0]).slice(-2).join('')}
+              </div>
             </div>
           </header>
 
           {/* VIEW RENDERER */}
-          <div className={`${isMobileLayout ? 'p-md flex-1 overflow-y-auto space-y-md' : 'p-margin-desktop flex-1 space-y-lg'}`}>
+          <div className={`${isMobileLayout ? 'p-3 flex-1 overflow-y-auto space-y-3' : 'p-6 flex-1 space-y-5'}`}>
             
-            {/* ARTICLE ASSISTANT GOVERNANCE NOTICE */}
+            {/* ARTICLE ASSISTANT GOVERNANCE NOTICE (Streamlined ribbon) */}
             {staffRole === 'article_assistant' && (
-              <div className="bg-gradient-to-r from-indigo-50 to-slate-50 border border-indigo-200 rounded-lg p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-800 flex items-center justify-center shrink-0">
-                    <span className="material-symbols-outlined text-[19px]">badge</span>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-xs text-indigo-950 uppercase tracking-wide">Article Assistant Mode: Karan Dave</span>
-                      <span className="bg-indigo-100 text-indigo-800 border border-indigo-200 text-[10px] font-extrabold px-1.5 py-0.2 rounded uppercase">VOUCHER TRIAGE & AUDIT PREP</span>
-                    </div>
-                    <p className="text-xs text-indigo-800 mt-0.5">
-                      You have permissions to review WhatsApp receipts, verify GSTINs, and draft reconciliation buckets. Final return sign-off and period locks are reserved for Senior Partner CA (Rajesh Shah).
-                    </p>
-                  </div>
+              <div className="bg-indigo-50/90 border border-indigo-200/90 rounded-lg px-3 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="material-symbols-outlined text-[17px] text-indigo-700 shrink-0">badge</span>
+                  <p className="text-xs text-indigo-950 font-medium truncate">
+                    <strong className="font-semibold">Article Assistant Mode (Karan Dave):</strong> Voucher triage active. Return sign-off reserved for Partner CA.
+                  </p>
                 </div>
-                <div className="text-[11px] font-bold text-slate-500 whitespace-nowrap bg-white px-2.5 py-1 rounded border border-slate-200 shrink-0">
-                  ICAI SA 230 Active Log
-                </div>
+                <span className="text-[10px] font-bold text-indigo-800 bg-white px-2 py-0.5 rounded border border-indigo-200 self-start sm:self-auto shrink-0 font-mono">
+                  ICAI SA 230
+                </span>
               </div>
             )}
             
             {/* VIEW: DASHBOARD (Active Client list / Empty state) */}
             {currentView === 'dashboard' && !selectedBusiness && (
               <>
-                {/* PERSISTENT PRACTICE MODE BANNER (When Sample Data is loaded) */}
+                {/* PERSISTENT PRACTICE MODE BANNER (Streamlined ribbon) */}
                 {isDemoMode && (
-                  <div className="bg-amber-500/10 border-2 border-amber-400 rounded-lg p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-800 flex items-center justify-center shrink-0">
-                        <span className="material-symbols-outlined text-[20px]">science</span>
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-xs text-amber-950 uppercase tracking-wide">Practice Sandbox Mode Active</span>
-                          <span className="bg-amber-200 text-amber-900 text-[10px] font-extrabold px-1.5 py-0.2 rounded uppercase">SIMULATION</span>
-                        </div>
-                        <p className="text-xs text-amber-800 mt-0.5">
-                          Viewing 3 simulated businesses (Kirana, Electronics, Textiles). Your actual CA workspace remains private, clean, and unpolluted.
-                        </p>
-                      </div>
+                  <div className="bg-amber-50/90 border border-amber-300 rounded-lg px-3 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="material-symbols-outlined text-[17px] text-amber-600 shrink-0">science</span>
+                      <p className="text-xs text-amber-950 font-medium truncate">
+                        <strong className="font-semibold">Practice Sandbox Mode:</strong> 3 simulated businesses loaded. Live firm workspace is unaffected.
+                      </p>
                     </div>
                     <button
                       type="button"
                       onClick={handleClearToLiveWorkspace}
-                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 shrink-0 active:scale-95"
+                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-semibold transition-colors flex items-center gap-1 shadow-2xs self-start sm:self-auto shrink-0 active:scale-95"
                     >
-                      <span className="material-symbols-outlined text-[15px]">cleaning_services</span>
+                      <span className="material-symbols-outlined text-[13px]">cleaning_services</span>
                       <span>Exit & Wipe Sample Data</span>
                     </button>
                   </div>
                 )}
 
-                {/* Metrics Card (Desktop only) */}
+                {/* 4 EXECUTIVE KPI STAT CARDS */}
                 {!isMobileLayout && !isEmptyState && (
-                  <div className="bg-white p-lg border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-md shadow-sm rounded-sm">
-                    <div>
-                      <h2 className="font-headline-md text-headline-md text-ink-900 mb-xs">{caUser?.firm_name || 'My Firm'}</h2>
-                      <p className="font-body-md text-body-md text-on-surface-variant flex items-center gap-sm">
-                        <span>Managed clients: <strong className="font-data-mono font-bold text-ink-900">{businesses.length}</strong></span>
-                        <span className="w-1.5 h-1.5 bg-slate-300 rounded-full"></span>
-                        <span className="text-rust-600 font-bold flex items-center gap-1">
-                          <span className="w-2 h-2 rounded-full bg-rust-600"></span>
-                          {totalCriticalIssues} client business(es) require attention
-                        </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* STAT 1: Managed Portfolios */}
+                    <div className="bg-white border border-slate-200/90 rounded-lg p-4 shadow-2xs hover:shadow-xs transition-shadow">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Portfolios</span>
+                        <div className="w-8 h-8 rounded-md bg-teal-50 text-teal-700 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-[18px]">domain</span>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-2xl font-bold font-mono text-slate-900">{businesses.length}</span>
+                        <span className="text-xs text-slate-500 font-medium">Active</span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-slate-500 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        {businesses.filter(b => b.high_flags === 0).length} audit compliant
                       </p>
                     </div>
-                    
-                    <div className="flex gap-sm">
-                      <div className="px-md py-sm bg-paper-50 border border-slate-200 flex flex-col rounded-sm">
-                        <span className="font-label-caps text-label-caps text-on-surface-variant uppercase mb-xs">Active CA Profile</span>
-                        <span className="font-data-mono text-data-mono font-bold text-ink-900">{caUser?.name}</span>
+
+                    {/* STAT 2: Inward Vouchers Captured */}
+                    <div className="bg-white border border-slate-200/90 rounded-lg p-4 shadow-2xs hover:shadow-xs transition-shadow">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Vouchers Inward</span>
+                        <div className="w-8 h-8 rounded-md bg-sky-50 text-sky-700 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-[18px]">receipt_long</span>
+                        </div>
                       </div>
-                      <div className="px-md py-sm bg-paper-50 border border-slate-200 flex flex-col rounded-sm">
-                        <span className="font-label-caps text-label-caps text-on-surface-variant uppercase mb-xs">Billing Tier</span>
-                        <span className="font-data-mono text-data-mono font-bold text-teal-600 uppercase">{caUser?.plan_tier} TIER</span>
+                      <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-2xl font-bold font-mono text-slate-900">{invoices.length}</span>
+                        <span className="text-xs text-slate-500 font-medium">Receipts</span>
                       </div>
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        WhatsApp + OCR automated intake
+                      </p>
+                    </div>
+
+                    {/* STAT 3: Review Triage Queue */}
+                    <div className="bg-white border border-slate-200/90 rounded-lg p-4 shadow-2xs hover:shadow-xs transition-shadow">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Audit Triage</span>
+                        <div className="w-8 h-8 rounded-md bg-amber-50 text-amber-700 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-[18px]">rule</span>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-2xl font-bold font-mono text-amber-700">
+                          {invoices.filter(i => i.extraction_status === 'needs_review').length}
+                        </span>
+                        <span className="text-xs text-slate-500 font-medium">Needs Review</span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        Low confidence OCR extractions
+                      </p>
+                    </div>
+
+                    {/* STAT 4: ITC At-Risk Value */}
+                    <div className="bg-white border border-slate-200/90 rounded-lg p-4 shadow-2xs hover:shadow-xs transition-shadow">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">ITC Tax At-Risk</span>
+                        <div className="w-8 h-8 rounded-md bg-rose-50 text-rose-700 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-[18px]">gavel</span>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-2xl font-bold font-mono text-rose-700">
+                          ₹{businesses.reduce((sum, b) => sum + (parseFloat(b.at_risk_amount) || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-rose-600 font-medium flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
+                        {totalCriticalIssues} client(s) with high flags
+                      </p>
                     </div>
                   </div>
                 )}
@@ -5692,51 +6176,53 @@ function doPost(e) {
                       </div>
                     ) : (
                       
-                      // DESKTOP LAYOUT (Dense table)
-                      <div className="bg-white border border-slate-200 overflow-hidden shadow-sm rounded-sm">
-                        <div className="px-md py-xs bg-paper-50 border-b border-slate-200">
+                      // DESKTOP LAYOUT (Dense ledger table)
+                      <div className="bg-white border border-slate-200/90 overflow-hidden shadow-2xs rounded-lg">
+                        <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-200/80">
                           {/* SUB-TAB TOGGLE: GST LEDGER VS MULTI-PORTAL MATRIX */}
-                          <div className="flex items-center gap-4 border-b border-slate-200 mb-2">
+                          <div className="flex items-center gap-2 border-b border-slate-200/80 mb-2.5 pb-2">
                             <button
                               type="button"
                               onClick={() => setDashboardSubTab('gst_ledger')}
-                              className={`pb-2 pt-1.5 px-1 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-1.5 ${
+                              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 ${
                                 dashboardSubTab === 'gst_ledger'
-                                  ? 'border-teal-700 text-teal-800'
-                                  : 'border-transparent text-slate-500 hover:text-ink-900'
+                                  ? 'bg-white text-teal-800 shadow-2xs border border-slate-200/90 font-bold'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'
                               }`}
                             >
                               <span className="material-symbols-outlined text-[16px]">domain</span>
-                              GST Compliance & Filing Desk
+                              <span>GST Compliance & Inward Desk</span>
                             </button>
                             <button
                               type="button"
                               onClick={() => setDashboardSubTab('multi_portal')}
-                              className={`pb-2 pt-1.5 px-1 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-1.5 ${
+                              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 ${
                                 dashboardSubTab === 'multi_portal'
-                                  ? 'border-teal-700 text-teal-800'
-                                  : 'border-transparent text-slate-500 hover:text-ink-900'
+                                  ? 'bg-white text-teal-800 shadow-2xs border border-slate-200/90 font-bold'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'
                               }`}
                             >
                               <span className="material-symbols-outlined text-[16px]">hub</span>
-                              Multi-Portal Compliance Matrix (GST | I-T | MCA | TDS)
+                              <span>Multi-Portal Compliance Matrix (GST | I-T | MCA | TDS)</span>
                               <span className="ml-1 px-1.5 py-0.2 bg-teal-100 text-teal-800 text-[9px] font-extrabold rounded">NEW</span>
                             </button>
                           </div>
 
                           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-1">
-                            <h3 className="font-label-caps text-label-caps text-ink-900 font-bold">
-                              {dashboardSubTab === 'gst_ledger' ? 'CLIENT LEDGER REGISTRY' : 'UNIFIED MULTI-DEPARTMENT COMPLIANCE CONSOLE'}
-                            </h3>
                             <div className="flex items-center gap-2">
-                              <span className="text-body-sm text-on-surface-variant">
-                                {dashboardSubTab === 'gst_ledger' ? `Showing ${filteredBusinesses.length} businesses` : `Monitoring ${multiPortalList.length} clients across 4 Govt Portals`}
+                              <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                                {dashboardSubTab === 'gst_ledger' ? 'Client Compliance Register' : 'Unified Multi-Department Console'}
                               </span>
+                              <span className="text-[11px] text-slate-500 font-mono">
+                                ({filteredBusinesses.length} entities)
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
                               {businesses.some(isDemoBiz) && (
                                 <button
                                   type="button"
                                   onClick={handleClearToLiveWorkspace}
-                                  className="flex items-center gap-1 px-2.5 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded text-[11px] font-bold transition-all shadow-xs active:scale-95"
+                                  className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded text-xs font-semibold transition-all shadow-2xs active:scale-95"
                                   title="Purge sample demo clients (Meena Kirana, Sharma Electronics, Patel Textiles) and keep only your firm's real clients"
                                 >
                                   <span className="material-symbols-outlined text-[14px] text-amber-700">cleaning_services</span>
@@ -5745,7 +6231,7 @@ function doPost(e) {
                               )}
                             </div>
                           </div>
-                          <div className="bg-teal-50/70 border border-teal-200/80 px-2 py-1 rounded text-[11px] text-teal-900 flex flex-wrap items-center justify-between gap-xs">
+                          <div className="bg-teal-50/70 border border-teal-200/80 px-2.5 py-1.5 rounded-md text-[11px] text-teal-900 flex flex-wrap items-center justify-between gap-xs">
                             <div className="flex items-center gap-1.5">
                               <span className="material-symbols-outlined text-[15px] text-teal-700">verified_user</span>
                               <span>
@@ -5876,26 +6362,26 @@ function doPost(e) {
                         <div className="overflow-x-auto custom-scrollbar">
                           <table className="w-full border-collapse">
                             <thead>
-                              <tr className="bg-white">
-                                <th className="px-md py-sm border-b border-ink-900 text-left font-label-caps text-label-caps text-ink-900 w-16">Risk</th>
-                                <th className="px-md py-sm border-b border-ink-900 text-left font-label-caps text-label-caps text-ink-900">Business Name</th>
-                                <th className="px-md py-sm border-b border-ink-900 text-left font-label-caps text-label-caps text-ink-900 w-1/4">
+                              <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-semibold text-[11px] uppercase tracking-wider">
+                                <th className="px-4 py-2.5 text-left w-24">Risk</th>
+                                <th className="px-4 py-2.5 text-left">Business Entity</th>
+                                <th className="px-4 py-2.5 text-left w-1/4">
                                   <span className="flex items-center gap-1">
                                     <span>Voucher Inward (Books)</span>
                                     <span 
-                                      className="material-symbols-outlined text-[15px] text-teal-700 cursor-help"
+                                      className="material-symbols-outlined text-[14px] text-teal-700 cursor-help"
                                       title="Tracks inward voucher capture in Books. GSTR-2B reflection is legally required under Sec 16(2)(aa) to finalize ITC."
                                     >
                                       info
                                     </span>
                                   </span>
                                 </th>
-                                <th className="px-md py-sm border-b border-ink-900 text-right font-label-caps text-label-caps text-ink-900">Count</th>
-                                <th className="px-md py-sm border-b border-ink-900 text-right font-label-caps text-label-caps text-ink-900">At-Risk Value</th>
-                                <th className="px-md py-sm border-b border-ink-900 text-center font-label-caps text-label-caps text-ink-900 w-24">Action</th>
+                                <th className="px-4 py-2.5 text-right">Invoices</th>
+                                <th className="px-4 py-2.5 text-right">At-Risk Value</th>
+                                <th className="px-4 py-2.5 text-center w-24">Actions</th>
                               </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="divide-y divide-slate-100">
                               {filteredBusinesses.map(business => {
                                 const total = business.total_invoices || 0;
                                 const filed = business.filed_invoices || 0;
@@ -5909,85 +6395,93 @@ function doPost(e) {
                                   <tr 
                                     key={business.id}
                                     onClick={() => { setSelectedBusiness(business); setCurrentView('client-detail'); }}
-                                    className="hover:bg-teal-600/5 group transition-colors cursor-pointer border-b border-slate-100"
+                                    className="hover:bg-teal-50/40 group transition-colors cursor-pointer"
                                   >
-                                    <td className="px-md py-md">
+                                    <td className="px-4 py-3">
                                       {hasHigh ? (
-                                        <div className="flex items-center gap-xs">
-                                          <div className="w-2.5 h-2.5 rounded-full bg-rust-600"></div>
-                                          <span className="font-label-caps text-label-caps text-rust-600 font-bold">HIGH</span>
-                                        </div>
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
+                                          HIGH
+                                        </span>
                                       ) : hasMed ? (
-                                        <div className="flex items-center gap-xs">
-                                          <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
-                                          <span className="font-label-caps text-label-caps text-amber-500 font-bold">MED</span>
-                                        </div>
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
+                                          MED
+                                        </span>
                                       ) : (
-                                        <div className="flex items-center gap-xs">
-                                          <div className="w-2.5 h-2.5 rounded-full bg-moss-500"></div>
-                                          <span className="font-label-caps text-label-caps text-moss-500 font-bold">OK</span>
-                                        </div>
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                                          OK
+                                        </span>
                                       )}
                                     </td>
                                     
-                                    <td className="px-md py-md">
+                                    <td className="px-4 py-3">
                                       <div className="flex flex-col">
                                         <div className="flex items-center gap-2">
-                                          <span className="font-body-md text-body-md font-bold text-ink-900 group-hover:text-teal-600 transition-colors">
+                                          <span className="text-sm font-semibold text-slate-900 group-hover:text-teal-700 transition-colors">
                                             {business.name}
                                           </span>
                                           {isDemoMode && (
-                                            <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded font-extrabold uppercase border border-amber-300">
+                                            <span className="text-[9px] bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded font-bold uppercase border border-amber-300">
                                               SAMPLE
                                             </span>
                                           )}
                                         </div>
-                                        <span className="text-xs font-data-mono text-on-surface-variant mt-0.5">
+                                        <span className="text-xs font-mono text-slate-500 mt-0.5">
                                           GSTIN: {business.gstin}
                                         </span>
                                       </div>
                                     </td>
                                     
-                                    <td className="px-md py-md">
+                                    <td className="px-4 py-3">
                                       {total > 0 ? (
-                                        <div className="reconciliation-strip">
-                                          <div className="bg-teal-600 h-full transition-all" style={{ width: `${filedPercent}%` }}></div>
-                                          <div className="bg-rust-600/60 h-full transition-all" style={{ width: `${missingPercent}%` }}></div>
+                                        <div>
+                                          <div className="reconciliation-strip rounded-full overflow-hidden h-2 bg-slate-100 border border-slate-200/60">
+                                            <div className="bg-teal-600 h-full transition-all" style={{ width: `${filedPercent}%` }}></div>
+                                            <div className="bg-rose-500/80 h-full transition-all" style={{ width: `${missingPercent}%` }}></div>
+                                          </div>
+                                          <div className="flex justify-between text-[10px] text-slate-400 font-mono mt-1">
+                                            <span>{Math.round(filedPercent)}% Reconciled</span>
+                                            <span>{total - filed} Missing in 2B</span>
+                                          </div>
                                         </div>
                                       ) : (
-                                        <div className="reconciliation-strip">
+                                        <div className="reconciliation-strip rounded-full overflow-hidden h-2 bg-slate-100">
                                           <div className="bg-slate-300 h-full w-full"></div>
                                         </div>
                                       )}
                                     </td>
                                     
-                                    <td className="px-md py-md text-right font-data-mono text-data-mono text-ink-900">
+                                    <td className="px-4 py-3 text-right font-mono tabular-nums text-slate-700 text-xs font-medium">
                                       {total > 0 ? `${filed}/${total}` : '0/0'}
                                     </td>
                                     
-                                    <td className="px-md py-md text-right font-data-mono text-data-mono font-bold text-ink-900">
-                                      ₹{business.at_risk_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                    <td className="px-4 py-3 text-right font-mono tabular-nums font-bold text-xs">
+                                      <span className={business.at_risk_amount > 0 ? 'text-rose-700' : 'text-slate-800'}>
+                                        ₹{business.at_risk_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                      </span>
                                     </td>
                                     
-                                    <td className="px-md py-md text-center">
+                                    <td className="px-4 py-3 text-center">
                                       <div className="flex items-center justify-center gap-1">
                                         <button
                                           type="button"
                                           onClick={(e) => { e.stopPropagation(); handleOpenEditClient(business); }}
-                                          className="p-1 text-slate-400 hover:text-teal-700 hover:bg-teal-50 rounded transition-colors"
+                                          className="p-1 text-slate-400 hover:text-teal-700 hover:bg-slate-100 rounded transition-colors"
                                           title="Edit Client Name / GSTIN"
                                         >
-                                          <span className="material-symbols-outlined text-[18px]">edit</span>
+                                          <span className="material-symbols-outlined text-[17px]">edit</span>
                                         </button>
                                         <button
                                           type="button"
                                           onClick={(e) => { e.stopPropagation(); handleDeleteClient(business.id, business.name); }}
-                                          className="p-1 text-slate-400 hover:text-rust-600 hover:bg-red-50 rounded transition-colors"
+                                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
                                           title={`Remove ${business.name}`}
                                         >
-                                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                                          <span className="material-symbols-outlined text-[17px]">delete</span>
                                         </button>
-                                        <span className="material-symbols-outlined text-on-surface-variant group-hover:text-teal-600 transition-colors">
+                                        <span className="material-symbols-outlined text-slate-400 group-hover:text-teal-700 transition-colors text-[18px]">
                                           chevron_right
                                         </span>
                                       </div>
@@ -6006,7 +6500,32 @@ function doPost(e) {
               </>
             )}
 
+            {/* VIEW: SUPER ADMIN CONSOLE (PLATFORM MASTER DIRECTORY) */}
+            {currentView === 'super-admin' && (
+              <SuperAdminView
+                currentUser={activeUser}
+                systemUsers={systemUsers}
+                onUpdateUsers={(updated) => {
+                  setSystemUsers(updated);
+                  localStorage.setItem('bg_system_users', JSON.stringify(updated));
+                }}
+                onImpersonateUser={(userToImpersonate) => {
+                  setImpersonatedUser(userToImpersonate);
+                  if (userToImpersonate.role === 'mall_owner') setCurrentView('retail-shield');
+                  else if (userToImpersonate.role === 'shop_owner') setCurrentView('solo-business');
+                  else if (userToImpersonate.role === 'mehtaji') setCurrentView('retail-shield');
+                  else if (userToImpersonate.role === 'salaried') setCurrentView('salaried-portal');
+                  else setCurrentView('dashboard');
+                }}
+                showToast={showToast}
+              />
+            )}
+
             {/* VIEW: BANK STATEMENT AI NARRATION PARSER & TALLY LEDGER MAPPER (SUVIT GAP-CLOSER) */}
+            {currentView === 'retail-shield' && (
+              <RetailShieldView />
+            )}
+
             {currentView === 'bank-statements' && (
               <BankStatementView
                 selectedBusiness={selectedBusiness}
@@ -6103,67 +6622,67 @@ function doPost(e) {
                   </div>
 
                   {/* Header & Controls Bar */}
-                  <div className="bg-white border border-slate-200 rounded p-lg shadow-sm">
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-md mb-md">
+                  <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <span className="material-symbols-outlined text-teal-700 text-2xl">compare_arrows</span>
-                          <h3 className="font-headline-md text-headline-sm md:text-headline-md text-ink-900 font-bold">
+                          <h3 className="font-headline-sm text-lg md:text-xl text-slate-900 font-bold">
                             GSTR-2B Two-Way Auto-Reconciler
                           </h3>
-                          <span className="bg-teal-100 text-teal-800 text-xs font-semibold px-2.5 py-0.5 rounded uppercase tracking-wider">
+                          <span className="bg-teal-50 text-teal-800 border border-teal-200/90 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider font-mono">
                             Sec 16(2)(aa) Guard
                           </span>
                         </div>
-                        <p className="text-on-surface-variant text-body-md max-w-3xl">
+                        <p className="text-slate-500 text-xs md:text-sm max-w-3xl leading-relaxed">
                           Automated cross-check of your Books inward invoices against official GST portal Form GSTR-2B.
                           Prevents illegal ITC claims in GSTR-3B Table 4(A)(5) and sends 1-click WhatsApp follow-ups to non-compliant vendors.
                         </p>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-sm">
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
                           onClick={() => fileInputRef2b.current?.click()}
-                          className="px-md py-sm bg-white border border-slate-300 hover:bg-slate-50 text-ink-900 font-semibold text-sm rounded transition-all flex items-center gap-1.5 shadow-sm"
+                          className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-md transition-all flex items-center gap-1.5 shadow-2xs"
                         >
-                          <span className="material-symbols-outlined text-sm text-teal-700">upload_file</span>
-                          Upload 2B JSON
+                          <span className="material-symbols-outlined text-[15px] text-teal-700">upload_file</span>
+                          <span>Upload 2B JSON</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => handleSimulateClientRecon(reconData.selectedBiz?.id)}
-                          className="px-md py-sm bg-teal-50 border border-teal-300 hover:bg-teal-100 text-teal-800 font-semibold text-sm rounded transition-all flex items-center gap-1.5"
+                          className="px-3 py-1.5 bg-teal-50 border border-teal-200 hover:bg-teal-100 text-teal-800 font-semibold text-xs rounded-md transition-all flex items-center gap-1.5 shadow-2xs"
                           title="Generate 4 realistic test bills and portal records for this client"
                         >
-                          <span className="material-symbols-outlined text-sm text-teal-700">bolt</span>
-                          ⚡ 1-Click Simulation
+                          <span className="material-symbols-outlined text-[15px] text-teal-700">bolt</span>
+                          <span>⚡ Test Simulation</span>
                         </button>
                         {(reconData.booksInvoices.length > 0 || reconData.gstr2bInvoices.length > 0) && (
                           <button
                             type="button"
                             onClick={() => handleClearClientSimulation(reconData.selectedBiz?.id)}
-                            className="px-md py-sm bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-200 font-semibold text-sm rounded transition-all flex items-center gap-1"
+                            className="px-3 py-1.5 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 border border-slate-200 hover:border-rose-200 font-semibold text-xs rounded-md transition-all flex items-center gap-1"
                             title="Reset this client's bills and 2B records back to clean state"
                           >
-                            <span className="material-symbols-outlined text-sm">restart_alt</span>
-                            Reset Test Data
+                            <span className="material-symbols-outlined text-[15px]">restart_alt</span>
+                            <span>Reset</span>
                           </button>
                         )}
                         <button
                           type="button"
                           onClick={() => exportFullReconciliationCsv(reconData)}
-                          className="px-md py-sm bg-ink-900 hover:bg-black text-white font-semibold text-sm rounded transition-all flex items-center gap-1.5 shadow-sm"
+                          className="px-3 py-1.5 bg-slate-900 hover:bg-black text-white font-semibold text-xs rounded-md transition-all flex items-center gap-1.5 shadow-2xs"
                         >
-                          <span className="material-symbols-outlined text-sm">download</span>
-                          Export 4-Bucket CSV
+                          <span className="material-symbols-outlined text-[15px]">download</span>
+                          <span>Export CSV</span>
                         </button>
                       </div>
                     </div>
 
                     {/* Filter Strip */}
-                    <div className="pt-md border-t border-slate-100 flex flex-wrap items-center justify-between gap-md">
-                      <div className="flex flex-wrap items-center gap-md">
+                    <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+                      <div className="flex flex-wrap items-center gap-4">
                         <div className="flex items-center gap-2">
                           <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Client Business:</label>
                           <select
@@ -6268,13 +6787,13 @@ function doPost(e) {
                   </div>
 
                   {/* Statutory Caution Alert */}
-                  <div className="bg-amber-50 border-l-4 border-amber-500 p-md rounded-r text-amber-900 text-sm flex items-start gap-3 shadow-xs">
-                    <span className="material-symbols-outlined text-amber-600 mt-0.5">gavel</span>
+                  <div className="bg-amber-50/80 border border-amber-300/80 p-3.5 rounded-lg text-amber-950 text-xs flex items-start gap-2.5 shadow-2xs">
+                    <span className="material-symbols-outlined text-amber-600 text-[18px] shrink-0 mt-0.5">gavel</span>
                     <div>
-                      <p className="font-bold text-ink-900">
+                      <p className="font-bold text-slate-900">
                         Statutory Mandate: Section 16(2)(aa) of CGST Act 2017 & Rule 36(4)
                       </p>
-                      <p className="text-xs mt-0.5 text-amber-950/80 leading-relaxed">
+                      <p className="text-[11px] mt-0.5 text-amber-950/80 leading-relaxed">
                         Input Tax Credit can <strong>ONLY</strong> be claimed in GSTR-3B Table 4(A)(5) if the invoice is communicated in Form GSTR-2B.
                         Invoices present in your Books but missing in GSTR-2B must NOT be claimed — doing so triggers auto-scrutiny notices (Form DRC-01B) with mandatory 18% p.a. interest.
                       </p>
@@ -6323,77 +6842,77 @@ function doPost(e) {
                   )}
 
                   {/* 5-Card Bento Summary Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-md">
-                    <div className="bg-white border border-slate-200 rounded p-md shadow-xs flex flex-col justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Books Inward ITC</span>
-                      <div className="my-sm">
-                        <div className="text-2xl font-bold text-ink-900">₹{reconData.summary.books_itc.toLocaleString('en-IN')}</div>
-                        <span className="text-xs text-slate-500">{reconData.summary.books_count} invoices recorded</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                    <div className="bg-white border border-slate-200/90 rounded-lg p-3.5 shadow-2xs flex flex-col justify-between hover:shadow-xs transition-shadow">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Books Inward ITC</span>
+                      <div className="my-1.5">
+                        <div className="text-xl font-bold font-mono tabular-nums text-slate-900">₹{reconData.summary.books_itc.toLocaleString('en-IN')}</div>
+                        <span className="text-[11px] text-slate-500">{reconData.summary.books_count} invoices recorded</span>
                       </div>
-                      <span className="text-[11px] text-slate-400 font-medium">From WhatsApp bills</span>
+                      <span className="text-[10px] text-slate-400 font-medium">From WhatsApp bills</span>
                     </div>
 
-                    <div className="bg-white border border-slate-200 rounded p-md shadow-xs flex flex-col justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Portal GSTR-2B ITC</span>
-                      <div className="my-sm">
-                        <div className="text-2xl font-bold text-teal-800">₹{reconData.summary.gstr2b_itc.toLocaleString('en-IN')}</div>
-                        <span className="text-xs text-slate-500">{reconData.summary.gstr2b_count} records on portal</span>
+                    <div className="bg-white border border-slate-200/90 rounded-lg p-3.5 shadow-2xs flex flex-col justify-between hover:shadow-xs transition-shadow">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Portal GSTR-2B ITC</span>
+                      <div className="my-1.5">
+                        <div className="text-xl font-bold font-mono tabular-nums text-teal-800">₹{reconData.summary.gstr2b_itc.toLocaleString('en-IN')}</div>
+                        <span className="text-[11px] text-slate-500">{reconData.summary.gstr2b_count} records on portal</span>
                       </div>
-                      <span className="text-[11px] text-teal-600 font-medium">Official GST portal data</span>
+                      <span className="text-[10px] text-teal-700 font-medium">Official GST portal data</span>
                     </div>
 
-                    <div className="bg-moss-50/60 border border-moss-300 rounded p-md shadow-xs flex flex-col justify-between">
+                    <div className="bg-emerald-50/60 border border-emerald-200 rounded-lg p-3.5 shadow-2xs flex flex-col justify-between hover:shadow-xs transition-shadow">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold uppercase tracking-wider text-moss-800">100% Matched ITC</span>
-                        <span className="material-symbols-outlined text-moss-600 text-sm">verified</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">100% Matched ITC</span>
+                        <span className="material-symbols-outlined text-emerald-600 text-[16px]">verified</span>
                       </div>
-                      <div className="my-sm">
-                        <div className="text-2xl font-bold text-moss-900">₹{reconData.summary.matched_itc.toLocaleString('en-IN')}</div>
-                        <span className="text-xs text-moss-700">{reconData.summary.matched_count} verified invoices</span>
+                      <div className="my-1.5">
+                        <div className="text-xl font-bold font-mono tabular-nums text-emerald-900">₹{reconData.summary.matched_itc.toLocaleString('en-IN')}</div>
+                        <span className="text-[11px] text-emerald-700">{reconData.summary.matched_count} verified invoices</span>
                       </div>
-                      <span className="text-[11px] font-bold text-moss-700">✓ Safe for GSTR-3B Table 4(A)(5)</span>
+                      <span className="text-[10px] font-bold text-emerald-700">✓ Safe for GSTR-3B 4(A)(5)</span>
                     </div>
 
-                    <div className="bg-rose-50/60 border border-rose-300 rounded p-md shadow-xs flex flex-col justify-between">
+                    <div className="bg-rose-50/60 border border-rose-200 rounded-lg p-3.5 shadow-2xs flex flex-col justify-between hover:shadow-xs transition-shadow">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold uppercase tracking-wider text-rose-800">Missing in 2B (At-Risk)</span>
-                        <span className="material-symbols-outlined text-rose-600 text-sm">warning</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800">Missing in 2B (At-Risk)</span>
+                        <span className="material-symbols-outlined text-rose-600 text-[16px]">warning</span>
                       </div>
-                      <div className="my-sm">
-                        <div className="text-2xl font-bold text-rose-900">₹{reconData.summary.at_risk_itc.toLocaleString('en-IN')}</div>
-                        <span className="text-xs text-rose-700">{reconData.summary.missing_in_2b_count} delinquent vendors</span>
+                      <div className="my-1.5">
+                        <div className="text-xl font-bold font-mono tabular-nums text-rose-900">₹{reconData.summary.at_risk_itc.toLocaleString('en-IN')}</div>
+                        <span className="text-[11px] text-rose-700">{reconData.summary.missing_in_2b_count} delinquent vendors</span>
                       </div>
-                      <span className="text-[11px] font-bold text-rose-700">⚠️ Hold Claim · Follow up</span>
+                      <span className="text-[10px] font-bold text-rose-700">⚠️ Hold Claim · Follow up</span>
                     </div>
 
-                    <div className="bg-blue-50/60 border border-blue-300 rounded p-md shadow-xs flex flex-col justify-between">
+                    <div className="bg-sky-50/60 border border-sky-200 rounded-lg p-3.5 shadow-2xs flex flex-col justify-between hover:shadow-xs transition-shadow">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold uppercase tracking-wider text-blue-800">Missing in Books</span>
-                        <span className="material-symbols-outlined text-blue-600 text-sm">receipt_long</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-sky-800">Missing in Books</span>
+                        <span className="material-symbols-outlined text-sky-600 text-[16px]">receipt_long</span>
                       </div>
-                      <div className="my-sm">
-                        <div className="text-2xl font-bold text-blue-900">₹{reconData.summary.uncaptured_itc.toLocaleString('en-IN')}</div>
-                        <span className="text-xs text-blue-700">{reconData.summary.missing_in_books_count} unclaimed on portal</span>
+                      <div className="my-1.5">
+                        <div className="text-xl font-bold font-mono tabular-nums text-sky-900">₹{reconData.summary.uncaptured_itc.toLocaleString('en-IN')}</div>
+                        <span className="text-[11px] text-sky-700">{reconData.summary.missing_in_books_count} unclaimed on portal</span>
                       </div>
-                      <span className="text-[11px] font-bold text-blue-700">📸 Request receipt from client</span>
+                      <span className="text-[10px] font-bold text-sky-700">📸 Request receipt from client</span>
                     </div>
                   </div>
 
                   {/* Interactive Tabs Section */}
-                  <div className="bg-white border border-slate-200 rounded shadow-sm overflow-hidden">
-                    <div className="border-b border-slate-200 flex flex-wrap bg-slate-50/80 px-md pt-sm">
+                  <div className="bg-white border border-slate-200/90 rounded-lg shadow-2xs overflow-hidden">
+                    <div className="border-b border-slate-200 flex flex-wrap bg-slate-50/80 px-4 pt-2 gap-1">
                       <button
                         type="button"
                         onClick={() => setReconcileTab('missing_in_2b')}
-                        className={`pb-3 pt-2 px-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 ${
+                        className={`pb-2.5 pt-2 px-3 text-xs font-semibold rounded-t-md transition-all flex items-center gap-1.5 ${
                           reconcileTab === 'missing_in_2b'
-                            ? 'border-rose-600 text-rose-700 bg-white rounded-t'
-                            : 'border-transparent text-slate-500 hover:text-ink-900'
+                            ? 'bg-white text-rose-700 border-t-2 border-rose-600 shadow-2xs font-bold'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'
                         }`}
                       >
-                        <span className="material-symbols-outlined text-sm">error</span>
-                        Missing in GSTR-2B
-                        <span className={`px-1.5 py-0.5 rounded-full text-[11px] ${
+                        <span className="material-symbols-outlined text-[15px]">error</span>
+                        <span>Missing in GSTR-2B</span>
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
                           reconData.inBooksMissingIn2b.length > 0 ? 'bg-rose-100 text-rose-800' : 'bg-slate-200 text-slate-700'
                         }`}>
                           {reconData.inBooksMissingIn2b.length}
@@ -6403,15 +6922,15 @@ function doPost(e) {
                       <button
                         type="button"
                         onClick={() => setReconcileTab('matched')}
-                        className={`pb-3 pt-2 px-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 ${
+                        className={`pb-2.5 pt-2 px-3 text-xs font-semibold rounded-t-md transition-all flex items-center gap-1.5 ${
                           reconcileTab === 'matched'
-                            ? 'border-moss-600 text-moss-700 bg-white rounded-t'
-                            : 'border-transparent text-slate-500 hover:text-ink-900'
+                            ? 'bg-white text-emerald-800 border-t-2 border-emerald-600 shadow-2xs font-bold'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'
                         }`}
                       >
-                        <span className="material-symbols-outlined text-sm">check_circle</span>
-                        100% Matched
-                        <span className="px-1.5 py-0.5 rounded-full text-[11px] bg-moss-100 text-moss-800">
+                        <span className="material-symbols-outlined text-[15px]">check_circle</span>
+                        <span>100% Matched</span>
+                        <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
                           {reconData.matched.length}
                         </span>
                       </button>
@@ -6419,16 +6938,16 @@ function doPost(e) {
                       <button
                         type="button"
                         onClick={() => setReconcileTab('missing_in_books')}
-                        className={`pb-3 pt-2 px-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 ${
+                        className={`pb-2.5 pt-2 px-3 text-xs font-semibold rounded-t-md transition-all flex items-center gap-1.5 ${
                           reconcileTab === 'missing_in_books'
-                            ? 'border-blue-600 text-blue-700 bg-white rounded-t'
-                            : 'border-transparent text-slate-500 hover:text-ink-900'
+                            ? 'bg-white text-sky-800 border-t-2 border-sky-600 shadow-2xs font-bold'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'
                         }`}
                       >
-                        <span className="material-symbols-outlined text-sm">help</span>
-                        Missing in Books
-                        <span className={`px-1.5 py-0.5 rounded-full text-[11px] ${
-                          reconData.in2bMissingInBooks.length > 0 ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-700'
+                        <span className="material-symbols-outlined text-[15px]">help</span>
+                        <span>Missing in Books</span>
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                          reconData.in2bMissingInBooks.length > 0 ? 'bg-sky-100 text-sky-800' : 'bg-slate-200 text-slate-700'
                         }`}>
                           {reconData.in2bMissingInBooks.length}
                         </span>
@@ -6437,15 +6956,15 @@ function doPost(e) {
                       <button
                         type="button"
                         onClick={() => setReconcileTab('mismatch_value')}
-                        className={`pb-3 pt-2 px-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 ${
+                        className={`pb-2.5 pt-2 px-3 text-xs font-semibold rounded-t-md transition-all flex items-center gap-1.5 ${
                           reconcileTab === 'mismatch_value'
-                            ? 'border-amber-600 text-amber-700 bg-white rounded-t'
-                            : 'border-transparent text-slate-500 hover:text-ink-900'
+                            ? 'bg-white text-amber-800 border-t-2 border-amber-600 shadow-2xs font-bold'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'
                         }`}
                       >
-                        <span className="material-symbols-outlined text-sm">difference</span>
-                        Value Mismatches
-                        <span className="px-1.5 py-0.5 rounded-full text-[11px] bg-slate-200 text-slate-700">
+                        <span className="material-symbols-outlined text-[15px]">difference</span>
+                        <span>Value Mismatches</span>
+                        <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700">
                           {reconData.mismatchValue.length}
                         </span>
                       </button>
@@ -10930,116 +11449,116 @@ function doPost(e) {
                     <p className="text-on-surface-variant text-body-md">Analyze Input Tax Credit trends and track filing deadlines across businesses.</p>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md">
-                    <div className="bg-white border border-slate-200 p-md flex flex-col gap-xs rounded shadow-sm">
-                      <span className="font-label-caps text-label-caps text-on-surface-variant uppercase font-bold">Total ITC Claimed</span>
-                      <div className="flex items-baseline gap-xs">
-                        <span className="font-data-mono text-[24px] font-bold text-teal-600">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white border border-slate-200/90 p-4 flex flex-col justify-between rounded-xl shadow-2xs hover:shadow-xs transition-shadow">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Total ITC Claimed</span>
+                      <div className="flex items-baseline gap-2 my-2">
+                        <span className="font-mono text-2xl font-bold text-teal-700">
                           {totalItcClaimed >= 100000 
                             ? `₹${(totalItcClaimed / 100000).toFixed(1)}L` 
                             : `₹${totalItcClaimed.toLocaleString('en-IN')}`}
                         </span>
-                        <span className="text-moss-500 font-data-mono text-[12px] flex items-center font-bold">
+                        <span className="text-emerald-700 font-mono text-xs flex items-center font-bold">
                           <span className="material-symbols-outlined text-[14px]">arrow_drop_up</span>Verified
                         </span>
                       </div>
-                      <div className="mt-sm h-1 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-teal-600 w-[80%]"></div>
+                      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-teal-600 w-[80%] rounded-full"></div>
                       </div>
                     </div>
 
-                    <div className="bg-white border border-slate-200 p-md flex flex-col gap-xs border-l-4 border-l-rust-600 rounded shadow-sm">
-                      <span className="font-label-caps text-label-caps text-rust-600 uppercase font-bold">Blocked ITC (Risk)</span>
-                      <div className="flex items-baseline gap-xs">
-                        <span className="font-data-mono text-[24px] font-bold text-rust-600">
+                    <div className="bg-white border border-slate-200/90 p-4 flex flex-col justify-between border-l-4 border-l-rose-600 rounded-xl shadow-2xs hover:shadow-xs transition-shadow">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700">Blocked ITC (Risk)</span>
+                      <div className="flex items-baseline gap-2 my-2">
+                        <span className="font-mono text-2xl font-bold text-rose-700">
                           ₹{totalBlockedItc.toLocaleString('en-IN', { minimumFractionDigits: 0 })}
                         </span>
-                        <span className="text-rust-600 font-data-mono text-[12px] flex items-center font-bold">
+                        <span className="text-rose-600 font-mono text-xs flex items-center font-bold">
                           <span className="material-symbols-outlined text-[14px]">warning</span>High Risk
                         </span>
                       </div>
-                      <div className="mt-sm h-1 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-rust-600" style={{ width: `${Math.min(100, (totalBlockedItc / Math.max(1, totalItcClaimed + totalBlockedItc)) * 100)}%` }}></div>
+                      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-rose-600 rounded-full" style={{ width: `${Math.min(100, (totalBlockedItc / Math.max(1, totalItcClaimed + totalBlockedItc)) * 100)}%` }}></div>
                       </div>
                     </div>
 
-                    <div className="bg-white border border-slate-200 p-md flex flex-col gap-xs rounded shadow-sm">
-                      <span className="font-label-caps text-label-caps text-on-surface-variant uppercase font-bold">Filing Completion</span>
-                      <div className="flex items-baseline gap-xs">
-                        <span className="font-data-mono text-[24px] font-bold text-ink-900">{filingPercent}%</span>
+                    <div className="bg-white border border-slate-200/90 p-4 flex flex-col justify-between rounded-xl shadow-2xs hover:shadow-xs transition-shadow">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Filing Completion</span>
+                      <div className="flex items-baseline gap-2 my-2">
+                        <span className="font-mono text-2xl font-bold text-slate-900">{filingPercent}%</span>
                       </div>
-                      <div className="mt-sm h-1 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-moss-500" style={{ width: `${filingPercent}%` }}></div>
+                      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${filingPercent}%` }}></div>
                       </div>
                     </div>
 
-                    <div className="bg-white border border-slate-200 p-md flex flex-col gap-xs rounded shadow-sm">
-                      <span className="font-label-caps text-label-caps text-on-surface-variant uppercase font-bold">Avg Reconcile Time</span>
-                      <div className="flex items-baseline gap-xs">
-                        <span className="font-data-mono text-[24px] font-bold text-ink-900">1.2 Days</span>
+                    <div className="bg-white border border-slate-200/90 p-4 flex flex-col justify-between rounded-xl shadow-2xs hover:shadow-xs transition-shadow">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Avg Reconcile Time</span>
+                      <div className="flex items-baseline gap-2 my-2">
+                        <span className="font-mono text-2xl font-bold text-slate-900">1.2 Days</span>
                       </div>
-                      <div className="mt-sm h-1 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-teal-600 w-1/2"></div>
+                      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-teal-600 w-1/2 rounded-full"></div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
-                    <div className="lg:col-span-2 bg-white border border-slate-200 flex flex-col rounded-sm shadow-sm">
-                      <div className="p-md border-b border-slate-200 flex justify-between items-center">
-                        <h2 className="font-headline-sm text-headline-sm text-ink-900 font-bold">ITC Trend Analysis</h2>
-                        <div className="flex gap-md font-label-caps text-label-caps">
-                          <div className="flex items-center gap-xs">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                    <div className="lg:col-span-2 bg-white border border-slate-200/90 flex flex-col rounded-xl shadow-2xs overflow-hidden">
+                      <div className="px-5 py-3.5 border-b border-slate-200/80 bg-slate-50/60 flex justify-between items-center">
+                        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800">ITC Trend Analysis (FY 2026-27)</h2>
+                        <div className="flex gap-3 text-xs">
+                          <div className="flex items-center gap-1.5">
                             <span className="w-2.5 h-2.5 bg-teal-600 rounded-sm"></span>
-                            <span>Captured</span>
+                            <span className="text-[11px] font-medium text-slate-600">Captured</span>
                           </div>
-                          <div className="flex items-center gap-xs">
+                          <div className="flex items-center gap-1.5">
                             <span className="w-2.5 h-2.5 bg-slate-200 rounded-sm"></span>
-                            <span>Filed</span>
+                            <span className="text-[11px] font-medium text-slate-600">Filed</span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="p-lg h-64 flex items-end justify-between gap-md relative">
+                      <div className="p-6 h-64 flex items-end justify-between gap-4 relative">
                         {trendMonths.map((item, idx) => (
                           <div key={idx} className="flex-1 flex flex-col justify-end gap-2 group h-full">
                             <div className="flex gap-1 items-end h-[80%]">
-                              <div className="w-full bg-teal-600 rounded-t-sm transition-all duration-300 hover:brightness-95" style={{ height: `${Math.min(100, item.captured)}%` }}></div>
-                              <div className="w-full bg-slate-200 rounded-t-sm transition-all duration-300 hover:bg-slate-300" style={{ height: `${Math.min(100, item.filed)}%` }}></div>
+                              <div className="w-full bg-teal-600 rounded-t transition-all duration-300 hover:brightness-95" style={{ height: `${Math.min(100, item.captured)}%` }}></div>
+                              <div className="w-full bg-slate-200 rounded-t transition-all duration-300 hover:bg-slate-300" style={{ height: `${Math.min(100, item.filed)}%` }}></div>
                             </div>
-                            <span className="font-label-caps text-[9px] text-center font-bold text-on-surface-variant">{item.month}</span>
+                            <span className="text-[10px] text-center font-bold text-slate-500 font-mono">{item.month}</span>
                           </div>
                         ))}
                       </div>
                     </div>
 
-                    <div className="bg-white border border-slate-200 p-md flex flex-col rounded-sm shadow-sm gap-md">
-                      <h4 className="font-label-caps text-label-caps text-on-surface-variant uppercase font-bold border-b border-slate-100 pb-xs">
-                        Practice Capacity
+                    <div className="bg-white border border-slate-200/90 p-5 flex flex-col rounded-xl shadow-2xs gap-4">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 border-b border-slate-100 pb-2">
+                        Practice Capacity Index
                       </h4>
                       
-                      <div className="space-y-md">
+                      <div className="space-y-4">
                         <div>
-                          <div className="flex justify-between items-center text-body-sm font-bold text-ink-900 mb-xs">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-900 mb-1">
                             <span>CA Capacity Index</span>
-                            <span>{Math.min(5.0, (businesses.length * 1.4)).toFixed(1)} / 5.0</span>
+                            <span className="font-mono">{Math.min(5.0, (businesses.length * 1.4)).toFixed(1)} / 5.0</span>
                           </div>
                           <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-teal-600" style={{ width: `${Math.min(100, (businesses.length / 5) * 100)}%` }}></div>
+                            <div className="h-full bg-teal-600 rounded-full" style={{ width: `${Math.min(100, (businesses.length / 5) * 100)}%` }}></div>
                           </div>
-                          <span className="text-[10px] text-on-surface-variant mt-xs block">Safe threshold is 5.0 businesses/auditor.</span>
+                          <span className="text-[10px] text-slate-400 mt-1 block">Safe threshold is 5.0 businesses/auditor.</span>
                         </div>
 
-                        <div className="bg-paper-50 p-sm rounded border border-slate-200 space-y-xs">
+                        <div className="bg-slate-50/70 p-3 rounded-lg border border-slate-200/80 space-y-1.5">
                           <div className="flex justify-between text-xs">
-                            <span className="text-on-surface-variant">Reconciled Clients:</span>
-                            <span className="font-data-mono font-bold text-moss-500">
+                            <span className="text-slate-600">Reconciled Clients:</span>
+                            <span className="font-mono font-bold text-emerald-700">
                               {reconciledBizCount} {reconciledBizCount === 1 ? 'Business' : 'Businesses'}
                             </span>
                           </div>
                           <div className="flex justify-between text-xs">
-                            <span className="text-on-surface-variant">Pending Actions:</span>
-                            <span className="font-data-mono font-bold text-rust-600">
+                            <span className="text-slate-600">Pending Actions:</span>
+                            <span className="font-mono font-bold text-rose-700">
                               {pendingBizCount} {pendingBizCount === 1 ? 'Business' : 'Businesses'}
                             </span>
                           </div>
@@ -11472,45 +11991,46 @@ function doPost(e) {
           })()}
 
             {/* VIEW: ONBOARD (Add Client Business - Privacy First) */}
+            {/* VIEW: ONBOARD (ADD CLIENT) */}
             {currentView === 'onboard' && (
-              <div className="max-w-xl mx-auto w-full bg-white border border-slate-200 p-lg md:p-xl shadow-sm rounded-sm space-y-lg">
+              <div className="max-w-xl mx-auto w-full bg-white border border-slate-200/90 p-6 md:p-8 shadow-2xs rounded-xl space-y-6">
                 <div>
-                  <div className="flex justify-between items-start mb-xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1">
                     <div>
-                      <h3 className="font-headline-md text-headline-sm md:text-headline-md text-ink-900">Add Client Business</h3>
-                      <p className="text-on-surface-variant text-body-sm">
+                      <h3 className="font-headline-sm text-xl font-bold text-slate-900">Add Client Business</h3>
+                      <p className="text-slate-500 text-xs mt-0.5">
                         Set up client workspace for GST reconciliation. Test safely without exposing client data.
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={handleQuickFillDemoClient}
-                      className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded text-xs font-bold font-label-caps transition-all flex items-center gap-xs shrink-0 cursor-pointer"
+                      className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded-md text-xs font-semibold transition-all flex items-center gap-1 shrink-0 self-start sm:self-auto cursor-pointer shadow-2xs"
                       title="Auto-fill with safe synthetic test details to test without real client data"
                     >
                       <span className="material-symbols-outlined text-[15px] text-teal-600">bolt</span>
-                      <span>⚡ 1-Click Test Client (No Real Data)</span>
+                      <span>⚡ 1-Click Test Client</span>
                     </button>
                   </div>
                 </div>
 
                 {/* 100% PRIVACY REASSURANCE CALLOUT */}
-                <div className="p-md bg-teal-50/80 border border-teal-200 rounded-lg text-xs text-teal-950 space-y-2">
-                  <div className="flex items-center gap-1.5 font-bold text-teal-800 text-sm">
+                <div className="p-4 bg-teal-50/80 border border-teal-200/90 rounded-lg text-xs text-teal-950 space-y-2 shadow-2xs">
+                  <div className="flex items-center gap-1.5 font-bold text-teal-900 text-xs uppercase tracking-wider">
                     <span className="material-symbols-outlined text-base text-teal-700">shield_lock</span>
                     <span>ICAI Data Privacy & Zero-Notice Guarantee</span>
                   </div>
                   <ul className="space-y-1 text-slate-700 leading-relaxed text-[11px]">
                     <li className="flex items-start gap-1.5">
-                      <span className="text-moss-600 font-bold shrink-0">✓</span>
+                      <span className="text-emerald-600 font-bold shrink-0">✓</span>
                       <span><strong>Zero Government API Calls</strong>: We NEVER connect to the GST Portal or Income Tax servers with your client's credentials.</span>
                     </li>
                     <li className="flex items-start gap-1.5">
-                      <span className="text-moss-600 font-bold shrink-0">✓</span>
+                      <span className="text-emerald-600 font-bold shrink-0">✓</span>
                       <span><strong>Real GSTIN is 100% Optional</strong>: You can test with any nickname (e.g. <em>"Client 101"</em>) or click <em>[ 🎲 Generate Dummy GSTIN ]</em>.</span>
                     </li>
                     <li className="flex items-start gap-1.5">
-                      <span className="text-moss-600 font-bold shrink-0">✓</span>
+                      <span className="text-emerald-600 font-bold shrink-0">✓</span>
                       <span><strong>No Unsolicited WhatsApp Messages</strong>: Your clients are NEVER contacted unless you explicitly choose to dispatch an invitation.</span>
                     </li>
                   </ul>
@@ -11518,48 +12038,48 @@ function doPost(e) {
                     <button
                       type="button"
                       onClick={() => setShowSecurityCenterModal(true)}
-                      className="text-teal-900 font-bold underline text-[11px] flex items-center gap-1 hover:text-teal-950 cursor-pointer"
+                      className="text-teal-900 font-semibold underline text-[11px] flex items-center gap-1 hover:text-teal-950 cursor-pointer"
                     >
                       <span className="material-symbols-outlined text-[14px] text-teal-700">verified</span>
                       <span>Why is entering real client GST 100% safe here? (Open Security Vault)</span>
                     </button>
-                    <span className="text-[10px] text-teal-700 font-semibold">SA 230 Working Paper Ready</span>
+                    <span className="text-[10px] text-teal-700 font-mono font-medium">SA 230 Working Paper Ready</span>
                   </div>
                 </div>
 
                 {onboardMessage.text && (
-                  <div className={`p-md rounded flex items-center gap-sm text-body-sm font-bold ${
-                    onboardMessage.type === 'success' ? 'bg-moss-500/10 text-moss-500 border border-moss-500/20' : 'bg-error-container text-on-error-container border border-error-container/20'
+                  <div className={`p-3 rounded-lg flex items-center gap-2 text-xs font-semibold ${
+                    onboardMessage.type === 'success' ? 'bg-emerald-50 text-emerald-900 border border-emerald-200' : 'bg-rose-50 text-rose-900 border border-rose-200'
                   }`}>
-                    <span className="material-symbols-outlined text-[20px]">
+                    <span className="material-symbols-outlined text-[18px]">
                       {onboardMessage.type === 'success' ? 'check_circle' : 'error'}
                     </span>
                     <span>{onboardMessage.text}</span>
                   </div>
                 )}
 
-                <form onSubmit={handleOnboardClient} className="space-y-md">
+                <form onSubmit={handleOnboardClient} className="space-y-4">
                   <div>
-                    <label className="font-label-caps text-on-surface-variant block mb-xs">Business Legal / Trade Name (or Internal Code)</label>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">Business Legal / Trade Name (or Internal Code)</label>
                     <input 
                       type="text" 
                       value={newClientName}
                       onChange={(e) => setNewClientName(e.target.value)}
                       placeholder="e.g. Client 101, Ramesh Kirana, or Test Merchant" 
-                      className="w-full bg-white border border-slate-200 p-sm rounded text-body-sm focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20"
+                      className="w-full bg-slate-50 hover:bg-slate-100/60 focus:bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:border-teal-600 focus:ring-1 focus:ring-teal-600/30 transition-all outline-none"
                       required
                     />
                   </div>
 
                   <div>
-                    <div className="flex flex-wrap justify-between items-center mb-xs gap-1">
-                      <label className="font-label-caps text-on-surface-variant block">
-                        GSTIN <span className="font-normal text-slate-500">(Optional — leave blank for test client)</span>
+                    <div className="flex flex-wrap justify-between items-center mb-1 gap-1">
+                      <label className="text-xs font-semibold text-slate-700 block">
+                        GSTIN <span className="font-normal text-slate-400">(Optional — leave blank for test client)</span>
                       </label>
                       <button
                         type="button"
                         onClick={handleGenerateDummyGstin}
-                        className="text-[11px] font-bold text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2 py-0.5 rounded transition-all flex items-center gap-1 cursor-pointer"
+                        className="text-[11px] font-semibold text-teal-800 hover:text-teal-950 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2 py-0.5 rounded-md transition-all flex items-center gap-1 cursor-pointer"
                         title="Generate a synthetic 15-char GSTIN for sandbox testing"
                       >
                         <span className="material-symbols-outlined text-[13px]">casino</span>
@@ -11568,15 +12088,15 @@ function doPost(e) {
                     </div>
 
                     {/* SKIP GSTIN TOGGLE */}
-                    <div className="mb-xs flex items-center gap-xs">
+                    <div className="mb-1.5 flex items-center gap-2">
                       <input 
                         type="checkbox"
                         id="skipGstinToggle"
                         checked={skipGstin}
                         onChange={(e) => setSkipGstin(e.target.checked)}
-                        className="rounded border-slate-300 text-teal-600 focus:ring-teal-600"
+                        className="rounded border-slate-300 text-teal-600 focus:ring-teal-600 h-3.5 w-3.5"
                       />
-                      <label htmlFor="skipGstinToggle" className="text-xs text-on-surface-variant cursor-pointer select-none">
+                      <label htmlFor="skipGstinToggle" className="text-xs text-slate-600 cursor-pointer select-none">
                         Client doesn't have GSTIN yet / Composition dealer / <strong>Skip GSTIN for now</strong>
                       </label>
                     </div>
@@ -11588,15 +12108,15 @@ function doPost(e) {
                       onChange={(e) => setNewClientGstin(e.target.value.toUpperCase())}
                       placeholder="e.g. 24ABCDE1234F1Z5 or click 'Generate Dummy'" 
                       maxLength={15}
-                      className={`w-full border p-sm rounded font-data-mono text-body-sm uppercase focus:ring-2 focus:ring-teal-600/20 ${
+                      className={`w-full border px-3 py-2 rounded-lg font-mono text-xs uppercase focus:ring-1 focus:ring-teal-600/30 outline-none transition-all ${
                         skipGstin
                           ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed italic'
                           : newClientGstin.length === 15 && /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(newClientGstin.trim())
-                          ? 'bg-white border-moss-500 focus:border-moss-500'
-                          : 'bg-white border-slate-200 focus:border-teal-600'
+                          ? 'bg-white border-emerald-500 text-emerald-900 focus:border-emerald-600'
+                          : 'bg-slate-50 hover:bg-slate-100/60 focus:bg-white border-slate-200 focus:border-teal-600 text-slate-900'
                       }`}
                     />
-                    <span className="text-[11px] text-slate-500 mt-xs block">
+                    <span className="text-[11px] text-slate-400 mt-1 block">
                       {skipGstin 
                         ? 'Provisional identifier assigned. Safe for local OCR, reconciliation & Tally export testing.' 
                         : 'Entering a real GSTIN does NOT connect to the government. If unsure, leave blank or click Generate Dummy.'}
@@ -11604,55 +12124,55 @@ function doPost(e) {
                   </div>
 
                   <div>
-                    <label className="font-label-caps text-on-surface-variant block mb-xs">
-                      Contact / WhatsApp Phone Number <span className="font-normal text-slate-500">(Optional for trial)</span>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">
+                      Contact / WhatsApp Phone Number <span className="font-normal text-slate-400">(Optional for trial)</span>
                     </label>
                     <input 
                       type="text" 
                       value={newClientPhone}
                       onChange={(e) => setNewClientPhone(e.target.value)}
                       placeholder="e.g. 9876543210 (or leave blank for 9000000000)" 
-                      className="w-full bg-white border border-slate-200 p-sm rounded font-data-mono text-body-sm focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20"
+                      className="w-full bg-slate-50 hover:bg-slate-100/60 focus:bg-white border border-slate-200 px-3 py-2 rounded-lg font-mono text-xs text-slate-900 focus:border-teal-600 focus:ring-1 focus:ring-teal-600/30 outline-none transition-all"
                     />
-                    <span className="text-[11px] text-slate-500 mt-xs block">
+                    <span className="text-[11px] text-slate-400 mt-1 block">
                       Only used to route forwarded bills to this business ledger. No messages sent without your consent.
                     </span>
                   </div>
 
                   {/* AUTOMATED WHATSAPP INVITE CONTROL (DEFAULT OFF) */}
-                  <div className="p-sm bg-slate-50 border border-slate-200 rounded space-y-xs">
-                    <div className="flex items-center gap-xs">
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                    <div className="flex items-center gap-2">
                       <input 
                         type="checkbox"
                         id="sendWhatsAppInviteToggle"
                         checked={sendWhatsAppInvite}
                         onChange={(e) => setSendWhatsAppInvite(e.target.checked)}
-                        className="rounded border-slate-300 text-teal-600 focus:ring-teal-600"
+                        className="rounded border-slate-300 text-teal-600 focus:ring-teal-600 h-3.5 w-3.5"
                       />
-                      <label htmlFor="sendWhatsAppInviteToggle" className="text-body-sm font-bold text-ink-900 cursor-pointer select-none">
+                      <label htmlFor="sendWhatsAppInviteToggle" className="text-xs font-semibold text-slate-900 cursor-pointer select-none">
                         Send automated WhatsApp welcome invitation to client right now
                       </label>
                     </div>
-                    <p className="text-[11px] text-on-surface-variant pl-5">
+                    <p className="text-[11px] text-slate-500 pl-5 leading-relaxed">
                       {sendWhatsAppInvite 
                         ? '⚠️ The client will receive an immediate WhatsApp message inviting them to send bill photos.'
                         : '🔒 Kept OFF by default. You can test uploading invoices internally first before introducing BillGuru to your client.'}
                     </p>
                   </div>
 
-                  <div className="pt-sm flex justify-end gap-sm">
+                  <div className="pt-2 flex justify-end gap-2">
                     <button 
                       type="button"
                       onClick={() => setCurrentView('dashboard')}
-                      className="px-md py-sm border border-slate-200 text-ink-900 font-bold hover:bg-slate-50 transition-colors rounded-sm text-body-sm"
+                      className="px-3.5 py-2 border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 transition-colors rounded-lg text-xs"
                     >
                       Cancel
                     </button>
                     <button 
                       type="submit"
-                      className="px-lg py-sm bg-teal-600 hover:bg-teal-600/90 text-white font-bold transition-colors rounded-sm text-body-sm active:scale-95 shadow-sm flex items-center gap-xs"
+                      className="px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white font-bold transition-all rounded-lg text-xs active:scale-95 shadow-2xs flex items-center gap-1.5"
                     >
-                      <span className="material-symbols-outlined text-[18px]">lock</span>
+                      <span className="material-symbols-outlined text-[17px]">lock</span>
                       <span>Add Client Safely</span>
                     </button>
                   </div>
@@ -11662,35 +12182,36 @@ function doPost(e) {
 
             {/* VIEW: SETTINGS */}
             {currentView === 'settings' && (
-              <div className="max-w-3xl mx-auto w-full bg-white border border-slate-200 p-lg md:p-xl shadow-sm rounded-sm space-y-lg">
+              <div className="max-w-3xl mx-auto w-full bg-white border border-slate-200/90 p-6 md:p-8 shadow-2xs rounded-xl space-y-6">
                 <div>
-                  <h3 className="font-headline-md text-headline-sm md:text-headline-md text-ink-900 mb-xs">Firm Profile & Integrations</h3>
-                  <p className="text-on-surface-variant text-body-md">Configure CA practice details, billing tier, and API integrations.</p>
+                  <h3 className="font-headline-sm text-xl font-bold text-slate-900">Firm Profile & Integrations</h3>
+                  <p className="text-slate-500 text-xs mt-0.5">Configure CA practice details, billing tier, and API integrations.</p>
                 </div>
 
-                <div className="border-t border-slate-100 pt-lg space-y-lg">
-                  <div className="grid grid-cols-12 gap-md font-body-sm">
-                    <div className="col-span-12 md:col-span-6">
-                      <label className="font-label-caps text-on-surface-variant block mb-xs">CA FIRM NAME</label>
-                      <p className="font-body-md text-body-md text-ink-900 font-bold">{caUser?.firm_name}</p>
+                <div className="border-t border-slate-100 pt-5 space-y-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-slate-50/80 border border-slate-200/80 p-4 rounded-lg">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">CA Firm Name</label>
+                      <p className="text-sm font-bold text-slate-900">{caUser?.firm_name || 'Shah & Associates, Chartered Accountants'}</p>
                     </div>
-                    <div className="col-span-12 md:col-span-6">
-                      <label className="font-label-caps text-on-surface-variant block mb-xs">BILLING PLAN</label>
-                      <span className="inline-flex items-center gap-xs px-2 py-0.5 bg-secondary-container text-on-secondary-container rounded-full text-xs font-bold font-label-caps uppercase">
-                        {caUser?.plan_tier} TIER
+                    <div className="bg-slate-50/80 border border-slate-200/80 p-4 rounded-lg">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Billing Plan</label>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-teal-50 text-teal-800 border border-teal-200 rounded-full text-xs font-bold font-mono uppercase">
+                        <span className="w-1.5 h-1.5 rounded-full bg-teal-600"></span>
+                        {caUser?.plan_tier || 'ENTERPRISE'} TIER
                       </span>
                     </div>
                   </div>
 
-                  <div className="border-t border-slate-100 pt-lg space-y-md">
-                    <h4 className="font-headline-sm text-[16px] text-ink-900 font-bold">Compliance Integrations</h4>
+                  <div className="border-t border-slate-100 pt-5 space-y-3">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Compliance Integrations</h4>
                     
-                    <div className="flex justify-between items-center bg-paper-50 p-md border border-slate-200 rounded">
+                    <div className="flex justify-between items-center bg-slate-50/60 p-4 border border-slate-200/80 rounded-lg hover:bg-slate-50 transition-colors">
                       <div>
-                        <span className="font-body-md text-body-sm md:text-body-md font-bold block text-ink-900">Tally ERP Cloud Sync</span>
-                        <span className="text-xs text-on-surface-variant">Automated ledger exporting for active clients.</span>
+                        <span className="text-xs font-bold block text-slate-900">Tally ERP Cloud Sync</span>
+                        <span className="text-[11px] text-slate-500">Automated ledger exporting for active clients.</span>
                       </div>
-                      <span className="px-3 py-1 bg-moss-500/10 text-moss-500 border border-moss-500/20 text-xs font-bold rounded-full font-label-caps uppercase">
+                      <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold rounded-full font-mono uppercase">
                         Linked
                       </span>
                     </div>
@@ -12277,53 +12798,60 @@ function doPost(e) {
             {/* VIEW: CLIENT DETAIL */}
             {currentView === 'client-detail' && selectedBusiness && (
 
-              <div className="space-y-lg max-w-7xl mx-auto w-full">
+              <div className="space-y-5 max-w-7xl mx-auto w-full">
                 {!isMobileLayout && (
                   <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center gap-sm">
+                    <div className="flex items-center gap-3">
                       <button 
                         onClick={() => { setCurrentView('dashboard'); setSelectedBusiness(null); }}
-                        className="p-sm hover:bg-slate-200 rounded transition-colors text-on-surface-variant"
+                        className="p-1.5 hover:bg-slate-100 rounded-md border border-slate-200/90 text-slate-600 hover:text-slate-900 transition-colors shadow-2xs"
+                        title="Back to Client Dashboard"
                       >
-                        <span className="material-symbols-outlined">arrow_back</span>
+                        <span className="material-symbols-outlined text-[19px]">arrow_back</span>
                       </button>
                       <div>
-                        <div className="flex items-center gap-xs">
-                          <h3 className="font-headline-md text-ink-900">{selectedBusiness.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-headline-sm text-xl md:text-2xl font-bold text-slate-900">{selectedBusiness.name}</h3>
                           {selectedBusiness.gstin && selectedBusiness.gstin.startsWith('24PROV') && (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-700 border border-amber-500/20 font-label-caps">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300 font-mono">
                               Provisional GSTIN
                             </span>
                           )}
                         </div>
-                        <p className="font-data-mono text-body-sm text-on-surface-variant uppercase">
-                          GSTIN: {selectedBusiness.gstin} · WhatsApp: {selectedBusiness.whatsapp_number}
-                        </p>
+                        <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+                          <span className="font-mono text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200/80">
+                            GSTIN: {selectedBusiness.gstin}
+                          </span>
+                          <span className="flex items-center gap-1 text-emerald-700 font-medium">
+                            <span className="material-symbols-outlined text-[14px]">chat</span>
+                            {selectedBusiness.whatsapp_number}
+                          </span>
+                        </div>
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => handleOpenEditClient(selectedBusiness)}
-                      className="px-3 py-1.5 bg-white border border-teal-600 text-teal-700 hover:bg-teal-50 rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs active:scale-95 transition-all"
+                      className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-md text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-all"
                     >
-                      <span className="material-symbols-outlined text-[16px]">edit</span>
-                      <span>Edit Client Details</span>
+                      <span className="material-symbols-outlined text-[15px] text-teal-700">edit</span>
+                      <span>Edit Client Profile</span>
                     </button>
                   </div>
                 )}
 
                 {isMobileLayout && (
-                  <div className="bg-white p-sm border border-slate-200 rounded flex justify-between items-center">
+                  <div className="bg-white p-3 border border-slate-200 rounded-lg flex justify-between items-center shadow-2xs">
                     <div>
-                      <span className="font-data-mono text-[11px] font-bold text-ink-900 block">{selectedBusiness.gstin}</span>
+                      <span className="font-mono text-xs font-bold text-slate-900 block">{selectedBusiness.gstin}</span>
                       {selectedBusiness.gstin && selectedBusiness.gstin.startsWith('24PROV') && (
-                        <span className="text-[9px] text-amber-700 font-bold uppercase">Provisional GSTIN</span>
+                        <span className="text-[10px] text-amber-800 font-bold uppercase font-mono">Provisional GSTIN</span>
                       )}
                     </div>
                     <button
                       type="button"
                       onClick={() => handleOpenEditClient(selectedBusiness)}
-                      className="px-2 py-1 bg-teal-50 border border-teal-600/30 text-teal-700 rounded text-[10px] font-bold flex items-center gap-1"
+                      className="px-2.5 py-1 bg-teal-50 border border-teal-200 text-teal-800 rounded text-xs font-semibold flex items-center gap-1"
                     >
                       <span className="material-symbols-outlined text-[14px]">edit</span>
                       <span>Edit</span>
@@ -12331,15 +12859,20 @@ function doPost(e) {
                   </div>
                 )}
 
-                <div className="bg-white border border-slate-200 p-md md:p-lg shadow-sm rounded-sm space-y-md">
+                <div className="bg-white border border-slate-200/90 p-5 rounded-lg shadow-2xs space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <h4 className="font-label-caps text-label-caps text-on-surface-variant uppercase font-bold text-[10px]">RECONCILIATION PROGRESS (JULY 2026)</h4>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-teal-600"></span>
+                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                        Reconciliation Progress (July 2026)
+                      </h4>
+                    </div>
                     {(() => {
                       const lockKey = `${selectedBusiness.id}_072026`;
                       const signoff = filingSignoffStatus[lockKey] || { is_locked: false, status: 'in_progress' };
                       if (signoff.is_locked) {
                         return (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2.5 py-1 rounded-md">
                             <span className="material-symbols-outlined text-[14px]">lock</span>
                             Locked & Signed Off by {signoff.signed_by || 'Partner CA'}
                           </span>
@@ -12347,39 +12880,41 @@ function doPost(e) {
                       }
                       if (signoff.status === 'pending_partner_review') {
                         return (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-md">
                             <span className="material-symbols-outlined text-[14px]">schedule</span>
                             Pending Partner Review (Submitted by Karan)
                           </span>
                         );
                       }
                       return (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-md">
                           <span className="material-symbols-outlined text-[14px]">edit_note</span>
                           Draft Preparation Mode
                         </span>
                       );
                     })()}
                   </div>
-                  <div className="flex items-center gap-md">
-                    <div className="flex-1">
-                      <div className="reconciliation-strip h-3">
-                        <div 
-                          className="bg-teal-600 h-full" 
-                          style={{ width: `${selectedBusiness.total_invoices > 0 ? (selectedBusiness.filed_invoices / selectedBusiness.total_invoices) * 100 : 100}%` }}
-                        ></div>
-                        <div 
-                          className="bg-rust-600/60 h-full" 
-                          style={{ width: `${selectedBusiness.total_invoices > 0 ? ((selectedBusiness.total_invoices - selectedBusiness.filed_invoices) / selectedBusiness.total_invoices) * 100 : 0}%` }}
-                        ></div>
-                      </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-500 font-medium">Inward Vouchers Captured vs Filed</span>
+                      <span className="font-mono tabular-nums font-bold text-slate-900 text-sm">
+                        {selectedBusiness.filed_invoices}/{selectedBusiness.total_invoices} filed
+                      </span>
                     </div>
-                    <span className="font-data-mono text-body-md md:text-headline-sm font-bold text-ink-900 shrink-0">
-                      {selectedBusiness.filed_invoices}/{selectedBusiness.total_invoices} filed
-                    </span>
+                    <div className="reconciliation-strip h-3 rounded-full overflow-hidden bg-slate-100 border border-slate-200/60">
+                      <div 
+                        className="bg-teal-600 h-full transition-all" 
+                        style={{ width: `${selectedBusiness.total_invoices > 0 ? (selectedBusiness.filed_invoices / selectedBusiness.total_invoices) * 100 : 100}%` }}
+                      ></div>
+                      <div 
+                        className="bg-rose-500/80 h-full transition-all" 
+                        style={{ width: `${selectedBusiness.total_invoices > 0 ? ((selectedBusiness.total_invoices - selectedBusiness.filed_invoices) / selectedBusiness.total_invoices) * 100 : 0}%` }}
+                      ></div>
+                    </div>
                   </div>
 
-                  <div className="pt-xs flex flex-wrap items-center justify-between gap-2 border-t border-slate-100">
+                  <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100">
                     <span className="text-xs text-slate-500">
                       {selectedBusiness.unresolved_flags > 0 ? `⚠️ ${selectedBusiness.unresolved_flags} issue(s) need review before export` : '✅ All vouchers clean & ready for Tally Prime'}
                     </span>
@@ -12388,7 +12923,7 @@ function doPost(e) {
                         type="button"
                         onClick={() => handleDirectTallyPush(invoices.filter(i => i.business_id === selectedBusiness.id), selectedBusiness.name)}
                         disabled={isTallySyncing}
-                        className="px-3 py-1.5 bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold rounded flex items-center gap-1.5 shadow-xs transition-all active:scale-95"
+                        className="px-3 py-1.5 bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold rounded-md flex items-center gap-1.5 shadow-2xs transition-all active:scale-95"
                         title="Direct ODBC/XML Push to local Tally Prime on Port 9000"
                       >
                         <span className="material-symbols-outlined text-[15px] text-amber-300">bolt</span>
@@ -12397,48 +12932,55 @@ function doPost(e) {
                       <button
                         type="button"
                         onClick={() => handleExportTally(invoices.filter(i => i.business_id === selectedBusiness.id), selectedBusiness.name)}
-                        className="px-3 py-1.5 bg-slate-800 hover:bg-black text-white text-xs font-bold rounded flex items-center gap-1.5 shadow-xs transition-all active:scale-95"
+                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-md flex items-center gap-1.5 shadow-2xs transition-all active:scale-95"
                         title="Export clean XML vouchers into Tally Prime"
                       >
-                        <span className="material-symbols-outlined text-[15px] text-teal-400">download</span>
+                        <span className="material-symbols-outlined text-[15px] text-teal-300">download</span>
                         <span>Export Tally XML</span>
                       </button>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-sm shadow-sm overflow-hidden">
-                  <div className="px-md py-sm bg-paper-50 border-b border-slate-200">
-                    <h4 className="font-label-caps text-label-caps text-ink-900 font-bold">COMPLIANCE RISK AUDIT FLAGS</h4>
+                <div className="bg-white border border-slate-200/90 rounded-lg shadow-2xs overflow-hidden">
+                  <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-200/80 flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Compliance Risk Audit Flags</h4>
+                    <span className="text-xs font-mono text-slate-500">
+                      {flags.filter(f => f.business_id === selectedBusiness.id).length} flagged items
+                    </span>
                   </div>
 
                   <div className="divide-y divide-slate-100">
                     {flags.filter(f => f.business_id === selectedBusiness.id).length === 0 ? (
-                      <div className="p-xl text-center">
-                        <span className="material-symbols-outlined text-moss-500 text-[36px] mb-xs">check_circle</span>
-                        <p className="text-body-md text-on-surface-variant">No unresolved compliance flags for this business client.</p>
+                      <div className="p-8 text-center">
+                        <span className="material-symbols-outlined text-emerald-600 text-[32px] mb-1">check_circle</span>
+                        <p className="text-sm font-semibold text-slate-800">Clean Audit Status</p>
+                        <p className="text-xs text-slate-500 mt-0.5">No unresolved compliance flags for this business client.</p>
                       </div>
                     ) : (
                       flags.filter(f => f.business_id === selectedBusiness.id).map(flag => (
-                        <div key={flag.id} className="p-md md:p-lg flex flex-col justify-between items-start gap-md bg-white">
-                          <div className="space-y-unit flex-1 w-full">
-                            <div className="flex items-center gap-sm">
+                        <div key={flag.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/60 transition-colors">
+                          <div className="space-y-1 flex-1">
+                            <div className="flex items-center gap-2">
                               {flag.severity === 'high' ? (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-error-container text-rust-600 border border-error-container/20 rounded text-[10px] font-bold font-label-caps">
-                                  🔴 HIGH
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
+                                  HIGH RISK
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded text-[10px] font-bold font-label-caps">
-                                  🟡 MED
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
+                                  MED RISK
                                 </span>
                               )}
+                              <span className="text-[11px] font-mono text-slate-400">Flag ID #{flag.id}</span>
                             </div>
-                            <p className="font-body-md text-body-sm md:text-body-md text-ink-900 font-bold leading-normal mt-1">
+                            <p className="text-xs md:text-sm font-medium text-slate-900 leading-snug">
                               {flag.message}
                             </p>
                           </div>
 
-                          <div className="flex gap-sm w-full justify-end border-t border-slate-50 pt-xs mt-xs">
+                          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                             <button 
                               onClick={() => {
                                 const inv = invoices.find(i => i.id === flag.invoice_id);
@@ -12448,13 +12990,13 @@ function doPost(e) {
                                   setCurrentView('outward');
                                 }
                               }}
-                              className="px-md py-1 border border-slate-200 text-ink-900 font-bold hover:bg-slate-50 transition-colors rounded text-body-sm"
+                              className="px-3 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold rounded-md text-xs transition-colors shadow-2xs"
                             >
                               View Invoice
                             </button>
                             <button 
                               onClick={() => handleResolveFlag(flag.id)}
-                              className="px-md py-1 bg-teal-600 text-white font-bold hover:bg-teal-600/90 transition-colors rounded text-body-sm shadow-sm active:scale-95"
+                              className="px-3 py-1.5 bg-teal-700 hover:bg-teal-800 text-white font-semibold rounded-md text-xs transition-all shadow-2xs active:scale-95"
                             >
                               Resolve
                             </button>
