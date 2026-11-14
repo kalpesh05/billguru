@@ -1,7 +1,7 @@
 process.env.NODE_ENV = 'test';
-require('dotenv').config();
-const fs = require('fs');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+const fs = require('fs');
 const { extractInvoiceWithGroq, isValidGstinChecksum } = require('./server.js');
 
 async function testOcr() {

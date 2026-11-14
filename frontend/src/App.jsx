@@ -2161,21 +2161,29 @@ ${vouchersXml}
     try {
       const res = await authFetch(`${API_BASE_URL}/api/tally/status`);
       const data = await res.json();
-      if (data.success) {
+      if (data.connected) {
         setTallyAgentStatus(data);
-        showToast(`⚡ Tally Prime Port 9000 Online! Connected to "${data.active_company}"`, 'success');
+        showToast(data.is_simulated ? `🧪 Demo Mode: Simulated Tally Connection` : `⚡ Live Tally Prime Online on Port 9000!`, 'success');
+        return;
+      } else {
+        setTallyAgentStatus(prev => ({
+          ...prev,
+          connected: false,
+          status_message: '🔴 TallyPrime not detected on 127.0.0.1:9000. Please enable Port 9000 in Tally, or use "Export Tally XML" for 1-click file import.'
+        }));
+        showToast('🔴 Tally Prime Port 9000 offline. Use "Export Tally XML" for instant file import.', 'warning');
         return;
       }
     } catch (e) {
-      console.warn('Backend tally status fallback:', e);
+      console.warn('Backend tally status check error:', e);
     }
     setTallyAgentStatus(prev => ({
       ...prev,
-      connected: true,
+      connected: false,
       last_synced_at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status_message: '🟢 Local XML Server Active on Port 9000. Ready for direct voucher push without file export.'
+      status_message: '🔴 Tally Prime XML Server is offline on Port 9000. Use standard "Export Tally XML" button to import vouchers.'
     }));
-    showToast('⚡ Tally Prime Port 9000 verified! Local XML Server connected.', 'success');
+    showToast('🔴 Tally Prime Port 9000 offline. You can still export clean XML vouchers via the Export button.', 'info');
   };
 
   // Phase 4: Push Reconciled Vouchers Directly into Offline Tally Prime via Port 9000
@@ -2197,8 +2205,10 @@ ${vouchersXml}
         })
       });
       const data = await res.json();
-      if (data.success) {
-        showToast(data.message || `⚡ Pushed ${data.vouchers_imported} vouchers directly into Tally Prime!`, 'success');
+      setIsTallySyncing(false);
+
+      if (data.success && data.connected) {
+        showToast(data.message || `⚡ Pushed ${data.vouchers_imported} vouchers directly into live Tally Prime!`, 'success');
         const newLog = {
           id: Date.now(),
           user_name: staffRole === 'partner_ca' ? (caFirmSettings.partner_name || 'CA Rajesh Shah, FCA') : 'Karan Dave (Article)',
@@ -2210,30 +2220,30 @@ ${vouchersXml}
           created_at: new Date().toISOString()
         };
         setAuditLogs(prev => [newLog, ...prev]);
-        setIsTallySyncing(false);
+        return;
+      } else {
+        // Honest fallback: Port 9000 is closed, automatically offer/trigger standard XML export
+        showToast(`⚠️ Tally Port 9000 not active. Exporting standard XML file for direct 1-click import into Tally...`, 'warning');
+        exportToTallyXml(list, company);
+        const newLog = {
+          id: Date.now(),
+          user_name: staffRole === 'partner_ca' ? (caFirmSettings.partner_name || 'CA Rajesh Shah, FCA') : 'Karan Dave (Article)',
+          user_role: staffRole,
+          action_type: 'TALLY_XML_FALLBACK_EXPORT',
+          entity_type: 'tally_sync',
+          entity_id: data.batch_id || `TL-FALLBACK-${Date.now().toString().slice(-6)}`,
+          description: `Exported ${list.length} verified vouchers to Tally XML file for manual import into company "${company}".`,
+          created_at: new Date().toISOString()
+        };
+        setAuditLogs(prev => [newLog, ...prev]);
         return;
       }
     } catch (e) {
-      console.warn('Backend direct push fallback:', e);
-    }
-
-    setTimeout(() => {
       setIsTallySyncing(false);
-      const batchId = `TL-BATCH-${Date.now().toString().slice(-6)}`;
-      const tallyGuid = `4b82d921-99af-41c2-9021-${Date.now().toString().slice(-8)}`;
-      showToast(`⚡ Direct Push Success: Transmitted ${list.length} vouchers to Tally Prime on Port 9000! (Batch: ${batchId})`, 'success');
-      const newLog = {
-        id: Date.now(),
-        user_name: staffRole === 'partner_ca' ? (caFirmSettings.partner_name || 'CA Rajesh Shah, FCA') : 'Karan Dave (Article)',
-        user_role: staffRole,
-        action_type: 'TALLY_ODBC_PUSH',
-        entity_type: 'tally_sync',
-        entity_id: batchId,
-        description: `Directly pushed ${list.length} purchase vouchers into local Tally Prime (Port 9000) for company "${company}". GUID: ${tallyGuid}. SHA-256 committed.`,
-        created_at: new Date().toISOString()
-      };
-      setAuditLogs(prev => [newLog, ...prev]);
-    }, 600);
+      console.warn('Backend direct push failed, falling back to clean XML export:', e);
+      showToast(`⚠️ Tally Port 9000 unreachable. Exporting XML file for direct Tally import...`, 'warning');
+      exportToTallyXml(list, company);
+    }
   };
 
   // Phase 4: Pull Chart of Accounts & Master Ledgers from Tally Prime
